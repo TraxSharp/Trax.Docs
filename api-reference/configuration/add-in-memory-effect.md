@@ -1,0 +1,49 @@
+---
+layout: default
+title: AddInMemoryEffect
+parent: Configuration
+grand_parent: API Reference
+nav_order: 2
+---
+
+# AddInMemoryEffect
+
+Adds in-memory database support for testing and development. No external database required. Data is lost when the application shuts down.
+
+## Signature
+
+```csharp
+public static TraxEffectConfigurationBuilder AddInMemoryEffect(
+    this TraxEffectConfigurationBuilder configurationBuilder
+)
+```
+
+## Parameters
+
+None.
+
+## Returns
+
+`TraxEffectConfigurationBuilder` — for continued fluent chaining.
+
+## Example
+
+```csharp
+services.AddTraxEffects(options => options
+    .AddInMemoryEffect()
+    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+);
+```
+
+## Remarks
+
+- Suitable for unit/integration testing and local development.
+- Data does not persist between application restarts.
+- Registers an `IDataContext` backed by an in-memory EF Core provider.
+- For production use, use [AddPostgresEffect]({{ site.baseurl }}{% link api-reference/configuration/add-postgres-effect.md %}) instead.
+
+## Package
+
+```
+dotnet add package Trax.Effect.Data.InMemory
+```
