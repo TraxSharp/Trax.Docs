@@ -19,7 +19,7 @@ dotnet add package Trax.Effect.Data.Postgres
 ```
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddPostgresEffect("Host=localhost;Database=app;Username=postgres;Password=pass")
 );
 ```
@@ -32,7 +32,7 @@ The provider uses Entity Framework Core with Npgsql. Workflow states and dead le
 
 ### What Gets Persisted
 
-Every `EffectWorkflow` execution creates a `Metadata` row:
+Every `ServiceTrain` execution creates a `Metadata` row:
 
 | Field | Description |
 |-------|-------------|
@@ -56,7 +56,7 @@ dotnet add package Trax.Effect.Data.InMemory
 ```
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddInMemoryEffect()
 );
 ```
@@ -69,10 +69,10 @@ Use this for unit tests and integration tests where you want metadata tracking w
 
 ```csharp
 var services = new ServiceCollection();
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options
         .AddInMemoryEffect()
-        .AddEffectWorkflowBus(typeof(MyWorkflow).Assembly)
+        .AddServiceTrainBus(typeof(MyWorkflow).Assembly)
 );
 
 var provider = services.BuildServiceProvider();
@@ -88,14 +88,14 @@ Assert.Equal(WorkflowState.Completed, metadata.WorkflowState);
 Logs the SQL queries that EF Core generates. Useful when debugging persistence issues or inspecting what the data provider is doing:
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options
         .AddPostgresEffect(connectionString)
         .AddEffectDataContextLogging(minimumLogLevel: LogLevel.Information)
 );
 ```
 
-You can also control the log level via the `TRAX_POSTGRES_LOG_LEVEL` environment variable without recompiling. The optional `blacklist` parameter filters out noisy namespaces:
+Log levels can also be changed at runtime via the Dashboard's Server Settings page. The optional `blacklist` parameter filters out noisy namespaces:
 
 ```csharp
 .AddEffectDataContextLogging(

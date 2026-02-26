@@ -8,7 +8,7 @@ nav_order: 2
 
 ## Prerequisites
 
-Trax 5.x targets `net10.0` exclusively. Make sure your project's target framework is set accordingly:
+Trax.Core 5.x targets `net10.0` exclusively. Make sure your project's target framework is set accordingly:
 
 ```xml
 <TargetFramework>net10.0</TargetFramework>
@@ -43,8 +43,8 @@ dotnet add package Trax.Effect
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Trax services
-builder.Services.AddTraxEffects(o => o.AddEffectWorkflowBus(typeof(Program).Assembly));
+// Add Trax.Core services
+builder.Services.AddTrax.CoreEffects(o => o.AddServiceTrainBus(typeof(Program).Assembly));
 
 // Add your application services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -55,7 +55,7 @@ var app = builder.Build();
 app.Run();
 ```
 
-*API Reference: [AddTraxEffects]({{ site.baseurl }}{% link api-reference/configuration.md %}), [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %})*
+*API Reference: [AddTrax.CoreEffects]({{ site.baseurl }}{% link api-reference/configuration.md %}), [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %})*
 
 ## Creating Your First Workflow
 
@@ -84,9 +84,9 @@ public record User
 ### 2. Implement the Workflow
 
 ```csharp
-public interface ICreateUserWorkflow : IEffectWorkflow<CreateUserRequest, User> { }
+public interface ICreateUserWorkflow : IServiceTrain<CreateUserRequest, User> { }
 
-public class CreateUserWorkflow : EffectWorkflow<CreateUserRequest, User>, ICreateUserWorkflow
+public class CreateUserWorkflow : ServiceTrain<CreateUserRequest, User>, ICreateUserWorkflow
 {
     protected override async Task<Either<Exception, User>> RunInternal(CreateUserRequest input)
         => Activate(input)
@@ -178,7 +178,7 @@ public class UsersController(IWorkflowBus workflowBus) : ControllerBase
 
 ## Next Steps
 
-- [Core Concepts](concepts.md) - Understand the ideas behind Trax
+- [Core Concepts](concepts.md) - Understand the ideas behind Trax.Core
 - [Usage Guide](usage-guide.md) - Patterns and examples for building workflows
 - [Mediator](usage-guide/mediator.md) - Dispatch workflows with the WorkflowBus
 - [Scheduling](scheduler.md) - Background job orchestration with retries and dead-lettering

@@ -8,13 +8,13 @@ nav_order: 3
 
 # AddEffectDataContextLogging
 
-Enables logging for database operations. Captures SQL queries, transaction boundaries, and errors into the Trax logging pipeline.
+Enables logging for database operations. Captures SQL queries, transaction boundaries, and errors into the Trax.Core logging pipeline.
 
 ## Signature
 
 ```csharp
-public static TraxEffectConfigurationBuilder AddEffectDataContextLogging(
-    this TraxEffectConfigurationBuilder configurationBuilder,
+public static Trax.CoreEffectConfigurationBuilder AddEffectDataContextLogging(
+    this Trax.CoreEffectConfigurationBuilder configurationBuilder,
     LogLevel? minimumLogLevel = null,
     List<string>? blacklist = null
 )
@@ -24,17 +24,17 @@ public static TraxEffectConfigurationBuilder AddEffectDataContextLogging(
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `minimumLogLevel` | `LogLevel?` | No | `LogLevel.Information` | Minimum log level to capture. Can be overridden by the `TRAX_POSTGRES_LOG_LEVEL` environment variable. |
+| `minimumLogLevel` | `LogLevel?` | No | `LogLevel.Information` | Minimum log level to capture. |
 | `blacklist` | `List<string>?` | No | `[]` (empty) | Namespace patterns to exclude from logging (e.g., `["Microsoft.EntityFrameworkCore.*"]`) |
 
 ## Returns
 
-`TraxEffectConfigurationBuilder` — for continued fluent chaining.
+`Trax.CoreEffectConfigurationBuilder` — for continued fluent chaining.
 
 ## Example
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
     .AddEffectDataContextLogging(
         minimumLogLevel: LogLevel.Warning,
@@ -45,5 +45,5 @@ services.AddTraxEffects(options => options
 ## Remarks
 
 - **Must** be called after a data provider ([AddPostgresEffect]({{ site.baseurl }}{% link api-reference/configuration/add-postgres-effect.md %}) or [AddInMemoryEffect]({{ site.baseurl }}{% link api-reference/configuration/add-in-memory-effect.md %})). Throws an `Exception` if no data provider is registered.
-- The `TRAX_POSTGRES_LOG_LEVEL` environment variable takes precedence over the `minimumLogLevel` parameter if set.
 - Registers `DataContextLoggingProvider` as an `ILoggerProvider`.
+- Log levels can be changed at runtime via the Dashboard's Server Settings page.

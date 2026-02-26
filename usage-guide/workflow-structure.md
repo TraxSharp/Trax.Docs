@@ -7,7 +7,7 @@ nav_order: 2
 
 # Workflow Structure
 
-As your application grows, you'll want a consistent way to organize workflows. Trax recommends grouping each workflow with its input, interface, and steps in a single folder:
+As your application grows, you'll want a consistent way to organize workflows. Trax.Core recommends grouping each workflow with its input, interface, and steps in a single folder:
 
 ```
 Workflows/
@@ -56,7 +56,7 @@ Define an interface for DI resolution and testing:
 ```csharp
 namespace YourApp.Workflows.CreateUser;
 
-public interface ICreateUserWorkflow : IEffectWorkflow<CreateUserRequest, User>;
+public interface ICreateUserWorkflow : IServiceTrain<CreateUserRequest, User>;
 ```
 
 One line. The interface exists for dependency injection and to make the workflow's contract explicit. When you see `ICreateUserWorkflow`, you immediately know it takes `CreateUserRequest` and returns `User`.
@@ -68,7 +68,7 @@ The workflow class lives alongside its interface:
 ```csharp
 namespace YourApp.Workflows.CreateUser;
 
-public class CreateUserWorkflow : EffectWorkflow<CreateUserRequest, User>, ICreateUserWorkflow
+public class CreateUserWorkflow : ServiceTrain<CreateUserRequest, User>, ICreateUserWorkflow
 {
     protected override async Task<Either<Exception, User>> RunInternal(CreateUserRequest input)
         => Activate(input)

@@ -13,8 +13,8 @@ Serializes workflow input and output parameters to JSON and stores them in the `
 ## Signature
 
 ```csharp
-public static TraxEffectConfigurationBuilder SaveWorkflowParameters(
-    this TraxEffectConfigurationBuilder builder,
+public static Trax.CoreEffectConfigurationBuilder SaveWorkflowParameters(
+    this Trax.CoreEffectConfigurationBuilder builder,
     JsonSerializerOptions? jsonSerializerOptions = null,
     Action<ParameterEffectConfiguration>? configure = null
 )
@@ -24,7 +24,7 @@ public static TraxEffectConfigurationBuilder SaveWorkflowParameters(
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `jsonSerializerOptions` | `JsonSerializerOptions?` | No | `TraxJsonSerializationOptions.Default` | Custom System.Text.Json options for parameter serialization |
+| `jsonSerializerOptions` | `JsonSerializerOptions?` | No | `Trax.CoreJsonSerializationOptions.Default` | Custom System.Text.Json options for parameter serialization |
 | `configure` | `Action<ParameterEffectConfiguration>?` | No | `null` | Optional callback to configure which parameters are serialized |
 
 ### ParameterEffectConfiguration
@@ -38,14 +38,14 @@ The configuration is registered as a singleton and can also be modified at runti
 
 ## Returns
 
-`TraxEffectConfigurationBuilder` — for continued fluent chaining.
+`Trax.CoreEffectConfigurationBuilder` — for continued fluent chaining.
 
 ## Examples
 
 Basic usage (saves both inputs and outputs):
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
     .SaveWorkflowParameters()
 );
@@ -54,7 +54,7 @@ services.AddTraxEffects(options => options
 Save only inputs (skip output serialization):
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
     .SaveWorkflowParameters(configure: cfg =>
     {
@@ -67,7 +67,7 @@ services.AddTraxEffects(options => options
 Custom JSON options with configuration:
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
     .SaveWorkflowParameters(
         jsonSerializerOptions: new JsonSerializerOptions { WriteIndented = false },

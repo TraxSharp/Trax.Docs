@@ -17,7 +17,7 @@ dotnet add package Trax.Effect.Provider.Parameter
 ```
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options
         .AddPostgresEffect(connectionString)
         .SaveWorkflowParameters()

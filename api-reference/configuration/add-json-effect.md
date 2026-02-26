@@ -13,8 +13,8 @@ Adds JSON change detection for tracking model mutations during workflow executio
 ## Signature
 
 ```csharp
-public static TraxEffectConfigurationBuilder AddJsonEffect(
-    this TraxEffectConfigurationBuilder configurationBuilder
+public static Trax.CoreEffectConfigurationBuilder AddJsonEffect(
+    this Trax.CoreEffectConfigurationBuilder configurationBuilder
 )
 ```
 
@@ -24,12 +24,12 @@ None.
 
 ## Returns
 
-`TraxEffectConfigurationBuilder` — for continued fluent chaining.
+`Trax.CoreEffectConfigurationBuilder` — for continued fluent chaining.
 
 ## Example
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
     .AddJsonEffect()
 );

@@ -19,14 +19,14 @@ dotnet add package Trax.Effect.Provider.Json
 ```
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddJsonEffect()
 );
 ```
 
 *API Reference: [AddJsonEffect]({{ site.baseurl }}{% link api-reference/configuration/add-json-effect.md %})*
 
-No configuration required. The provider uses the JSON serialization options from `ITraxEffectConfiguration` and logs at the level configured there.
+No configuration required. The provider uses the JSON serialization options from `ITrax.CoreEffectConfiguration` and logs at the level configured there.
 
 ## How It Works
 

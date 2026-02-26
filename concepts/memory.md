@@ -7,7 +7,7 @@ nav_order: 3
 
 # Memory
 
-Memory is how steps communicate in a Trax workflow. It's a type-keyed dictionary that the workflow maintains as it executes—each step pulls its input from Memory and pushes its output back in.
+Memory is how steps communicate in a Trax.Core workflow. It's a type-keyed dictionary that the workflow maintains as it executes—each step pulls its input from Memory and pushes its output back in.
 
 ## How It Works
 
@@ -37,7 +37,7 @@ Memory stores one value per type. If two steps both return `string`, the second 
 .Chain<GetLastNameStep>()    // Returns LastName
 ```
 
-This is why Trax encourages specific types (records, value objects) over primitives. A step signature like `Step<User, EmailAddress>` tells you more than `Step<User, string>`.
+This is why Trax.Core encourages specific types (records, value objects) over primitives. A step signature like `Step<User, EmailAddress>` tells you more than `Step<User, string>`.
 
 ## References, Not Copies
 
@@ -103,7 +103,7 @@ public class ProcessCheckoutStep : Step<(User, Order, Payment), Receipt>
 This lets you load multiple entities in one step and consume them individually—or as a group—in later steps:
 
 ```csharp
-public class CheckoutWorkflow : EffectWorkflow<CheckoutRequest, Receipt>
+public class CheckoutWorkflow : ServiceTrain<CheckoutRequest, Receipt>
 {
     protected override async Task<Either<Exception, Receipt>> RunInternal(CheckoutRequest input)
         => Activate(input)

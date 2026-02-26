@@ -6,26 +6,26 @@ nav_order: 12
 
 # Project Template
 
-Trax ships a `dotnet new` template that scaffolds a working server with Hangfire scheduling, PostgreSQL persistence, the Trax Dashboard, and a starter workflow—ready to run out of the box.
+Trax.Core ships a `dotnet new` template that scaffolds a working server with Hangfire scheduling, PostgreSQL persistence, the Trax.Core Dashboard, and a starter workflow—ready to run out of the box.
 
 ## Installation
 
 Install from NuGet:
 
 ```bash
-dotnet new install Trax.Templates
+dotnet new install Trax.Samples.Templates
 ```
 
 Or install from a local clone of the repository:
 
 ```bash
-dotnet new install ./templates/content/Trax.Server/
+dotnet new install ./templates/content/Trax.Samples.Server/
 ```
 
 ## Creating a Project
 
 ```bash
-dotnet new trax-server --name MyCompany.OrderService
+dotnet new chainsharp-server --name MyCompany.OrderService
 ```
 
 This creates a `MyCompany.OrderService/` directory with all namespaces, filenames, and the csproj set to `MyCompany.OrderService`.
@@ -35,7 +35,7 @@ This creates a `MyCompany.OrderService/` directory with all namespaces, filename
 By default the template uses a local development connection string. Override it at creation time:
 
 ```bash
-dotnet new trax-server --name MyCompany.OrderService \
+dotnet new chainsharp-server --name MyCompany.OrderService \
     --ConnectionString "Host=db.example.com;Port=5432;Database=orders;Username=app;Password=secret"
 ```
 
@@ -61,9 +61,9 @@ MyCompany.OrderService/
 
 A minimal `WebApplication` configured with:
 
-- **Trax Effects** — workflow bus, PostgreSQL persistence, JSON and parameter providers
+- **Trax.Core Effects** — workflow bus, PostgreSQL persistence, JSON and parameter providers
 - **Scheduler** — Hangfire backend with a HelloWorld job running every 20 seconds
-- **Dashboard** — Trax Dashboard at `/` and Hangfire Dashboard at `/hangfire`
+- **Dashboard** — Trax.Core Dashboard at `/` and Hangfire Dashboard at `/hangfire`
 - **Metadata Cleanup** — automatic cleanup of old execution records
 
 ### HelloWorld Workflow
@@ -71,7 +71,7 @@ A minimal `WebApplication` configured with:
 A single workflow with one step that logs a greeting. Use it as a reference for building your own workflows, then delete it when you're ready.
 
 ```csharp
-public class HelloWorldWorkflow : EffectWorkflow<HelloWorldInput, Unit>, IHelloWorldWorkflow
+public class HelloWorldWorkflow : ServiceTrain<HelloWorldInput, Unit>, IHelloWorldWorkflow
 {
     protected override async Task<Either<Exception, Unit>> RunInternal(HelloWorldInput input) =>
         Activate(input).Chain<LogGreetingStep>().Resolve();
@@ -82,7 +82,7 @@ public class HelloWorldWorkflow : EffectWorkflow<HelloWorldInput, Unit>, IHelloW
 
 ### Package References
 
-The generated csproj references all Trax packages at `5.*`, so you'll automatically pick up patch and minor updates:
+The generated csproj references all Trax.Core packages at `5.*`, so you'll automatically pick up patch and minor updates:
 
 ```xml
 <PackageReference Include="Trax.Effect" Version="5.*" />
@@ -104,7 +104,7 @@ The generated csproj references all Trax packages at `5.*`, so you'll automatica
 dotnet run
 ```
 
-3. Open `http://localhost:5000` for the Trax Dashboard
+3. Open `http://localhost:5000` for the Trax.Core Dashboard
 4. Open `http://localhost:5000/hangfire` for the Hangfire Dashboard
 
 The HelloWorld job will start running every 20 seconds. Check the dashboards to see execution records.
@@ -123,9 +123,9 @@ public record SyncCustomersInput : IManifestProperties
 2. Define a workflow interface and implementation:
 
 ```csharp
-public interface ISyncCustomersWorkflow : IEffectWorkflow<SyncCustomersInput, Unit>;
+public interface ISyncCustomersWorkflow : IServiceTrain<SyncCustomersInput, Unit>;
 
-public class SyncCustomersWorkflow : EffectWorkflow<SyncCustomersInput, Unit>, ISyncCustomersWorkflow
+public class SyncCustomersWorkflow : ServiceTrain<SyncCustomersInput, Unit>, ISyncCustomersWorkflow
 {
     protected override async Task<Either<Exception, Unit>> RunInternal(SyncCustomersInput input) =>
         Activate(input)
@@ -159,5 +159,5 @@ See [Scheduling](scheduler.md) for dependent workflows, bulk scheduling, and dea
 ## Uninstalling
 
 ```bash
-dotnet new uninstall Trax.Templates
+dotnet new uninstall Trax.Samples.Templates
 ```

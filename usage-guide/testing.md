@@ -80,7 +80,7 @@ public async Task CreateUserWorkflow_CreatesUser()
     var services = new ServiceCollection();
     services.AddSingleton<IUserRepository, FakeUserRepository>();
     services.AddSingleton<IEmailService, FakeEmailService>();
-    services.AddTraxEffects(o => o.AddEffectWorkflowBus(typeof(CreateUserWorkflow).Assembly));
+    services.AddTrax.CoreEffects(o => o.AddServiceTrainBus(typeof(CreateUserWorkflow).Assembly));
 
     var provider = services.BuildServiceProvider();
     var bus = provider.GetRequiredService<IWorkflowBus>();
@@ -99,7 +99,7 @@ public async Task CreateUserWorkflow_CreatesUser()
 }
 ```
 
-*API Reference: [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %}), [WorkflowBus.RunAsync]({{ site.baseurl }}{% link api-reference/mediator-api/workflow-bus.md %})*
+*API Reference: [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %}), [WorkflowBus.RunAsync]({{ site.baseurl }}{% link api-reference/mediator-api/workflow-bus.md %})*
 
 ## Integration Testing with InMemory Provider
 
@@ -112,10 +112,10 @@ public async Task Workflow_PersistsMetadata()
     // Arrange
     var services = new ServiceCollection();
     services.AddSingleton<IUserRepository, FakeUserRepository>();
-    services.AddTraxEffects(options =>
+    services.AddTrax.CoreEffects(options =>
         options
             .AddInMemoryEffect()
-            .AddEffectWorkflowBus(typeof(CreateUserWorkflow).Assembly)
+            .AddServiceTrainBus(typeof(CreateUserWorkflow).Assembly)
     );
 
     var provider = services.BuildServiceProvider();
@@ -132,4 +132,39 @@ public async Task Workflow_PersistsMetadata()
 }
 ```
 
-*API Reference: [AddInMemoryEffect]({{ site.baseurl }}{% link api-reference/configuration/add-in-memory-effect.md %}), [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %})*
+*API Reference: [AddInMemoryEffect]({{ site.baseurl }}{% link api-reference/configuration/add-in-memory-effect.md %}), [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %})*
+
+## Testing Cancellation
+
+Verify that your steps and workflows handle cancellation correctly by passing a pre-cancelled or timed token:
+
+```csharp
+[Test]
+public async Task Workflow_WithCancelledToken_DoesNotExecuteSteps()
+{
+    // Arrange
+    using var cts = new CancellationTokenSource();
+    cts.Cancel();
+    var workflow = new MyWorkflow();
+
+    // Act & Assert — workflow should throw, step should not run
+    var act = () => workflow.Run(input, cts.Token);
+    await act.Should().ThrowAsync<Exception>();
+}
+
+[Test]
+public async Task Step_UsesToken_ForAsyncOperations()
+{
+    // Arrange
+    using var cts = new CancellationTokenSource();
+    var workflow = new TestWorkflow(new MyStep());
+
+    // Act
+    await workflow.Run("input", cts.Token);
+
+    // Assert — verify the step received the token
+    // (access via a test helper that captures this.CancellationToken)
+}
+```
+
+*Full details: [Cancellation Tokens]({{ site.baseurl }}{% link usage-guide/cancellation-tokens.md %}#testing-with-cancellation-tokens)*

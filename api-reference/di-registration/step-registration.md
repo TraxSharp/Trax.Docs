@@ -8,22 +8,22 @@ nav_order: 2
 
 # Step Registration
 
-Extension methods for registering Trax steps with `[Inject]` property injection support. These are **aliases** for the corresponding [Workflow Registration]({{ site.baseurl }}{% link api-reference/di-registration/workflow-registration.md %}) methods — the injection behavior is identical.
+Extension methods for registering Trax.Core steps with `[Inject]` property injection support. These are **aliases** for the corresponding [Workflow Registration]({{ site.baseurl }}{% link api-reference/di-registration/workflow-registration.md %}) methods — the injection behavior is identical.
 
 ## Signatures
 
 ### Generic Overloads
 
 ```csharp
-public static IServiceCollection AddScopedTraxStep<TService, TImplementation>(
+public static IServiceCollection AddScopedTrax.CoreStep<TService, TImplementation>(
     this IServiceCollection services
 ) where TService : class where TImplementation : class, TService
 
-public static IServiceCollection AddTransientTraxStep<TService, TImplementation>(
+public static IServiceCollection AddTransientTrax.CoreStep<TService, TImplementation>(
     this IServiceCollection services
 ) where TService : class where TImplementation : class, TService
 
-public static IServiceCollection AddSingletonTraxStep<TService, TImplementation>(
+public static IServiceCollection AddSingletonTrax.CoreStep<TService, TImplementation>(
     this IServiceCollection services
 ) where TService : class where TImplementation : class, TService
 ```
@@ -31,15 +31,15 @@ public static IServiceCollection AddSingletonTraxStep<TService, TImplementation>
 ### Non-Generic Overloads
 
 ```csharp
-public static IServiceCollection AddScopedTraxStep(
+public static IServiceCollection AddScopedTrax.CoreStep(
     this IServiceCollection services, Type serviceInterface, Type serviceImplementation
 )
 
-public static IServiceCollection AddTransientTraxStep(
+public static IServiceCollection AddTransientTrax.CoreStep(
     this IServiceCollection services, Type serviceInterface, Type serviceImplementation
 )
 
-public static IServiceCollection AddSingletonTraxStep(
+public static IServiceCollection AddSingletonTrax.CoreStep(
     this IServiceCollection services, Type serviceInterface, Type serviceImplementation
 )
 ```
@@ -47,11 +47,11 @@ public static IServiceCollection AddSingletonTraxStep(
 ## Example
 
 ```csharp
-services.AddScopedTraxStep<IValidateOrderStep, ValidateOrderStep>();
-services.AddTransientTraxStep<IProcessPaymentStep, ProcessPaymentStep>();
+services.AddScopedTrax.CoreStep<IValidateOrderStep, ValidateOrderStep>();
+services.AddTransientTrax.CoreStep<IProcessPaymentStep, ProcessPaymentStep>();
 ```
 
 ## Remarks
 
-- These methods delegate directly to the workflow registration equivalents. They exist for semantic clarity — `AddTraxStep` communicates intent better than `AddTraxWorkflow` when registering steps.
+- These methods delegate directly to the workflow registration equivalents. They exist for semantic clarity — `AddTrax.CoreStep` communicates intent better than `AddTrax.CoreRoute` when registering steps.
 - Steps typically don't need manual DI registration unless they use `[Inject]` properties. Most steps are created by the workflow's `Chain<TStep>()` method using Memory-based constructor injection.

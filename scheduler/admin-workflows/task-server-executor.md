@@ -29,7 +29,7 @@ The `MetadataId` points to the `Metadata` row created by the [JobDispatcher](job
 
 ### LoadMetadataStep
 
-Loads the `Metadata` record by ID, eagerly including its `Manifest` navigation (needed later by `UpdateManifestSuccessStep`). If the input includes a non-null `Input` object, it wraps it in a `ResolvedWorkflowInput` for type-safe routing through Trax's memory system.
+Loads the `Metadata` record by ID, eagerly including its `Manifest` navigation (needed later by `UpdateManifestSuccessStep`). If the input includes a non-null `Input` object, it wraps it in a `ResolvedWorkflowInput` for type-safe routing through Trax.Core's memory system.
 
 ### ValidateMetadataStateStep
 
@@ -74,14 +74,14 @@ See [Multi-Server Concurrency](../concurrency.md) for the full cross-service con
 The `TaskServerExecutorWorkflow` lives in the `Trax.Scheduler` assembly. The `WorkflowBus` discovers workflows by scanning assemblies, so this assembly must be registered:
 
 ```csharp
-builder.Services.AddTraxEffects(options => options
-    .AddEffectWorkflowBus(
+builder.Services.AddTrax.CoreEffects(options => options
+    .AddServiceTrainBus(
         typeof(Program).Assembly,
         typeof(TaskServerExecutorWorkflow).Assembly  // required
     )
 );
 ```
 
-*API Reference: [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %})*
+*API Reference: [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %})*
 
 If you forget this, scheduled jobs will silently fail—Hangfire will invoke the TaskServerExecutor, but the WorkflowBus won't find it. No error, just nothing happens.

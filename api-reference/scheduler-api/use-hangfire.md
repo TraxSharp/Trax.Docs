@@ -10,7 +10,7 @@ nav_order: 2
 
 > **Deprecated**: Use [`UsePostgresTaskServer()`]({{ site.baseurl }}{% link api-reference/scheduler-api/use-postgres-task-server.md %}) instead. The Hangfire package will be removed in a future version.
 
-Configures [Hangfire](https://www.hangfire.io/) as the background task server for the Trax scheduler, using PostgreSQL for job storage.
+Configures [Hangfire](https://www.hangfire.io/) as the background task server for the Trax.Core scheduler, using PostgreSQL for job storage.
 
 ## Signature
 
@@ -34,9 +34,9 @@ public static SchedulerConfigurationBuilder UseHangfire(
 ## Example
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
-    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+    .AddServiceTrainBus(assemblies: typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
         .UseHangfire(connectionString)
         .Schedule<IMyWorkflow, MyInput>("my-job", new MyInput(), Every.Minutes(5))
@@ -46,9 +46,9 @@ services.AddTraxEffects(options => options
 
 ## Remarks
 
-- Hangfire's automatic retries are **disabled** — Trax manages retries through the manifest system (`DefaultMaxRetries`, `RetryBackoffMultiplier`, etc.).
+- Hangfire's automatic retries are **disabled** — Trax.Core manages retries through the manifest system (`DefaultMaxRetries`, `RetryBackoffMultiplier`, etc.).
 - Completed Hangfire jobs are auto-deleted to prevent storage bloat.
-- The `InvisibilityTimeout` is set to 30 minutes (above the default `DefaultJobTimeout` of 20 minutes) to prevent Hangfire from re-enqueuing long-running jobs that Trax is still tracking.
+- The `InvisibilityTimeout` is set to 30 minutes (above the default `DefaultJobTimeout` of 20 minutes) to prevent Hangfire from re-enqueuing long-running jobs that Trax.Core is still tracking.
 - Requires the `Trax.Scheduler.Hangfire` NuGet package.
 
 ## Package

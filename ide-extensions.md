@@ -44,11 +44,11 @@ Types are resolved by walking the step's type hierarchy to find `IStep<TIn, TOut
 
 ## VSCode
 
-**Source:** `plugins/vscode/trax-hints/`
+**Source:** `plugins/vscode/chainsharp-hints/`
 
 ### Installation
 
-Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Trax.trax-hints)
+Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Trax.Core.chainsharp-hints)
 
 ### Internals
 
@@ -62,7 +62,7 @@ Resolved types are cached per step class. The cache clears when any `.cs` file i
 
 ### Installation
 
-Search for **Trax Chain Hints** in JetBrains Marketplace.
+Search for **Trax.Core Chain Hints** in JetBrains Marketplace.
 
 Or build from source:
 
@@ -90,4 +90,4 @@ Dual-targeting project:
 - **ReSharper** (.NET 4.7.2): Standalone extension
 - **Rider** (Kotlin + .NET): .NET analysis runs in Rider's backend; Kotlin handles IDE integration
 
-Both targets share the C# analysis code in `src/dotnet/ReSharperPlugin.Trax/`.
+Both targets share the C# analysis code in `src/dotnet/ReSharperPlugin.Trax.Core/`.

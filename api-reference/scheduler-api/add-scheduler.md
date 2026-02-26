@@ -8,13 +8,13 @@ nav_order: 1
 
 # AddScheduler
 
-Adds the Trax scheduler subsystem. Registers `IManifestScheduler`, the background polling service, and all scheduler infrastructure. Provides a `SchedulerConfigurationBuilder` lambda for configuring global options, task servers, and startup schedules.
+Adds the Trax.Core scheduler subsystem. Registers `IManifestScheduler`, the background polling service, and all scheduler infrastructure. Provides a `SchedulerConfigurationBuilder` lambda for configuring global options, task servers, and startup schedules.
 
 ## Signature
 
 ```csharp
-public static TraxEffectConfigurationBuilder AddScheduler(
-    this TraxEffectConfigurationBuilder builder,
+public static Trax.CoreEffectConfigurationBuilder AddScheduler(
+    this Trax.CoreEffectConfigurationBuilder builder,
     Action<SchedulerConfigurationBuilder> configure
 )
 ```
@@ -27,16 +27,16 @@ public static TraxEffectConfigurationBuilder AddScheduler(
 
 ## Returns
 
-`TraxEffectConfigurationBuilder` — the parent builder, for continued fluent chaining.
+`Trax.CoreEffectConfigurationBuilder` — the parent builder, for continued fluent chaining.
 
 ## Example
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
-    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+    .AddServiceTrainBus(assemblies: typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
-        .UseHangfire(connectionString)
+        .UsePostgresTaskServer()
         .ManifestManagerPollingInterval(TimeSpan.FromSeconds(5))
         .JobDispatcherPollingInterval(TimeSpan.FromSeconds(5))
         .MaxActiveJobs(50)
@@ -48,12 +48,13 @@ services.AddTraxEffects(options => options
         .RecoverStuckJobsOnStartup()
         .DependentPriorityBoost(16)
         .AddMetadataCleanup()
-        .Schedule<IMyWorkflow, MyInput>(
+        .Schedule<IMyRoute>(
             "my-job",
             new MyInput(),
             Every.Minutes(5),
-            priority: 10,
-            groupId: "my-group")
+            options => options
+                .Priority(10)
+                .Group("my-group"))
     )
 );
 ```
@@ -78,7 +79,7 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 | `ManifestManagerPollingInterval(TimeSpan)` | interval | 5 seconds | How often the ManifestManager evaluates manifests and writes to the work queue |
 | `JobDispatcherPollingInterval(TimeSpan)` | interval | 5 seconds | How often the JobDispatcher reads from the work queue and dispatches to the task server |
 | `MaxActiveJobs(int?)` | maxJobs | 100 | Max concurrent active jobs (Pending + InProgress) globally. `null` = unlimited. Per-group limits can also be set from the dashboard on each ManifestGroup |
-| `ExcludeFromMaxActiveJobs<TWorkflow>()` | — | — | Excludes a workflow type from the MaxActiveJobs count |
+| `ExcludeFromMaxActiveJobs<TRoute>()` | — | — | Excludes a workflow type from the MaxActiveJobs count |
 | `DefaultMaxRetries(int)` | maxRetries | 3 | Retry attempts before dead-lettering |
 | `DefaultRetryDelay(TimeSpan)` | delay | 5 minutes | Base delay between retries |
 | `RetryBackoffMultiplier(double)` | multiplier | 2.0 | Exponential backoff multiplier. Set to 1.0 for constant delay |
@@ -99,7 +100,7 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 
 ## Remarks
 
-- `AddScheduler` requires a data provider (`AddPostgresEffect` or `AddInMemoryEffect`) and `AddEffectWorkflowBus` to be configured first.
+- `AddScheduler` requires a data provider (`AddPostgresEffect` or `AddInMemoryEffect`) and `AddServiceTrainBus` to be configured first.
 - Internal scheduler workflows (`ManifestManager`, `JobDispatcher`, `TaskServerExecutor`, `MetadataCleanup`) are automatically excluded from `MaxActiveJobs`.
 - Manifests declared via `Schedule`/`ScheduleMany` are not created immediately — they are seeded on application startup by the `SchedulerStartupService`.
 - Manifests declared via `Schedule`/`ThenInclude`/`Include` get a ManifestGroup based on their `groupId` parameter (defaults to externalId). Per-group dispatch controls (MaxActiveJobs, Priority, IsEnabled) are configured from the dashboard.

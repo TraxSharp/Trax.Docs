@@ -7,4 +7,4 @@ has_children: true
 
 # Usage Guide
 
-How to build workflows, configure providers, and use the chain methods available in Trax.
+How to build workflows, configure providers, and use the chain methods available in Trax.Core.

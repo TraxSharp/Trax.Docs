@@ -7,7 +7,7 @@ has_children: true
 
 # Core Concepts
 
-Trax borrows concepts from functional programming and applies them to workflow orchestration in .NET.
+Trax.Core borrows concepts from functional programming and applies them to workflow orchestration in .NET.
 
 ## Workflows, Steps, and Effects
 

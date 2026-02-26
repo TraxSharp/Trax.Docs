@@ -13,8 +13,8 @@ Adds PostgreSQL database support for persisting workflow metadata, logs, manifes
 ## Signature
 
 ```csharp
-public static TraxEffectConfigurationBuilder AddPostgresEffect(
-    this TraxEffectConfigurationBuilder configurationBuilder,
+public static Trax.CoreEffectConfigurationBuilder AddPostgresEffect(
+    this Trax.CoreEffectConfigurationBuilder configurationBuilder,
     string connectionString
 )
 ```
@@ -23,17 +23,17 @@ public static TraxEffectConfigurationBuilder AddPostgresEffect(
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `connectionString` | `string` | Yes | PostgreSQL connection string (e.g., `"Host=localhost;Database=trax;Username=postgres;Password=password"`) |
+| `connectionString` | `string` | Yes | PostgreSQL connection string (e.g., `"Host=localhost;Database=chainsharp;Username=postgres;Password=password"`) |
 
 ## Returns
 
-`TraxEffectConfigurationBuilder` — for continued fluent chaining.
+`Trax.CoreEffectConfigurationBuilder` — for continued fluent chaining.
 
 ## Example
 
 ```csharp
-services.AddTraxEffects(options => options
-    .AddPostgresEffect("Host=localhost;Database=trax;Username=postgres;Password=password")
+services.AddTrax.CoreEffects(options => options
+    .AddPostgresEffect("Host=localhost;Database=chainsharp;Username=postgres;Password=password")
     .AddEffectDataContextLogging()
 );
 ```

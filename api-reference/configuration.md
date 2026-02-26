@@ -8,18 +8,19 @@ has_children: true
 
 # Configuration
 
-All Trax Effect services are configured through a single entry point: `AddTraxEffects`. This method accepts a lambda that receives a `TraxEffectConfigurationBuilder`, which provides a fluent API for adding data providers, effect providers, and orchestration services.
+All Trax.Core Effect services are configured through a single entry point: `AddTrax.CoreEffects`. This method accepts a lambda that receives a `Trax.CoreEffectConfigurationBuilder`, which provides a fluent API for adding data providers, effect providers, and orchestration services.
 
 ## Entry Point
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
     .AddEffectDataContextLogging()
     .AddJsonEffect()
     .SaveWorkflowParameters()
     .AddStepLogger()
-    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+    .AddStepProgress()
+    .AddServiceTrainBus(assemblies: typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
         .UseHangfire(connectionString)
         .MaxActiveJobs(10)
@@ -30,23 +31,23 @@ services.AddTraxEffects(options => options
 ## Signature
 
 ```csharp
-public static IServiceCollection AddTraxEffects(
+public static IServiceCollection AddTrax.CoreEffects(
     this IServiceCollection serviceCollection,
-    Action<TraxEffectConfigurationBuilder>? options = null
+    Action<Trax.CoreEffectConfigurationBuilder>? options = null
 )
 ```
 
 ## Builder Properties
 
-These properties can be set directly on the `TraxEffectConfigurationBuilder`:
+These properties can be set directly on the `Trax.CoreEffectConfigurationBuilder`:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `ServiceCollection` | `IServiceCollection` | (from constructor) | Direct access to the DI container for manual registrations |
 | `SerializeStepData` | `bool` | `false` | Whether step input/output data should be serialized globally |
 | `LogLevel` | `LogLevel` | `LogLevel.Debug` | Minimum log level for effect logging |
-| `WorkflowParameterJsonSerializerOptions` | `JsonSerializerOptions` | `TraxJsonSerializationOptions.Default` | System.Text.Json options for parameter serialization |
-| `NewtonsoftJsonSerializerSettings` | `JsonSerializerSettings` | `TraxJsonSerializationOptions.NewtonsoftDefault` | Newtonsoft.Json settings for legacy serialization |
+| `WorkflowParameterJsonSerializerOptions` | `JsonSerializerOptions` | `Trax.CoreJsonSerializationOptions.Default` | System.Text.Json options for parameter serialization |
+| `NewtonsoftJsonSerializerSettings` | `JsonSerializerSettings` | `Trax.CoreJsonSerializationOptions.NewtonsoftDefault` | Newtonsoft.Json settings for legacy serialization |
 
 ## Extension Methods
 
@@ -58,6 +59,7 @@ These properties can be set directly on the `TraxEffectConfigurationBuilder`:
 | [AddJsonEffect]({{ site.baseurl }}{% link api-reference/configuration/add-json-effect.md %}) | Adds JSON change detection for tracking model mutations |
 | [SaveWorkflowParameters]({{ site.baseurl }}{% link api-reference/configuration/save-workflow-parameters.md %}) | Serializes workflow input/output to JSON for persistence (optionally configurable) |
 | [AddStepLogger]({{ site.baseurl }}{% link api-reference/configuration/add-step-logger.md %}) | Adds per-step execution logging |
-| [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %}) | Registers the WorkflowBus and discovers workflows via assembly scanning |
+| [AddStepProgress]({{ site.baseurl }}{% link api-reference/configuration/add-step-progress.md %}) | Adds step progress tracking and cross-server cancellation checking |
+| [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %}) | Registers the WorkflowBus and discovers workflows via assembly scanning |
 | [AddEffect / AddStepEffect]({{ site.baseurl }}{% link api-reference/configuration/add-effect.md %}) | Registers custom effect provider factories |
 | [SetEffectLogLevel]({{ site.baseurl }}{% link api-reference/configuration/set-effect-log-level.md %}) | Sets the minimum log level for effect logging |

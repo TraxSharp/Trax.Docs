@@ -8,22 +8,22 @@ nav_order: 1
 
 # Workflow Registration
 
-Extension methods for registering Trax workflows with the .NET DI container. These methods wrap standard `AddScoped`/`AddTransient`/`AddSingleton` and add `[Inject]` property injection support.
+Extension methods for registering Trax.Core workflows with the .NET DI container. These methods wrap standard `AddScoped`/`AddTransient`/`AddSingleton` and add `[Inject]` property injection support.
 
 ## Signatures
 
 ### Generic Overloads
 
 ```csharp
-public static IServiceCollection AddScopedTraxWorkflow<TService, TImplementation>(
+public static IServiceCollection AddScopedTrax.CoreRoute<TService, TImplementation>(
     this IServiceCollection services
 ) where TService : class where TImplementation : class, TService
 
-public static IServiceCollection AddTransientTraxWorkflow<TService, TImplementation>(
+public static IServiceCollection AddTransientTrax.CoreRoute<TService, TImplementation>(
     this IServiceCollection services
 ) where TService : class where TImplementation : class, TService
 
-public static IServiceCollection AddSingletonTraxWorkflow<TService, TImplementation>(
+public static IServiceCollection AddSingletonTrax.CoreRoute<TService, TImplementation>(
     this IServiceCollection services
 ) where TService : class where TImplementation : class, TService
 ```
@@ -31,19 +31,19 @@ public static IServiceCollection AddSingletonTraxWorkflow<TService, TImplementat
 ### Non-Generic Overloads
 
 ```csharp
-public static IServiceCollection AddScopedTraxWorkflow(
+public static IServiceCollection AddScopedTrax.CoreRoute(
     this IServiceCollection services,
     Type serviceInterface,
     Type serviceImplementation
 )
 
-public static IServiceCollection AddTransientTraxWorkflow(
+public static IServiceCollection AddTransientTrax.CoreRoute(
     this IServiceCollection services,
     Type serviceInterface,
     Type serviceImplementation
 )
 
-public static IServiceCollection AddSingletonTraxWorkflow(
+public static IServiceCollection AddSingletonTrax.CoreRoute(
     this IServiceCollection services,
     Type serviceInterface,
     Type serviceImplementation
@@ -64,8 +64,8 @@ public static IServiceCollection AddSingletonTraxWorkflow(
 ## Example
 
 ```csharp
-services.AddTransientTraxWorkflow<ICreateOrderWorkflow, CreateOrderWorkflow>();
-services.AddScopedTraxWorkflow<IProcessPaymentWorkflow, ProcessPaymentWorkflow>();
+services.AddTransientTrax.CoreRoute<ICreateOrderWorkflow, CreateOrderWorkflow>();
+services.AddScopedTrax.CoreRoute<IProcessPaymentWorkflow, ProcessPaymentWorkflow>();
 ```
 
 ## What It Does
@@ -78,18 +78,18 @@ services.AddScopedTraxWorkflow<IProcessPaymentWorkflow, ProcessPaymentWorkflow>(
 
 ## When to Use
 
-Use these methods when your workflow class (or its base class) uses `[Inject]` properties. For example, `EffectWorkflow<TIn, TOut>` has:
+Use these methods when your workflow class (or its base class) uses `[Inject]` properties. For example, `ServiceTrain<TIn, TOut>` has:
 
 ```csharp
 [Inject] public IEffectRunner? EffectRunner { get; set; }
-[Inject] public ILogger<EffectWorkflow<TIn, TOut>>? Logger { get; set; }
+[Inject] public ILogger<ServiceTrain<TIn, TOut>>? Logger { get; set; }
 [Inject] public IStepEffectRunner? StepEffectRunner { get; set; }
 ```
 
-Without `AddTraxWorkflow`, these properties would remain `null` after DI resolution.
+Without `AddTrax.CoreRoute`, these properties would remain `null` after DI resolution.
 
 ## Remarks
 
-- If your workflows are discovered via [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %}), you don't need to register them manually — the bus handles registration automatically.
+- If your workflows are discovered via [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/configuration/add-effect-workflow-bus.md %}), you don't need to register them manually — the bus handles registration automatically.
 - These methods are primarily useful for workflows registered outside of assembly scanning, or when you need explicit control over the DI lifetime.
 - The non-generic overloads accept `Type` parameters for dynamic/reflection-based registration scenarios.

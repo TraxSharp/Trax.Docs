@@ -13,8 +13,8 @@ Adds in-memory database support for testing and development. No external databas
 ## Signature
 
 ```csharp
-public static TraxEffectConfigurationBuilder AddInMemoryEffect(
-    this TraxEffectConfigurationBuilder configurationBuilder
+public static Trax.CoreEffectConfigurationBuilder AddInMemoryEffect(
+    this Trax.CoreEffectConfigurationBuilder configurationBuilder
 )
 ```
 
@@ -24,14 +24,14 @@ None.
 
 ## Returns
 
-`TraxEffectConfigurationBuilder` — for continued fluent chaining.
+`Trax.CoreEffectConfigurationBuilder` — for continued fluent chaining.
 
 ## Example
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddInMemoryEffect()
-    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+    .AddServiceTrainBus(assemblies: typeof(Program).Assembly)
 );
 ```
 

@@ -8,7 +8,7 @@ has_children: true
 
 # Mediator API
 
-The mediator pattern in Trax routes workflow execution by input type. Instead of injecting specific workflow interfaces, you inject `IWorkflowBus` and dispatch by passing the input object — the bus discovers and runs the correct workflow automatically.
+The mediator pattern in Trax.Core routes workflow execution by input type. Instead of injecting specific workflow interfaces, you inject `IWorkflowBus` and dispatch by passing the input object — the bus discovers and runs the correct workflow automatically.
 
 ```csharp
 // Instead of:
@@ -23,4 +23,4 @@ This decouples callers from specific workflow implementations and enables workfl
 | Page | Description |
 |------|-------------|
 | [WorkflowBus]({{ site.baseurl }}{% link api-reference/mediator-api/workflow-bus.md %}) | `IWorkflowBus` interface — `RunAsync`, `InitializeWorkflow` |
-| [AddEffectWorkflowBus]({{ site.baseurl }}{% link api-reference/mediator-api/add-effect-workflow-bus.md %}) | Registration and assembly scanning configuration |
+| [AddServiceTrainBus]({{ site.baseurl }}{% link api-reference/mediator-api/add-effect-workflow-bus.md %}) | Registration and assembly scanning configuration |

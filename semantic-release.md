@@ -6,7 +6,7 @@ nav_order: 10
 
 # Semantic Release
 
-Trax uses [semantic-release](https://github.com/semantic-release/semantic-release) to automatically version releases. When you push to `main`, it analyzes commits, determines the next version, updates `Directory.Build.props` and `CHANGELOG.md`, and publishes to NuGet.
+Trax.Core uses [semantic-release](https://github.com/semantic-release/semantic-release) to automatically version releases. When you push to `main`, it analyzes commits, determines the next version, updates `Directory.Build.props` and `CHANGELOG.md`, and publishes to NuGet.
 
 ## Commit Messages
 
@@ -93,7 +93,7 @@ Result: major version bump (5.1.0 → 6.0.0).
 
 After a release, you'll see:
 
-- **GitHub release page** with changelog (https://github.com/TraxSharp/Trax.Core/releases)
+- **GitHub release page** with changelog (https://github.com/Theauxm/Trax.Core/releases)
 - **CHANGELOG.md** updated with release notes
 - **Directory.Build.props** updated with new version
 - **NuGet packages** available on https://www.nuget.org/packages?q=Trax.Core

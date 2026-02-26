@@ -42,11 +42,11 @@ Orphan manifest cleanup is **enabled by default**. No additional configuration i
 If you create manifests dynamically at runtime via `IManifestScheduler` (outside of the startup configuration), disable orphan pruning to prevent those manifests from being deleted on restart:
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddScheduler(scheduler => scheduler
-        .UseHangfire(connectionString)
+        .UsePostgresTaskServer()
         .PruneOrphanedManifests(false)  // Disable orphan cleanup
-        .Schedule<IMyWorkflow, MyInput>(
+        .Schedule<IMyWorkflow>(
             "my-job",
             new MyInput(),
             Every.Minutes(5))
@@ -61,18 +61,18 @@ services.AddTraxEffects(options => options
 ```csharp
 // Before: two schedules defined
 scheduler
-    .Schedule<IHelloWorldWorkflow, HelloWorldInput>(
+    .Schedule<IHelloWorldWorkflow>(
         "hello-world",
         new HelloWorldInput { Name = "Scheduler" },
         Every.Seconds(20))
-    .Schedule<IGoodbyeWorldWorkflow, GoodbyeWorldInput>(
+    .Schedule<IGoodbyeWorldWorkflow>(
         "goodbye-world",
         new GoodbyeWorldInput { Name = "Scheduler" },
         Every.Minutes(1));
 
 // After: "goodbye-world" removed from code
 scheduler
-    .Schedule<IHelloWorldWorkflow, HelloWorldInput>(
+    .Schedule<IHelloWorldWorkflow>(
         "hello-world",
         new HelloWorldInput { Name = "Scheduler" },
         Every.Seconds(20));
@@ -87,12 +87,12 @@ scheduler
 ```csharp
 // Before: schedules defined
 scheduler
-    .Schedule<IMyWorkflow, MyInput>("my-job", new MyInput(), Every.Minutes(5));
+    .Schedule<IMyWorkflow>("my-job", new MyInput(), Every.Minutes(5));
 
 // After: all schedules removed
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddScheduler(scheduler => scheduler
-        .UseHangfire(connectionString))
+        .UsePostgresTaskServer())
 );
 
 // On next startup:

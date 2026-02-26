@@ -7,7 +7,7 @@ nav_order: 7
 
 # Multi-Server Concurrency
 
-Trax's scheduler is safe to run across multiple server instances sharing the same PostgreSQL database. Each polling service uses a different concurrency strategy matched to its semantics — advisory locks for leader election, row-level locking for parallel dispatch, and idempotent operations where neither is needed.
+Trax.Core's scheduler is safe to run across multiple server instances sharing the same PostgreSQL database. Each polling service uses a different concurrency strategy matched to its semantics — advisory locks for leader election, row-level locking for parallel dispatch, and idempotent operations where neither is needed.
 
 This page documents the concurrency model, the guarantees it provides, and the implications for multi-server deployments.
 
@@ -33,7 +33,7 @@ The race window exists between `LoadManifestsStep` (which reads `HasQueuedWork =
 The ManifestManagerPollingService acquires a PostgreSQL transaction-scoped advisory lock before running the workflow:
 
 ```sql
-SELECT pg_try_advisory_xact_lock(hashtext('trax_manifest_manager'))
+SELECT pg_try_advisory_xact_lock(hashtext('chainsharp_manifest_manager'))
 ```
 
 This is a **non-blocking try-lock**: if another server already holds the lock, the current server skips the cycle and waits for the next polling tick. No server ever blocks waiting for the lock.
@@ -56,9 +56,9 @@ COMMIT (releases lock)                ROLLBACK
 PostgreSQL advisory locks are application-level locks managed by the database but not tied to any table or row. They come in two flavors:
 
 - **Session-level** (`pg_advisory_lock`): held until explicitly released or the connection closes. Risky with connection pooling — if the connection returns to the pool with the lock held, it stays held until the connection is eventually closed.
-- **Transaction-scoped** (`pg_try_advisory_xact_lock`): automatically released when the transaction commits or rolls back. This is what Trax uses — no risk of leaked locks.
+- **Transaction-scoped** (`pg_try_advisory_xact_lock`): automatically released when the transaction commits or rolls back. This is what Trax.Core uses — no risk of leaked locks.
 
-The lock key is `hashtext('trax_manifest_manager')`, which produces a stable 32-bit integer from the string. This key is unique to Trax's ManifestManager — other applications using advisory locks on the same database would need to use the same key to conflict (which is astronomically unlikely with a descriptive string).
+The lock key is `hashtext('chainsharp_manifest_manager')`, which produces a stable 32-bit integer from the string. This key is unique to Trax.Core's ManifestManager — other applications using advisory locks on the same database would need to use the same key to conflict (which is astronomically unlikely with a descriptive string).
 
 ### Transaction Scope
 

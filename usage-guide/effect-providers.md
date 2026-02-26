@@ -16,12 +16,12 @@ Effect providers handle the side effects that happen when a workflow runs—data
 
 ```csharp
 // Production
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddPostgresEffect("Host=localhost;Database=app;Username=postgres;Password=pass")
 );
 
 // Testing
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddInMemoryEffect()
 );
 ```
@@ -42,7 +42,7 @@ See [Data Persistence](effect-providers/data-persistence.md) for the full breakd
 **Use when:** Debugging during development. Logs workflow state changes to your configured logger.
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddJsonEffect()
 );
 ```
@@ -58,7 +58,7 @@ See [JSON Effect](effect-providers/json-effect.md) for how change detection work
 **Use when:** You need to store workflow inputs/outputs in the database for later querying or replay.
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options
         .AddPostgresEffect(connectionString)
         .SaveWorkflowParameters()  // Serializes Input/Output to Metadata
@@ -86,7 +86,7 @@ See [Parameter Effect](effect-providers/parameter-effect.md) for details, custom
 **Use when:** You want structured logging for individual step executions inside a workflow.
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options.AddStepLogger(serializeStepData: true)
 );
 ```
@@ -99,28 +99,50 @@ Requires steps to inherit from `EffectStep<TIn, TOut>` instead of `Step<TIn, TOu
 
 See [Step Logger](effect-providers/step-logger.md) for the full StepMetadata field reference.
 
+## Step Progress & Cancellation Check (`AddStepProgress`)
+
+**Use when:** You need per-step progress visibility in the dashboard and/or the ability to cancel running workflows from the dashboard (including cross-server cancellation).
+
+```csharp
+services.AddTrax.CoreEffects(options =>
+    options.AddStepProgress()
+);
+```
+
+*API Reference: [AddStepProgress]({{ site.baseurl }}{% link api-reference/configuration/add-step-progress.md %})*
+
+This registers two step-level effect providers:
+
+1. **CancellationCheckProvider** — Before each step, queries the database for `Metadata.CancellationRequested`. If `true`, throws `OperationCanceledException`, which maps to `WorkflowState.Cancelled`.
+2. **StepProgressProvider** — Before each step, writes the step name and start time to `Metadata.CurrentlyRunningStep` and `Metadata.StepStartedAt`. After the step, clears both columns.
+
+The cancellation check runs first so a cancelled workflow never writes progress columns for a step that won't execute. Requires steps to inherit from `EffectStep<TIn, TOut>`.
+
+See [Step Progress](effect-providers/step-progress.md) for the dual-path cancellation architecture and dashboard integration.
+
 ## Combining Providers
 
 Providers compose. A typical production setup:
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options
         .AddPostgresEffect(connectionString)   // Persist metadata
         .SaveWorkflowParameters()              // Include input/output in metadata
         .AddStepLogger(serializeStepData: true) // Log individual step executions
-        .AddEffectWorkflowBus(assemblies)      // Enable workflow discovery
+        .AddStepProgress()                     // Step progress + cancellation check
+        .AddServiceTrainBus(assemblies)      // Enable workflow discovery
 );
 ```
 
 A typical development setup:
 
 ```csharp
-services.AddTraxEffects(options =>
+services.AddTrax.CoreEffects(options =>
     options
         .AddInMemoryEffect()                   // Fast, no database needed
         .AddJsonEffect()                       // Log state changes
         .AddStepLogger()                       // Log step executions
-        .AddEffectWorkflowBus(assemblies)
+        .AddServiceTrainBus(assemblies)
 );
 ```

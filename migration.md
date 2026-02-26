@@ -8,7 +8,7 @@ nav_order: 11
 
 ## Target Framework
 
-Trax 5.x targets `net10.0` exclusively. If your project is on `net8.0` or `net9.0`, you'll need to update your target framework before upgrading. Version 4.x is the last release supporting `net8.0`.
+Trax.Core 5.x targets `net10.0` exclusively. If your project is on `net8.0` or `net9.0`, you'll need to update your target framework before upgrading. Version 4.x is the last release supporting `net8.0`.
 
 ```xml
 <!-- Before -->
@@ -18,7 +18,7 @@ Trax 5.x targets `net10.0` exclusively. If your project is on `net8.0` or `net9.
 <TargetFramework>net10.0</TargetFramework>
 ```
 
-This affects your entire solution—every project that references a Trax 5.x package must target `net10.0`.
+This affects your entire solution—every project that references a Trax.Core 5.x package must target `net10.0`.
 
 ## Package Renames
 
@@ -42,7 +42,7 @@ The `using` statements follow the new package names. Find-and-replace works for 
 
 ## Dependency Updates
 
-Trax 5.x aligns all dependencies with .NET 10. If your project pins any of these packages directly, update them:
+Trax.Core 5.x aligns all dependencies with .NET 10. If your project pins any of these packages directly, update them:
 
 | Package | 4.x Version | 5.x Version |
 |---|---|---|
@@ -54,7 +54,7 @@ Trax 5.x aligns all dependencies with .NET 10. If your project pins any of these
 | `EFCore.NamingConventions` | 8.0.x | 10.0.1+ |
 | `Microsoft.Extensions.*` | 8.0.x | 10.0.3+ |
 
-These are transitive dependencies—Trax's NuGet packages pull in the correct versions automatically. You only need to act if your project has explicit `<PackageReference>` entries for any of these.
+These are transitive dependencies—Trax.Core's NuGet packages pull in the correct versions automatically. You only need to act if your project has explicit `<PackageReference>` entries for any of these.
 
 ## Npgsql Enum Mapping (Breaking Change)
 
@@ -91,7 +91,7 @@ services.AddDbContext<MyContext>(options =>
 
 Both registrations are necessary—the `NpgsqlDataSourceBuilder` mapping handles the ADO.NET layer, and the `UseNpgsql` callback mapping handles the EF Core model layer. Omitting the latter causes `column "x" is of type my_enum but expression is of type integer` errors at runtime.
 
-Trax handles this internally for its own enum types (`WorkflowState`, `LogLevel`, `ScheduleType`, `DeadLetterStatus`). This only affects you if you've added custom PostgreSQL enum types to your own `DbContext` that extends `DataContext<T>`.
+Trax.Core handles this internally for its own enum types (`WorkflowState`, `LogLevel`, `ScheduleType`, `DeadLetterStatus`). This only affects you if you've added custom PostgreSQL enum types to your own `DbContext` that extends `DataContext<T>`.
 
 ## Step-by-Step Upgrade
 

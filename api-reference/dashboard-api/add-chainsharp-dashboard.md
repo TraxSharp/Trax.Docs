@@ -1,21 +1,21 @@
 ---
 layout: default
-title: AddTraxDashboard
+title: AddTrax.CoreDashboard
 parent: Dashboard API
 grand_parent: API Reference
 nav_order: 1
 ---
 
-# AddTraxDashboard
+# AddTrax.CoreDashboard
 
-Registers Trax Dashboard services including Blazor/Radzen components, workflow discovery, theme state, and local storage.
+Registers Trax.Core Dashboard services including Blazor/Radzen components, workflow discovery, theme state, and local storage.
 
 ## Signatures
 
 ### Recommended: WebApplicationBuilder overload
 
 ```csharp
-public static WebApplicationBuilder AddTraxDashboard(
+public static WebApplicationBuilder AddTrax.CoreDashboard(
     this WebApplicationBuilder builder,
     Action<DashboardOptions>? configure = null
 )
@@ -26,7 +26,7 @@ This overload automatically calls `UseStaticWebAssets()` in non-Development envi
 ### IServiceCollection overload
 
 ```csharp
-public static IServiceCollection AddTraxDashboard(
+public static IServiceCollection AddTrax.CoreDashboard(
     this IServiceCollection services,
     Action<DashboardOptions>? configure = null
 )
@@ -51,13 +51,13 @@ When using this overload, you must manually call `builder.WebHost.UseStaticWebAs
 var builder = WebApplication.CreateBuilder(args);
 
 // Recommended approach
-builder.AddTraxDashboard(options =>
+builder.AddTrax.CoreDashboard(options =>
 {
     options.Title = "My App Dashboard";
 });
 
 var app = builder.Build();
-app.UseTraxDashboard(routePrefix: "/admin/trax");
+app.UseTrax.CoreDashboard(routePrefix: "/admin/chainsharp");
 ```
 
 ## What It Registers

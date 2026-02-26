@@ -7,7 +7,7 @@ has_children: true
 
 # Architecture
 
-How Trax's components fit together.
+How Trax.Core's components fit together.
 
 ## System Architecture Overview
 
@@ -30,12 +30,12 @@ How Trax's components fit together.
                     ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                     Trax.Effect                               │
-│    [EffectWorkflow] ────► [EffectRunner] ────► [EffectProviders]   │
+│    [ServiceTrain] ────► [EffectRunner] ────► [EffectProviders]     │
 └─────────────────────────────────┬───────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      Core Trax                                │
+│                      Core Trax.Core                                │
 │           [Workflow Engine] ────────► [Steps]                       │
 └─────────────────────────────────┬───────────────────────────────────┘
                                   │
@@ -54,7 +54,7 @@ How Trax's components fit together.
 ## Package Hierarchy
 
 ```
-Trax (Core)
+Trax.Core (Core)
     │
     ├─── Trax.Core.Analyzers (Compile-Time Chain Validation)
     │
@@ -82,7 +82,7 @@ Trax (Core)
 
 ```
 src/
-├── core/           Trax
+├── core/           Trax.Core
 ├── effect/         Trax.Effect
 ├── analyzers/      Trax.Core.Analyzers (Roslyn compile-time validation)
 ├── data/           Trax.Effect.Data
@@ -96,8 +96,8 @@ src/
 │                   Trax.Scheduler.Hangfire
 └── dashboard/      Trax.Dashboard
 plugins/
-├── vscode/         Trax Chain Hints (VSCode inlay hints extension)
-└── rider-resharper/ Trax Chain Hints (Rider/ReSharper inlay hints plugin)
+├── vscode/         Trax.Core Chain Hints (VSCode inlay hints extension)
+└── rider-resharper/ Trax.Core Chain Hints (Rider/ReSharper inlay hints plugin)
 tests/              Test projects
 samples/            Sample applications
 docs/               Documentation (GitHub Pages)

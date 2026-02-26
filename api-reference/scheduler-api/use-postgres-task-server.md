@@ -8,7 +8,7 @@ nav_order: 2
 
 # UsePostgresTaskServer
 
-Configures the built-in PostgreSQL task server as the background execution backend for the Trax scheduler.
+Configures the built-in PostgreSQL task server as the background execution backend for the Trax.Core scheduler.
 
 ## Signature
 
@@ -42,9 +42,9 @@ public SchedulerConfigurationBuilder UsePostgresTaskServer(
 ### Basic Usage (Defaults)
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
-    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+    .AddServiceTrainBus(assemblies: typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
         .UsePostgresTaskServer()
         .Schedule<IMyWorkflow, MyInput>("my-job", new MyInput(), Every.Minutes(5))
@@ -55,9 +55,9 @@ services.AddTraxEffects(options => options
 ### Custom Configuration
 
 ```csharp
-services.AddTraxEffects(options => options
+services.AddTrax.CoreEffects(options => options
     .AddPostgresEffect(connectionString)
-    .AddEffectWorkflowBus(assemblies: typeof(Program).Assembly)
+    .AddServiceTrainBus(assemblies: typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
         .UsePostgresTaskServer(options =>
         {
@@ -76,7 +76,7 @@ services.AddTraxEffects(options => options
 - No connection string parameter is needed. `UsePostgresTaskServer()` uses the same `IDataContext` registered by `AddPostgresEffect()`.
 - No additional NuGet packages required — this is included in `Trax.Scheduler`.
 - Jobs are queued to the `trax.background_job` table and dequeued atomically using PostgreSQL's `FOR UPDATE SKIP LOCKED`.
-- Workers delete job rows after execution (both success and failure). Trax's Metadata and DeadLetter tables handle the audit trail.
+- Workers delete job rows after execution (both success and failure). Trax.Core's Metadata and DeadLetter tables handle the audit trail.
 - If a worker crashes mid-execution, the job's `fetched_at` timestamp becomes stale and the job is reclaimed after `VisibilityTimeout`.
 
 ## Registered Services
