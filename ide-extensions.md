@@ -44,11 +44,11 @@ Types are resolved by walking the step's type hierarchy to find `IStep<TIn, TOut
 
 ## VSCode
 
-**Source:** `plugins/vscode/chainsharp-hints/`
+**Source:** `plugins/vscode/trax-hints/`
 
 ### Installation
 
-Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Trax.Core.chainsharp-hints)
+Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Trax.Core.trax-hints)
 
 ### Internals
 

@@ -23,6 +23,6 @@ app.UseTrax.CoreDashboard();
 
 | Page | Description |
 |------|-------------|
-| [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-chainsharp-dashboard.md %}) | Registers dashboard services (Blazor, Radzen, workflow discovery) |
-| [UseTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/use-chainsharp-dashboard.md %}) | Maps the dashboard Blazor components at a route prefix |
+| [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-trax-dashboard.md %}) | Registers dashboard services (Blazor, Radzen, workflow discovery) |
+| [UseTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/use-trax-dashboard.md %}) | Maps the dashboard Blazor components at a route prefix |
 | [DashboardOptions]({{ site.baseurl }}{% link api-reference/dashboard-api/dashboard-options.md %}) | Configuration options for route prefix, title, and environment |

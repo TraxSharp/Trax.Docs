@@ -68,7 +68,7 @@ For more on how this works, see [Core Concepts](concepts.md).
 
 Inlay hint extensions for VSCode and Rider/ReSharper. They show `TIn → TOut` types inline for each `.Chain<TStep>()` call.
 
-- **VSCode** — Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Trax.Core.chainsharp-hints)
+- **VSCode** — Install from the [VSCode Marketplace](https://marketplace.visualstudio.com/items?itemName=Trax.Core.trax-hints)
 - **Rider / ReSharper** — Search for **Trax.Core Chain Hints** in JetBrains Marketplace
 
 See [IDE Extensions](ide-extensions.md) for details.

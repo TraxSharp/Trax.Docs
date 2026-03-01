@@ -73,7 +73,7 @@ The ManifestManager uses a layered approach to prevent duplicate work queue entr
 The `ManifestManagerPollingService` acquires a PostgreSQL transaction-scoped advisory lock before invoking the workflow:
 
 ```sql
-SELECT pg_try_advisory_xact_lock(hashtext('chainsharp_manifest_manager'))
+SELECT pg_try_advisory_xact_lock(hashtext('trax_manifest_manager'))
 ```
 
 This is a **non-blocking try-lock** — if another server already holds it, the current server skips the cycle entirely and waits for the next polling tick. No server ever blocks waiting for the lock.

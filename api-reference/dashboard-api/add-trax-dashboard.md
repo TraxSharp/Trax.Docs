@@ -57,7 +57,7 @@ builder.AddTrax.CoreDashboard(options =>
 });
 
 var app = builder.Build();
-app.UseTrax.CoreDashboard(routePrefix: "/admin/chainsharp");
+app.UseTrax.CoreDashboard(routePrefix: "/admin/trax");
 ```
 
 ## What It Registers

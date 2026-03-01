@@ -36,14 +36,14 @@ builder.Services.AddTrax.CoreDashboard();
 
 var app = builder.Build();
 
-app.UseTrax.CoreDashboard("/chainsharp");
+app.UseTrax.CoreDashboard("/trax");
 
 app.Run();
 ```
 
-*API Reference: [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-chainsharp-dashboard.md %}), [UseTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/use-chainsharp-dashboard.md %})*
+*API Reference: [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-trax-dashboard.md %}), [UseTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/use-trax-dashboard.md %})*
 
-Navigate to `/chainsharp/workflows` and you'll see every `IServiceTrain` registered in your application.
+Navigate to `/trax/workflows` and you'll see every `IServiceTrain` registered in your application.
 
 ## What It Shows
 
@@ -109,7 +109,7 @@ Cancelled workflows are excluded from the success rate calculation — cancellat
 
 ### Effects Page
 
-The **Effects** page (`/chainsharp/settings/effects`) shows all registered effect and step effect provider factories. From this page you can:
+The **Effects** page (`/trax/settings/effects`) shows all registered effect and step effect provider factories. From this page you can:
 
 - **Enable/disable** toggleable effects at runtime (changes apply to the next workflow execution scope)
 - **Configure** effects that expose runtime settings — click the gear icon to open a dynamic form dialog
@@ -144,12 +144,12 @@ builder.Services.AddTrax.CoreDashboard(options =>
 });
 ```
 
-*API Reference: [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-chainsharp-dashboard.md %}), [DashboardOptions]({{ site.baseurl }}{% link api-reference/dashboard-api/dashboard-options.md %})*
+*API Reference: [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-trax-dashboard.md %}), [DashboardOptions]({{ site.baseurl }}{% link api-reference/dashboard-api/dashboard-options.md %})*
 
 The route prefix is set in `UseTrax.CoreDashboard`:
 
 ```csharp
-app.UseTrax.CoreDashboard("/admin/chainsharp");
+app.UseTrax.CoreDashboard("/admin/trax");
 ```
 
 ## Layout
@@ -158,7 +158,7 @@ The dashboard uses [Radzen Blazor](https://blazor.radzen.com/) v6 components wit
 
 ### User Settings
 
-The **User Settings** page (`/chainsharp/settings/user`) lets each user customize their dashboard experience. Settings are stored in browser `localStorage` and only affect the current session.
+The **User Settings** page (`/trax/settings/user`) lets each user customize their dashboard experience. Settings are stored in browser `localStorage` and only affect the current session.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -181,7 +181,7 @@ If your application is a minimal API or MVC app that doesn't use Blazor, the das
 ```csharp
 var app = builder.Build();
 
-app.UseTrax.CoreDashboard("/chainsharp");  // After Build(), before Run()
+app.UseTrax.CoreDashboard("/trax");  // After Build(), before Run()
 
 app.Run();
 ```

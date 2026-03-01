@@ -25,7 +25,7 @@ dotnet new install ./templates/content/Trax.Samples.Server/
 ## Creating a Project
 
 ```bash
-dotnet new chainsharp-server --name MyCompany.OrderService
+dotnet new trax-server --name MyCompany.OrderService
 ```
 
 This creates a `MyCompany.OrderService/` directory with all namespaces, filenames, and the csproj set to `MyCompany.OrderService`.
@@ -35,7 +35,7 @@ This creates a `MyCompany.OrderService/` directory with all namespaces, filename
 By default the template uses a local development connection string. Override it at creation time:
 
 ```bash
-dotnet new chainsharp-server --name MyCompany.OrderService \
+dotnet new trax-server --name MyCompany.OrderService \
     --ConnectionString "Host=db.example.com;Port=5432;Database=orders;Username=app;Password=secret"
 ```
 

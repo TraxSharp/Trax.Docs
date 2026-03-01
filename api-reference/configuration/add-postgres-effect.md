@@ -23,7 +23,7 @@ public static Trax.CoreEffectConfigurationBuilder AddPostgresEffect(
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `connectionString` | `string` | Yes | PostgreSQL connection string (e.g., `"Host=localhost;Database=chainsharp;Username=postgres;Password=password"`) |
+| `connectionString` | `string` | Yes | PostgreSQL connection string (e.g., `"Host=localhost;Database=trax;Username=postgres;Password=password"`) |
 
 ## Returns
 
@@ -33,7 +33,7 @@ public static Trax.CoreEffectConfigurationBuilder AddPostgresEffect(
 
 ```csharp
 services.AddTrax.CoreEffects(options => options
-    .AddPostgresEffect("Host=localhost;Database=chainsharp;Username=postgres;Password=password")
+    .AddPostgresEffect("Host=localhost;Database=trax;Username=postgres;Password=password")
     .AddEffectDataContextLogging()
 );
 ```

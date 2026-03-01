@@ -8,13 +8,13 @@ nav_order: 3
 
 # DashboardOptions
 
-Configuration class for the Trax.Core Dashboard. Passed via the `configure` callback in [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-chainsharp-dashboard.md %}).
+Configuration class for the Trax.Core Dashboard. Passed via the `configure` callback in [AddTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/add-trax-dashboard.md %}).
 
 ## Properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `RoutePrefix` | `string` | `"/chainsharp"` | URL prefix where the dashboard is mounted. Set automatically by [UseTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/use-chainsharp-dashboard.md %}). |
+| `RoutePrefix` | `string` | `"/trax"` | URL prefix where the dashboard is mounted. Set automatically by [UseTrax.CoreDashboard]({{ site.baseurl }}{% link api-reference/dashboard-api/use-trax-dashboard.md %}). |
 | `Title` | `string` | `"Trax.Core"` | Title displayed in the dashboard header and browser tab. |
 | `EnvironmentName` | `string` | `""` | The hosting environment name (e.g., "Development", "Production"). Auto-populated by `UseTrax.CoreDashboard`. |
 
