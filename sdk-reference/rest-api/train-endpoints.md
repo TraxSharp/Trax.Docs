@@ -23,14 +23,14 @@ Returns all trains registered via `AddServiceTrainBus`, including their input ty
 ```json
 [
   {
-    "serviceTypeName": "Trax.Samples.Api.Rest.Trains.Greet.IGreetTrain",
-    "implementationTypeName": "Trax.Samples.Api.Rest.Trains.Greet.GreetTrain",
-    "inputTypeName": "Trax.Samples.Api.Rest.Trains.Greet.GreetInput",
+    "serviceTypeName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.ILookupPlayerTrain",
+    "implementationTypeName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.LookupPlayerTrain",
+    "inputTypeName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.LookupPlayerInput",
     "outputTypeName": "Unit",
     "lifetime": "Scoped",
     "inputSchema": [
       {
-        "name": "Name",
+        "name": "PlayerId",
         "typeName": "String",
         "isNullable": true
       }
@@ -63,8 +63,8 @@ Creates a `WorkQueue` entry in the database. The scheduler picks it up on its ne
 
 ```json
 {
-  "trainName": "Trax.Samples.Api.Rest.Trains.Greet.IGreetTrain",
-  "input": { "name": "Alice" },
+  "trainName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.ILookupPlayerTrain",
+  "input": { "playerId": "player-42" },
   "priority": 10
 }
 ```
@@ -91,8 +91,8 @@ Creates a `WorkQueue` entry in the database. The scheduler picks it up on its ne
 curl -X POST http://localhost:5000/trax/api/trains/queue \
   -H "Content-Type: application/json" \
   -d '{
-    "trainName": "Trax.Samples.Api.Rest.Trains.Greet.IGreetTrain",
-    "input": { "name": "Alice" },
+    "trainName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.ILookupPlayerTrain",
+    "input": { "playerId": "player-42" },
     "priority": 10
   }'
 ```
@@ -114,8 +114,8 @@ The train's assemblies must be registered on the API machine — this endpoint c
 
 ```json
 {
-  "trainName": "Trax.Samples.Api.Rest.Trains.Greet.IGreetTrain",
-  "input": { "name": "Bob" }
+  "trainName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.ILookupPlayerTrain",
+  "input": { "playerId": "player-99" }
 }
 ```
 
@@ -139,8 +139,8 @@ The train's assemblies must be registered on the API machine — this endpoint c
 curl -X POST http://localhost:5000/trax/api/trains/run \
   -H "Content-Type: application/json" \
   -d '{
-    "trainName": "Trax.Samples.Api.Rest.Trains.Greet.IGreetTrain",
-    "input": { "name": "Bob" }
+    "trainName": "Trax.Samples.GameServer.Trains.Players.LookupPlayer.ILookupPlayerTrain",
+    "input": { "playerId": "player-99" }
   }'
 ```
 

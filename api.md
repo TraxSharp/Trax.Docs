@@ -177,12 +177,14 @@ The GraphQL API registers on a **named HotChocolate schema** (`"trax"`) rather t
 
 ## Sample Projects
 
-Working examples are in `Trax.Samples`:
+Working examples are in `Trax.Samples`, themed as a game server:
 
-- **`samples/Trax.Samples.Api.Rest`** — Standalone REST API with a sample train, scheduled job, and health check
-- **`samples/Trax.Samples.Api.GraphQL`** — Standalone GraphQL API with Banana Cake Pop IDE
+- **`samples/Trax.Samples.GameServer`** — Shared class library with all train definitions and API key authentication
+- **`samples/Trax.Samples.GameServer.Rest`** — REST API host with fake API key auth, per-train authorization, and no scheduler
+- **`samples/Trax.Samples.GameServer.GraphQL`** — GraphQL API host with Banana Cake Pop IDE, same auth setup
+- **`samples/Trax.Samples.GameServer.Scheduler`** — Scheduler host with dashboard, all scheduling patterns demonstrated
 
-Both samples include a `GreetTrain` for testing, a 1-minute scheduled job for query data, and `appsettings.json` pointing to the local PostgreSQL instance.
+The API and Scheduler run as separate processes against the same database. The API handles lightweight trains directly (`RunAsync`) and queues heavy work for the scheduler (`QueueAsync`).
 
 ## SDK Reference
 
