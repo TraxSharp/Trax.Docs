@@ -160,6 +160,17 @@ app.UseAuthentication();
 app.UseAuthorization();
 ```
 
+### Per-Train Authorization
+
+Since all trains share the same endpoints, endpoint-level auth can only answer "can this user access the API?" For finer control, decorate individual train classes with `[TraxAuthorize]`:
+
+```csharp
+[TraxAuthorize("Admin")]
+public class SensitiveTrain : ServiceTrain<SensitiveInput, Unit>, ISensitiveTrain { ... }
+```
+
+When the API receives a request to run or queue this train, it checks the current user against the policy before executing. Trains without the attribute have no per-train restriction. See the [Authorization]({{ site.baseurl }}{% link authorization.md %}) guide for details.
+
 ## Named GraphQL Schema
 
 The GraphQL API registers on a **named HotChocolate schema** (`"trax"`) rather than the default unnamed schema. This means it won't conflict with your own `AddGraphQLServer()` calls — both can coexist in the same application at different paths.
@@ -179,5 +190,6 @@ For complete endpoint documentation, request/response schemas, and method signat
 
 - [REST API]({{ site.baseurl }}{% link sdk-reference/rest-api.md %}) — endpoint mappings, request/response DTOs, curl examples
 - [GraphQL API]({{ site.baseurl }}{% link sdk-reference/graphql-api.md %}) — queries, mutations, HotChocolate setup
+- [Authorization]({{ site.baseurl }}{% link authorization.md %}) — per-train authorization with `[TraxAuthorize]`
 - [TrainDiscovery]({{ site.baseurl }}{% link sdk-reference/mediator-api/train-discovery.md %}) — how train discovery works
 - [TrainExecution]({{ site.baseurl }}{% link sdk-reference/mediator-api/train-execution.md %}) — queue and run services
