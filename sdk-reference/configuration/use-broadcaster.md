@@ -43,6 +43,8 @@ The `TrainEventReceiverService` automatically retries if the transport connectio
 
 When a train runs locally on the hub (via a `run` mutation), the `GraphQLSubscriptionHook` fires directly and notifies subscribers. The same event is also published to the message bus by `BroadcastLifecycleHook`. The `TrainEventReceiverService` detects this by comparing the event's `Executor` field against the local process name and **skips events that originated locally**. This prevents double-notification.
 
+The `Executor` field is always stamped by the **broadcasting process** (via `Assembly.GetEntryAssembly()`), not copied from `metadata.Executor`. This is important because metadata may be pre-created by a different process (e.g., the API pre-creates metadata for queued jobs that execute on a worker). If the hook used `metadata.Executor`, the hub would incorrectly discard worker events as "local."
+
 ## Abstractions
 
 The broadcaster system is built on four interfaces that allow alternative transport implementations:
@@ -83,7 +85,7 @@ The `TrainLifecycleEventMessage` is a serializable record containing:
 | `FailureStep` | `string?` | Step that failed (if applicable) |
 | `FailureReason` | `string?` | Failure message (if applicable) |
 | `EventType` | `string` | One of: `Started`, `Completed`, `Failed`, `Cancelled` |
-| `Executor` | `string?` | Assembly name of the process that executed the train |
+| `Executor` | `string?` | Assembly name of the process that broadcast the event |
 
 ## Transports
 

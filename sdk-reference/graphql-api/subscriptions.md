@@ -133,7 +133,7 @@ By default, subscriptions only fire for trains that execute in the same process 
 effects.UseBroadcaster(b => b.UseRabbitMq("amqp://guest:guest@localhost:5672"))
 ```
 
-When a broadcaster is configured, `AddTraxGraphQL()` automatically registers a `GraphQLTrainEventHandler` that receives remote lifecycle events from the message bus and forwards them to HotChocolate's subscription transport. Events from the local process are de-duplicated automatically.
+When a broadcaster is configured, `AddTraxGraphQL()` automatically registers a `GraphQLTrainEventHandler` that receives remote lifecycle events from the message bus and forwards them to HotChocolate's subscription transport. Like the local `GraphQLSubscriptionHook`, the remote handler also filters by `[TraxBroadcast]` — only trains with the attribute produce subscription events, regardless of which process executes them. Events from the local process are de-duplicated automatically.
 
 See [UseBroadcaster]({{ site.baseurl }}{% link sdk-reference/configuration/use-broadcaster.md %}) for full details.
 
