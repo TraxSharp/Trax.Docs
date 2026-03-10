@@ -120,6 +120,7 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 ## Remarks
 
 - `AddScheduler` requires `AddEffects()` and `AddMediator()` to be called first. This is enforced at compile time -- `AddScheduler` is only available on `TraxBuilderWithMediator`, which is the return type of `AddMediator()`.
+- `AddScheduler` requires a data provider (`UsePostgres()` or `UseInMemory()`). If no data provider is configured, `AddScheduler` throws `InvalidOperationException` at build time with a helpful error message showing the required configuration.
 - Internal scheduler trains (`ManifestManager`, `JobDispatcher`, `JobRunner`, `MetadataCleanup`) are automatically excluded from `MaxActiveJobs`.
 - Manifests declared via `Schedule`/`ScheduleMany` are not created immediately — they are seeded on application startup by the `SchedulerStartupService`.
 - Manifests declared via `Schedule`/`ThenInclude`/`Include` get a ManifestGroup based on their `groupId` parameter (defaults to externalId). Per-group dispatch controls (MaxActiveJobs, Priority, IsEnabled) are configured from the dashboard.

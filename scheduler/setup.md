@@ -24,10 +24,10 @@ The scheduler automatically selects the right job submitter based on your effect
 | Effect Configuration | Job Submitter | Behavior |
 |---------------------|---------------|----------|
 | `UsePostgres(...)` | `PostgresJobSubmitter` | Inserts into `trax.background_job` table. Requires `UseLocalWorkers()` or a remote worker to process jobs. |
-| `AddEffects()` (no database) | `InMemoryJobSubmitter` | Executes jobs inline, synchronously. No database needed. Good for testing and prototyping. |
+| `UseInMemory()` (no database) | `InMemoryJobSubmitter` | Executes jobs inline, synchronously. No database needed. Good for testing and prototyping. |
 | `OverrideSubmitter(...)` | Custom | Your own `IJobSubmitter` implementation takes priority over both defaults. |
 
-> **Validation:** The scheduler validates configuration at startup. Calling `UseLocalWorkers()` without `UsePostgres()` throws a clear `InvalidOperationException` with a message showing the fix. Similarly, `AddStepProgress()` without a data provider fails fast at startup.
+> **Validation:** The scheduler validates configuration at build time. `AddScheduler()` requires a data provider (`UsePostgres()` or `UseInMemory()`) — without one, it throws a clear `InvalidOperationException` with a message showing the fix. `UseLocalWorkers()` further requires `UsePostgres()` specifically. Similarly, `AddStepProgress()` without a data provider fails fast at build time.
 
 ### Configuration
 
