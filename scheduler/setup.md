@@ -71,7 +71,16 @@ app.Run();
 
 *SDK Reference: [AddScheduler]({{ site.baseurl }}{% link sdk-reference/scheduler-api/add-scheduler.md %}), [UseLocalWorkers]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-local-workers.md %}), [Schedule]({{ site.baseurl }}{% link sdk-reference/scheduler-api/schedule.md %})*
 
-`AddScheduler` registers three hosted services — `SchedulerStartupService` (seeds manifests and recovers stuck jobs on startup), `ManifestManagerPollingService` (evaluates manifests on a timer), and `JobDispatcherPollingService` (dispatches work queue entries on a timer). No extra startup call needed.
+`AddScheduler` registers hosted services based on the configured data provider:
+
+| Service | PostgreSQL | InMemory |
+|---------|-----------|----------|
+| `SchedulerStartupService` | Seeds manifests, recovers stuck jobs | Seeds manifests |
+| `ManifestManagerPollingService` | Evaluates manifests on a timer, creates work queue entries | Evaluates manifests on a timer, dispatches jobs inline |
+| `JobDispatcherPollingService` | Claims work queue entries via `FOR UPDATE SKIP LOCKED` | Not registered (InMemory dispatches directly) |
+| `MetadataCleanupPollingService` | Cleans up old metadata (if `AddMetadataCleanup()`) | Not registered (uses `ExecuteDeleteAsync`) |
+
+With InMemory, the `ManifestManagerPollingService` runs an `InMemoryManifestManagerTrain` that skips PostgreSQL-specific steps (`CancelTimedOutJobs`, `ReapStalePending`) and dispatches jobs directly via `InMemoryJobSubmitter` — no work queue or JobDispatcher needed.
 
 `UseLocalWorkers()` starts a background worker service that polls the `trax.background_job` table for queued jobs using PostgreSQL's `FOR UPDATE SKIP LOCKED` for atomic, lock-free dequeue. No extra connection string needed — it reuses the `IDataContext` from `UsePostgres()`. See [Job Submission]({{ site.baseurl }}{% link scheduler/job-submission.md %}) for architecture details.
 
