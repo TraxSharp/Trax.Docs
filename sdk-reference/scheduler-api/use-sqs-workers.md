@@ -136,7 +136,7 @@ public class Function
 
 The handler:
 1. Deserializes each SQS record as a `RemoteJobRequest`
-2. Resolves and runs `JobRunnerTrain` in a scoped DI container
+2. Delegates to `ITraxRequestHandler.ExecuteJobAsync` in a scoped DI container
 3. Re-throws exceptions so SQS retry and dead-letter queue policies apply
 
 ## Registered Services

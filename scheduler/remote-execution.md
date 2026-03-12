@@ -115,7 +115,7 @@ services.AddTrax(trax => trax
 );
 ```
 
-**Remote side (any ASP.NET Core host):**
+**Remote side (ASP.NET Core host):**
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -133,6 +133,30 @@ app.UseTraxJobRunner("/trax/execute");  // queue path
 app.UseTraxRunEndpoint("/trax/run");    // synchronous run path
 app.Run();
 ```
+
+**Remote side (AWS Lambda with `Trax.Runner.Lambda`):**
+
+```csharp
+using Amazon.Lambda.Core;
+using Amazon.Lambda.Serialization.SystemTextJson;
+using Trax.Runner.Lambda;
+
+[assembly: LambdaSerializer(typeof(DefaultLambdaJsonSerializer))]
+
+public class Function : TraxLambdaFunction
+{
+    protected override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        var connString = configuration.GetConnectionString("TraxDatabase")!;
+
+        services.AddTrax(trax => trax
+            .AddEffects(effects => effects.UsePostgres(connString))
+            .AddMediator(typeof(MyTrain).Assembly));
+    }
+}
+```
+
+The `TraxLambdaFunction` base class handles service provider lifecycle, request routing (`/trax/execute` and `/trax/run`), cancellation from Lambda's remaining time, and error handling. See the [TraxLambdaFunction API reference]({{ site.baseurl }}{% link sdk-reference/scheduler-api/trax-lambda-function.md %}) for details.
 
 ```
 ┌──── Scheduler Process ────┐         ┌──── Remote Process ────────────┐
@@ -225,7 +249,7 @@ public class Function
 - **Backpressure** — SQS buffers burst traffic; Lambda drains at a controlled rate
 - **High volume** — thousands of concurrent jobs without overwhelming endpoints
 
-**Sample:** See `Trax.Samples.ContentShield.Lambda` in the `samples/EphemeralWorkers/` directory of the Trax.Samples repository.
+**Sample:** The SQS transport is not yet production-ready. See the [Remote Workers](#model-2-remote-workers-push-based) model for the recommended Lambda deployment pattern using `TraxLambdaFunction`.
 
 ### Model 3: Standalone Workers (Poll-Based)
 
