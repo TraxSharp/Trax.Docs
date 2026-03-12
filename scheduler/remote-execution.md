@@ -33,7 +33,7 @@ Two abstraction boundaries control where trains execute:
 
 | Implementation | What it does |
 |----------------|-------------|
-| `PostgresJobSubmitter` | Inserts into `background_job` table (used by `UseLocalWorkers`) |
+| `PostgresJobSubmitter` | Inserts into `background_job` table (default when Postgres is configured) |
 | `HttpJobSubmitter` | POSTs to a remote HTTP endpoint (used by `UseRemoteWorkers`) |
 | `SqsJobSubmitter` | Sends to an SQS queue for Lambda consumption (used by [`UseSqsWorkers`]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-sqs-workers.md %}), requires `Trax.Scheduler.Sqs`) |
 | `InMemoryJobSubmitter` | Runs inline, synchronously (automatic default when no database provider is configured) |
@@ -59,7 +59,7 @@ services.AddTrax(trax => trax
     )
     .AddMediator(assemblies)
     .AddScheduler(scheduler => scheduler
-        .UseLocalWorkers(opts => opts.WorkerCount = 8)
+        .ConfigureLocalWorkers(opts => opts.WorkerCount = 8)
         .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
@@ -101,11 +101,13 @@ services.AddTrax(trax => trax
     )
     .AddMediator(assemblies)
     .AddScheduler(scheduler => scheduler
-        .UseRemoteWorkers(remote =>
-        {
-            remote.BaseUrl = "https://my-workers.example.com/trax/execute";
-            remote.Timeout = TimeSpan.FromSeconds(60);
-        })
+        .UseRemoteWorkers(
+            remote =>
+            {
+                remote.BaseUrl = "https://my-workers.example.com/trax/execute";
+                remote.Timeout = TimeSpan.FromSeconds(60);
+            },
+            routing => routing.ForTrain<IMyTrain>())
         // Optional: also offload run* mutations to the remote endpoint
         .UseRemoteRun(remote =>
             remote.BaseUrl = "https://my-workers.example.com/trax/run"
@@ -204,10 +206,9 @@ services.AddTrax(trax => trax
     )
     .AddMediator(assemblies)
     .AddScheduler(scheduler => scheduler
-        .UseSqsWorkers(sqs =>
-        {
-            sqs.QueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/trax-jobs";
-        })
+        .UseSqsWorkers(
+            sqs => sqs.QueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/trax-jobs",
+            routing => routing.ForTrain<IMyTrain>())
         // Optional: keep UseRemoteRun for synchronous mutations
         .UseRemoteRun(remote =>
             remote.BaseUrl = "https://my-runner.example.com/trax/run"
@@ -278,7 +279,7 @@ services.AddTrax(trax => trax
 );
 ```
 
-> **Tip:** `OverrideSubmitter` with `PostgresJobSubmitter` gives you a scheduler that only writes to the `background_job` table — no `LocalWorkerService` is started. If you want the scheduler to also execute some jobs locally, use `UseLocalWorkers()` instead and run standalone workers alongside it for horizontal scaling.
+> **Tip:** `OverrideSubmitter` with `PostgresJobSubmitter` gives you a scheduler that only writes to the `background_job` table — no `LocalWorkerService` is started. By default (without `OverrideSubmitter`), local workers are started automatically when Postgres is configured, and you can run standalone workers alongside them for horizontal scaling.
 
 **Standalone worker process:**
 
@@ -331,7 +332,20 @@ app.Run();
 | Different hardware per train type | **Remote Workers** — route to GPU/high-memory endpoints |
 | Just getting started | **Local Workers** — scale out later when you need to |
 
-You can also mix models. For example, run local workers for fast trains and remote workers for expensive GPU trains — using `OverrideSubmitter()` to route based on train type.
+You can also mix models. For example, run local workers for fast trains and remote workers for expensive GPU trains — using per-train routing with `ForTrain<T>()`:
+
+```csharp
+.AddScheduler(scheduler => scheduler
+    .ConfigureLocalWorkers(opts => opts.WorkerCount = 8)
+    .UseRemoteWorkers(
+        remote => remote.BaseUrl = "https://gpu-workers/trax/execute",
+        routing => routing
+            .ForTrain<IHeavyComputeTrain>()
+            .ForTrain<IAiInferenceTrain>())
+)
+```
+
+Trains not routed via `ForTrain<T>()` or `[TraxRemote]` execute locally.
 
 ## Authentication
 
@@ -340,22 +354,24 @@ Trax does not bake in any authentication mechanism. Both the scheduler and remot
 **Scheduler side** — configure the `HttpClient` used by `HttpJobSubmitter`:
 
 ```csharp
-.UseRemoteWorkers(remote =>
-{
-    remote.BaseUrl = "https://my-workers.example.com/trax/execute";
+.UseRemoteWorkers(
+    remote =>
+    {
+        remote.BaseUrl = "https://my-workers.example.com/trax/execute";
 
-    // Bearer token
-    remote.ConfigureHttpClient = client =>
-        client.DefaultRequestHeaders.Add("Authorization", "Bearer my-token");
+        // Bearer token
+        remote.ConfigureHttpClient = client =>
+            client.DefaultRequestHeaders.Add("Authorization", "Bearer my-token");
 
-    // Or API key
-    remote.ConfigureHttpClient = client =>
-        client.DefaultRequestHeaders.Add("X-Api-Key", "my-key");
+        // Or API key
+        remote.ConfigureHttpClient = client =>
+            client.DefaultRequestHeaders.Add("X-Api-Key", "my-key");
 
-    // Or any custom header your endpoint expects
-    remote.ConfigureHttpClient = client =>
-        client.DefaultRequestHeaders.Add("X-Custom-Header", "value");
-})
+        // Or any custom header your endpoint expects
+        remote.ConfigureHttpClient = client =>
+            client.DefaultRequestHeaders.Add("X-Custom-Header", "value");
+    },
+    routing => routing.ForTrain<IMyTrain>())
 ```
 
 **Remote side** — use ASP.NET middleware:
@@ -418,7 +434,7 @@ Failed metadata feeds into the normal retry pipeline — if the manifest has ret
 ## See Also
 
 - [Job Submission]({{ site.baseurl }}{% link scheduler/job-submission.md %}) — architecture of the job submission pipeline
-- [UseLocalWorkers]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-local-workers.md %}) — API reference for local workers
+- [ConfigureLocalWorkers]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-local-workers.md %}) — API reference for local worker configuration
 - [UseRemoteWorkers]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-remote-workers.md %}) — API reference for remote workers (HTTP)
 - [UseSqsWorkers]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-sqs-workers.md %}) — API reference for SQS workers (Lambda)
 - [UseRemoteRun]({{ site.baseurl }}{% link sdk-reference/scheduler-api/use-remote-run.md %}) — API reference for remote run execution

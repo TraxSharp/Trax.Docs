@@ -203,7 +203,6 @@ Register the schedule in `Program.cs`:
 
 ```csharp
 scheduler
-    .UseLocalWorkers()
     .Schedule<ISyncCustomersTrain>(
         "sync-customers",
         new SyncCustomersInput { Region = "us-east" },
