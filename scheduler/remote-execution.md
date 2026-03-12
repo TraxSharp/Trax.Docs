@@ -123,6 +123,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .UsePostgres(connectionString)
+        .UseBroadcaster(b => b.UseRabbitMq(rabbitMqConnectionString))
     )
     .AddMediator(typeof(MyTrain).Assembly)
 );
@@ -133,6 +134,8 @@ app.UseTraxJobRunner("/trax/execute");  // queue path
 app.UseTraxRunEndpoint("/trax/run");    // synchronous run path
 app.Run();
 ```
+
+The `UseBroadcaster()` call is essential for cross-process subscriptions — without it, the API process has no way to receive lifecycle events from the remote worker. See [UseBroadcaster]({{ site.baseurl }}{% link sdk-reference/configuration/use-broadcaster.md %}) for details.
 
 **Remote side (AWS Lambda with `Trax.Runner.Lambda`):**
 
@@ -148,9 +151,12 @@ public class Function : TraxLambdaFunction
     protected override void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
         var connString = configuration.GetConnectionString("TraxDatabase")!;
+        var rabbitMqConnString = configuration.GetConnectionString("RabbitMQ")!;
 
         services.AddTrax(trax => trax
-            .AddEffects(effects => effects.UsePostgres(connString))
+            .AddEffects(effects => effects
+                .UsePostgres(connString)
+                .UseBroadcaster(b => b.UseRabbitMq(rabbitMqConnString)))
             .AddMediator(typeof(MyTrain).Assembly));
     }
 }
