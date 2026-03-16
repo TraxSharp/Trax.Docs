@@ -74,6 +74,7 @@ public class TraxQueryModelAttribute : Attribute
     public string? Name { get; init; }
     public string? Description { get; init; }
     public string? DeprecationReason { get; init; }
+    public string? Namespace { get; init; }
     public bool Paging { get; init; } = true;
     public bool Filtering { get; init; } = true;
     public bool Sorting { get; init; } = true;
@@ -88,6 +89,7 @@ public class TraxQueryModelAttribute : Attribute
 | `Name` | `string?` | `null` | Overrides the auto-derived GraphQL field name. When null, derived by pluralizing and camelCasing the class name (e.g. `Player` → `players`). |
 | `Description` | `string?` | `null` | Human-readable description that appears in the GraphQL schema documentation. |
 | `DeprecationReason` | `string?` | `null` | Marks the generated field as deprecated in the schema. |
+| `Namespace` | `string?` | `null` | Groups this field under a sub-namespace. When set, the field appears under `discover { namespace { field } }` instead of directly under `discover`. |
 | `Paging` | `bool` | `true` | Enables cursor-based pagination (Relay Connection spec). When true, the field returns a Connection type with `nodes`, `edges`, `pageInfo`, and `totalCount`. |
 | `Filtering` | `bool` | `true` | Enables filtering via a `where` argument. HotChocolate generates filter input types for all entity properties. |
 | `Sorting` | `bool` | `true` | Enables sorting via an `order` argument. HotChocolate generates sort input types for all entity properties. |
