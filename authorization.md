@@ -129,22 +129,19 @@ Identical to the per-train surface. The table below repeats them for reference; 
 
 `QueryModelAuthorizationValidator` runs as a hosted service at host start. It throws if any entity references an authorization policy that has not been registered via `services.AddAuthorization(...)`. This catches typoed policy names (`"AdmnPolicy"`) before the first request rather than turning the gate into a silent deny-all in production. Roles are not validated against the principal store (Trax has no view of what roles can exist); attribute shape (empty or whitespace-only `Policy`, all-empty `Roles` CSV) is validated at `TraxGraphQLBuilder.Build` time.
 
-### Default Authentication Scheme Required
+### Authentication for Per-Model Gating
 
-Per-model `[TraxAuthorize]` enforcement runs HotChocolate's `@authorize` directive, which evaluates against `HttpContext.User`. ASP.NET Core's `UseAuthentication()` middleware only populates `HttpContext.User` from the **default authentication scheme**. When a host registers exactly one scheme (e.g. only `AddTraxApiKeyAuth(...)`), that scheme is auto-selected as default and gating works without additional setup. When **two or more schemes** are registered (api-key + JWT, api-key + cookie, etc.), no scheme is auto-default and HC sees an anonymous principal — meaning every gated query would reject every caller, including admins.
+Per-model `[TraxAuthorize]` enforcement runs HotChocolate's `@authorize` directive, which evaluates against `HttpContext.User`. ASP.NET Core's `UseAuthentication()` middleware only populates `HttpContext.User` from the **default authentication scheme**, so multi-scheme hosts (api-key + JWT, api-key + cookie, etc.) where no scheme is configured as the default would otherwise leave HC seeing an anonymous principal.
 
-Pin the default explicitly in multi-scheme hosts:
+Trax handles this automatically. When any registered `[TraxQueryModel]` entity carries `[TraxAuthorize]`, `AddTraxGraphQL` wires a HotChocolate `IHttpRequestInterceptor` (`QueryModelAuthenticationInterceptor`) that runs before each GraphQL HTTP request. The interceptor:
 
-```csharp
-builder.Services.AddTraxApiKeyAuth(keys => ...);
-builder.Services.AddTraxJwtAuth(...);
+1. Returns early if the request is already authenticated by upstream middleware or endpoint-level `RequireAuthorization`.
+2. Otherwise, walks every registered authentication scheme and attempts `AuthenticateAsync` against each. The first successful scheme wins; the resulting principal is assigned to `HttpContext.User` for the duration of the request.
+3. If no scheme matches the request's credentials, the principal stays anonymous — gated queries will then reject with `TRAX_AUTHORIZATION`.
 
-// Required when multiple schemes coexist. Pick the scheme that should
-// authenticate every request not otherwise tagged.
-builder.Services.AddAuthentication(Trax.Api.Auth.ApiKey.ApiKeyDefaults.SchemeName);
-```
+The interceptor runs only for GraphQL HTTP execution requests, so the Banana Cake Pop tool page and WebSocket subscription upgrades are not affected. Subscriptions authenticate separately via the per-scheme socket interceptors (`TraxApiKeySocketInterceptor`, `TraxJwtSocketInterceptor`).
 
-Per-train `[TraxAuthorize]` is not affected by this requirement because `TrainAuthorizationService` reads `HttpContext.User` after the request has flowed through `UseAuthentication()` for whichever scheme matched the credential header; the per-model directive runs earlier in HC's pipeline and only sees the default-scheme principal.
+No consumer configuration is required.
 
 ### Limitations
 
