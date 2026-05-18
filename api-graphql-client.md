@@ -18,11 +18,21 @@ dotnet add package Trax.Api.GraphQL.Client
 ```
 
 ```csharp
-services.AddGraphQLClient(new Uri("https://api.example.com/graphql"));
+services.AddTraxGraphQLClient(new Uri("https://api.example.com/graphql"));
+
+// Or, chain configuration:
+services
+    .AddTraxGraphQLClient(new Uri("https://api.example.com/graphql"))
+    .WithStrictness(ResponseStrictness.ThrowOnDrift)
+    .UseFileSchema("schema.graphql");
 
 // Optional: validate every IGraphQLClientRequest type in your assembly at startup.
 await app.Services.ValidateGraphQLClientAssembliesAsync(typeof(Program).Assembly);
 ```
+
+`AddTraxGraphQLClient` returns a `TraxGraphQLClientBuilder`. Chain `Use*Schema()` /
+`WithStrictness()` / `ConfigureHttpClient()` / `UseStartupValidation()` to layer features.
+If you don't chain anything, you get the kernel defaults (introspection + lenient).
 
 ## Query Modes
 
@@ -81,9 +91,10 @@ See `Trax.Api.GraphQL.Client.Typed`. The POCO declares the shape; the library ge
 | `AssemblySchemaProvider` | In-ecosystem only. Builds the server's `ISchema` in-process from its DLL. Strongest query-string guarantee with zero network and zero file drift. Ships in `Trax.Api.GraphQL.Client.Trax`. |
 
 ```csharp
-// Replace the default introspecting provider with a file-backed one
-services.Replace(ServiceDescriptor.Singleton<ISchemaProvider>(
-    sp => new FileSchemaProvider("schema.graphql")));
+// Pick a schema provider on the builder. Default is introspection; calling Use*Schema
+// swaps in the provider you want.
+services.AddTraxGraphQLClient(uri).UseFileSchema("schema.graphql");
+services.AddTraxGraphQLClient(uri).UseAssemblySchema(PlayerSchema.Configure);  // .Trax package
 ```
 
 ## Response Strictness
@@ -91,10 +102,7 @@ services.Replace(ServiceDescriptor.Singleton<ISchemaProvider>(
 Strict-extract catches "I added a field to the query but forgot to add it to the POCO" on the first response, not the hundredth bug report. Validation runs once per request type (cached) and only when the request uses the default `Extract`.
 
 ```csharp
-services.AddGraphQLClient(uri, opts =>
-{
-    opts.ResponseStrictness = ResponseStrictness.ThrowOnDrift;
-});
+services.AddTraxGraphQLClient(uri).WithStrictness(ResponseStrictness.ThrowOnDrift);
 ```
 
 | Setting | Behavior |
@@ -105,15 +113,25 @@ services.AddGraphQLClient(uri, opts =>
 
 ## Trax Integration
 
-The `Trax.Api.GraphQL.Client.Trax` package adds optional, opt-in features for in-ecosystem consumers:
+The `Trax.Api.GraphQL.Client.Trax` package contributes additional methods on the
+`TraxGraphQLClientBuilder` returned by `AddTraxGraphQLClient`:
 
-- `GraphQLQueryJunction<TRequest, TResponse>` — junction base that records operation name and duration via `JunctionProgressProvider`.
-- `TrainContextGraphQLLoggingHandler` — logs outbound queries to `trax.log` with `train_external_id`.
-- `AssemblySchemaProvider` — strongest schema source: builds the server's schema in-process from its DLL.
-- `[TraxOutboundQuery]` — attribute that surfaces the train's external-query dependencies in the dashboard.
+```csharp
+services
+    .AddTraxGraphQLClient(playerServiceUri)
+    .UseAssemblySchema(PlayerSchema.Configure)          // strongest schema source
+    .UseStartupValidation(typeof(Program).Assembly);    // boot fails on drift
+```
 
-None of these are required for the kernel to work. External consumers install only `Trax.Api.GraphQL.Client`.
+Available methods (extension methods on `TraxGraphQLClientBuilder`):
+
+| Method | What it does |
+|---|---|
+| `.UseAssemblySchema(configureDelegate)` | Builds the server's HotChocolate schema in-process from the same delegate the server uses. Zero network, zero file drift. |
+| `.UseStartupValidation(assemblies)` | Registers a hosted service that validates every `IGenericGraphQLClientRequest` at boot. Schema drift becomes a startup failure, not a runtime 400. |
+
+External consumers install only `Trax.Api.GraphQL.Client` and never see these methods.
 
 ## SDK Reference
 
-> [AddGraphQLClient](/docs/sdk-reference/graphql-client/add-graphql-client) | [ValidateGraphQLClientAssembliesAsync](/docs/sdk-reference/graphql-client/validate-assemblies) | [IGraphQLClientRequest](/docs/sdk-reference/graphql-client/i-graphql-client-request) | [GraphQLResourceRequest](/docs/sdk-reference/graphql-client/graphql-resource-request) | [FileSchemaProvider](/docs/sdk-reference/graphql-client/file-schema-provider) | [ResponseStrictness](/docs/sdk-reference/graphql-client/response-strictness)
+> [AddTraxGraphQLClient](/docs/sdk-reference/graphql-client/add-trax-graphql-client) | [TraxGraphQLClientBuilder](/docs/sdk-reference/graphql-client/builder) | [ValidateGraphQLClientAssembliesAsync](/docs/sdk-reference/graphql-client/validate-assemblies) | [IGraphQLClientRequest](/docs/sdk-reference/graphql-client/i-graphql-client-request) | [GraphQLResourceRequest](/docs/sdk-reference/graphql-client/graphql-resource-request) | [ResponseStrictness](/docs/sdk-reference/graphql-client/response-strictness)
