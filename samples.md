@@ -102,11 +102,11 @@ Different executables add different capabilities on top of the same trains. That
 
 Samples that own relational data follow a strict rule: **one project, one PostgreSQL schema, one DbContext** (1:1:1). The `Bookworm` sample is the reference implementation, with a `catalog` domain (books, authors) and a `lending` domain (members, loans) in separate projects, each owning its own schema.
 
-A domain context derives a shared base, `SampleDataContext<TSelf>`, which applies the default schema (on PostgreSQL), a UTC datetime converter, and seals `OnModelCreating` so the conventions cannot be skipped:
+A domain context derives a shared base, `DomainDataContext<TSelf>`, which applies the default schema (on PostgreSQL), a UTC datetime converter, and seals `OnModelCreating` so the conventions cannot be skipped:
 
 ```csharp
 public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
-    : SampleDataContext<CatalogDbContext>(options), ICatalogDbContext
+    : DomainDataContext<CatalogDbContext>(options), ICatalogDbContext
 {
     public DbSet<Book> Books => Set<Book>();
     public DbSet<Author> Authors => Set<Author>();
@@ -117,7 +117,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 }
 ```
 
-Each context ships a companion `I{Name}DbContext` interface; application code (junctions, services) depends on the interface, never the concrete type. Registration goes through `AddSampleDataContext<TInterface, TContext>`, which uses a pooled context factory plus a scoped resolver.
+Each context ships a companion `I{Name}DbContext` interface; application code (junctions, services) depends on the interface, never the concrete type. Registration goes through `AddDomainDataContext<TInterface, TContext>` (from Trax.Effect.Data), which uses a pooled context factory plus a scoped resolver.
 
 ### Crossing schema boundaries
 
