@@ -24,35 +24,35 @@ A checker returns a `GuardResult` with the offenders it found, how many items it
 
 ## Consuming the guards
 
-Reference the packages you need in a test project and write a one-line `[Test]` per guard. The checkers do not depend on a test framework, so you assert with whatever you already use:
+Each package ships abstract NUnit base fixtures with the `[Test]` methods already written. Reference the packages in a test project, subclass the fixtures you want, supply your configuration, and run `dotnet test`. You write no test bodies, only configuration:
 
 ```csharp
-private static ArchitectureGuardOptions Options =>
-    new() { SourceScanRoots = ["libs", "apps"] };   // where your source lives
-
-[Test]
-public void DomainContextsDeriveTheSharedBase()
+[TestFixture]
+public sealed class MyDataLayerGuards : DomainDataLayerGuardFixture
 {
-    var result = DataLayerGuards.DomainContextsDeriveBase(Options);
-    result.Offenders.Should().BeEmpty(result.FailureMessage);
+    protected override ArchitectureGuardOptions Options => new() { SourceScanRoots = ["libs", "apps"] };
+    protected override IReadOnlyList<Type> DomainContexts => [typeof(CatalogDbContext), typeof(LendingDbContext)];
 }
 
-[Test]
-public void CrossSchemaEdgeManifestIsValid()
+[TestFixture]
+public sealed class MyCrossSchemaGuards : CrossSchemaGuardFixture
 {
-    var result = CrossSchemaGuards.EdgeManifestIsValid(MyCrossSchemaEdges.All);
-    result.Offenders.Should().BeEmpty(result.FailureMessage);
+    protected override ArchitectureGuardOptions Options => new() { SourceScanRoots = ["libs"] };
+    protected override IReadOnlyList<CrossSchemaEdge> Edges => MyCrossSchemaEdges.All;
 }
 
-[Test]
-public void EveryTrainHasACompanionInterface()
+[TestFixture]
+public sealed class MyTrainGuards : TrainGuardFixture
 {
-    var result = TrainGuards.EveryTrainHasInterface([typeof(MyAssemblyMarker).Assembly]);
-    result.Offenders.Should().BeEmpty(result.FailureMessage);
+    protected override IReadOnlyList<Assembly> TrainAssemblies => [typeof(MyAssemblyMarker).Assembly];
 }
 ```
 
+That is the whole test project. `dotnet test` discovers the inherited `[Test]` methods through your subclasses. Subclass only the fixtures for concerns you have; type-list members (`DomainContexts`, `Edges`, `TrainAssemblies`) default to empty, so a guard you do not configure passes vacuously. The `[TestFixture]` attribute on each subclass is required for the runner to discover the inherited tests.
+
 `ArchitectureGuardOptions` carries the per-repo configuration: scan roots, allowlists, and the expected versions. Allowlist entries are repo-relative paths; the source guards walk up from the test assembly to the nearest `*.slnx` to find the repo root.
+
+If you prefer not to use NUnit, the same checks are available as framework-agnostic methods (`DataLayerGuards.*`, `CrossSchemaGuards.*`, `TrainGuards.*`, `HygieneGuards.*`) that return a `GuardResult` you assert on however you like.
 
 ## The patterns the guards enforce
 
