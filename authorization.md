@@ -65,7 +65,7 @@ public class GenerateReportTrain : ServiceTrain<ReportInput, ReportOutput>, IGen
 
 // No attribute, no per-train auth check. Valid only because this train is not
 // exposed via GraphQL (no [TraxQuery]/[TraxMutation]). A GraphQL-exposed train
-// with no marker fails startup — see Required Exposure Posture above.
+// with no marker fails startup (see Required Exposure Posture above).
 public class PingTrain : ServiceTrain<PingInput, PongOutput>, IPingTrain
 {
     protected override PongOutput Junctions() => Chain<PingJunction>();
