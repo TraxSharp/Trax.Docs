@@ -34,14 +34,11 @@ Chain<ValidateEmailJunction>()    // Throws ValidationException
 
 ## Resolve
 
-When using `Junctions()`, resolution happens automatically. The last value in Memory matching `TReturn` is returned. You don't call `Resolve()` yourself.
-
-When using `RunInternal`, `.Resolve()` terminates the chain and returns `Either<Exception, TReturn>`:
+`.Resolve()` ends the chain and returns `Either<Exception, TReturn>`:
 
 ```csharp
-protected override async Task<Either<Exception, User>> RunInternal(CreateUserRequest input)
-    => Activate(input)
-        .Chain<ValidateEmailJunction>()
+protected override Task<Either<Exception, User>> Junctions() =>
+    Chain<ValidateEmailJunction>()
         .Chain<CreateUserJunction>()
         .Chain<SendEmailJunction>()
         .Resolve();
@@ -49,31 +46,11 @@ protected override async Task<Either<Exception, User>> RunInternal(CreateUserReq
 
 `Resolve` checks for a captured exception, then a [ShortCircuit](#shortcircuit) value, then looks up `TReturn` in [Memory](memory.md), in that order. See [SDK Reference: Resolve](/docs/sdk-reference/train-methods/resolve) for the full resolution priority and error behavior.
 
+On a train whose return type is already in Memory, because it is the input type or `Unit`, the chain names no junctions and `Resolve()` is the whole declaration.
+
+There is no overload taking a value. To merge a nested train's result into the output, the junction that calls the nested train returns the merged value, which lands in Memory like any other junction output.
+
 The [Analyzer](analyzer.md) catches missing return types at compile time with **CHAIN002**.
-
-### The Parameterized Overload
-
-There's a second overload that takes an `Either<Exception, TReturn>` directly. This is only available in the `RunInternal` path:
-
-```csharp
-protected override async Task<Either<Exception, ParentResult>> RunInternal(ParentRequest input)
-{
-    var childResult = await TrainBus.RunAsync<ChildResult>(
-        new ChildRequest { Data = input.ChildData },
-        Metadata
-    );
-
-    return Activate(input)
-        .Chain<ValidateJunction>()
-        .Resolve(new ParentResult
-        {
-            ParentData = input.ParentData,
-            ChildResult = childResult
-        });
-}
-```
-
-This skips the Memory lookup because you're providing the result directly. If an exception exists from the chain, it still takes precedence and the provided value is ignored. This is useful when you need to construct the return value manually, like combining results from nested trains with the chain's output.
 
 ## ShortCircuit
 
@@ -147,8 +124,8 @@ Each type argument is stored in Memory with the corresponding instance. See [SDK
 
 Use `AddServices` when you need to inject runtime-created instances into the chain, like objects that aren't available through the DI container or that need to be created per-execution. For standard dependencies, prefer constructor injection in your junctions instead.
 
-> **Note:** `AddServices` is one of the cases where `Junctions()` works well, but if you need to do more complex setup (async calls, try/catch, combining results from nested trains), use `RunInternal` instead.
+> **Note:** setup that needs async work, a try/catch, or a nested train's result belongs in a junction at the head of the chain, whose return value lands in Memory for the junctions after it.
 
 ## SDK Reference
 
-> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) | [Extract](/docs/sdk-reference/train-methods/extract) | [AddServices](/docs/sdk-reference/train-methods/add-services) | [Activate](/docs/sdk-reference/train-methods/activate) | [Resolve](/docs/sdk-reference/train-methods/resolve)
+> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) | [Extract](/docs/sdk-reference/train-methods/extract) | [AddServices](/docs/sdk-reference/train-methods/add-services) | [Resolve](/docs/sdk-reference/train-methods/resolve)

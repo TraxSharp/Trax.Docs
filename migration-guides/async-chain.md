@@ -2,6 +2,12 @@
 
 Trax 1.x ships `Junctions()`, `Chain`, `Resolve`, `Extract`, `ShortCircuit`, and `AddServices` as async-by-default. The same names you used before are still there, the fluent shape is unchanged, but the return types now wrap in `Task` so the framework no longer blocks on async work mid-chain.
 
+> **Since this guide was written, `RunInternal` has been closed.** It is private and `Activate`
+> is internal, so `Junctions()` is the only way to declare a chain. The patterns below that
+> override `RunInternal` are kept because they describe a migration that happened; for a train
+> being written now, only the `Junctions()` shapes apply. See
+> [Trains and Junctions](/docs/core/trains-and-junctions).
+
 ## Why
 
 The old chain blocked synchronously on each junction's `Task` (sync-over-async) so it could keep returning `Monad<,>` and let the implicit `operator TReturn(Monad<,>)` produce the final value. That deadlocked under Blazor Server, WPF, and any other single-threaded `SynchronizationContext`. Patching the suppression hack only ever moved the deadlock around. The fix is to make the chain async all the way down.

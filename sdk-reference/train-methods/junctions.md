@@ -71,34 +71,42 @@ public class NotifyTrain(ISlackClient slack) : ServiceTrain<NotifyInput, Unit>
 4. If any junction threw an exception, the implicit conversion returns `default(TReturn)` and the framework handles the exception via the railway error path.
 5. The `Run()` / `RunEither()` public API is unchanged for callers.
 
-## When to Use RunInternal Instead
+## There is no alternative to Junctions()
 
-`Junctions()` covers the common case. Override `RunInternal` when you need:
+`RunInternal` is private and `Activate` is internal, so a chain cannot be assembled in code. A
+chain built imperatively has no single shape, which would put it out of reach of the check a host
+runs over every train before it serves traffic.
 
-- **Custom logic before or after the chain**: try/catch around the chain, logging, or conditional branching
-- **Extra objects in Memory**: `Activate(input, extraObject)` passes additional objects into Memory
-- **Manual Either construction**: returning `Left(exception)` or `Right(value)` directly
-- **Async setup**: awaiting something before building the chain
-- **Combining nested train results**: calling `TrainBus.RunAsync` and merging the result with the chain via `Resolve(explicitValue)`
+Everything that used to justify reaching for `RunInternal` has a place in the chain:
+
+| What you need | Where it goes |
+|---|---|
+| Logic before or after the chain | A junction at the head or the tail of it |
+| Extra objects in Memory | A junction whose return value is that object |
+| Returning a failure | A junction throws; the chain turns it into `Left` |
+| Async setup | A junction, which is async already |
+| Merging a nested train's result | A junction that calls `TrainBus` and returns the merged value |
 
 ```csharp
-protected override async Task<Either<Exception, ParentResult>> RunInternal(ParentInput input)
+public class ParentTrain : ServiceTrain<ParentInput, ParentResult>, IParentTrain
 {
-    var childResult = await TrainBus.RunAsync<ChildResult>(
-        new ChildRequest { Data = input.ChildData }, Metadata);
+    protected override Task<Either<Exception, ParentResult>> Junctions() =>
+        Chain<RunChildTrain>().Chain<ValidateJunction>().Resolve();
+}
 
-    return Activate(input)
-        .Chain<ValidateJunction>()
-        .Resolve(new ParentResult
-        {
-            ParentData = input.ParentData,
-            ChildResult = childResult
-        });
+internal class RunChildTrain(ITrainBus trainBus) : Junction<ParentInput, ParentResult>
+{
+    public override async Task<ParentResult> Run(ParentInput input)
+    {
+        var childResult = await trainBus.RunAsync<ChildResult>(
+            new ChildRequest { Data = input.ChildData }, CancellationToken);
+
+        return new ParentResult { ParentData = input.ParentData, ChildResult = childResult };
+    }
 }
 ```
 
 ## Remarks
 
-- `Junctions()` and `RunInternal` are mutually exclusive. Override one or the other, not both. If both are overridden, `RunInternal` takes precedence.
 - The implicit conversion from `Monad<TInput, TReturn>` to `TReturn` calls `Resolve()` internally, following the same resolution priority: exception > short-circuit value > Memory lookup.
-- Backwards compatible: existing trains using `RunInternal` continue to work without changes.
+- `TrainInput` and `TrainOutput` throw while the chain is being declared. A chain that branched on its input would have no single shape, so the shape checked at startup need not be the one that runs.

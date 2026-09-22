@@ -37,7 +37,7 @@ Chain<JunctionA>()    -> Check: is JunctionA's TIn in Memory? Add JunctionA's TO
 
 | Method | What the analyzer does |
 |--------|----------------------|
-| `Junctions()` / `Activate(input)` | Seeds Memory with `TInput` and `Unit` |
+| `Junctions()` | Seeds Memory with `TInput` and `Unit` |
 | `.Chain<TJunction>()` | Checks `TIn` in Memory, then adds `TOut` |
 | `.ShortCircuit<TJunction>()` | Same as `Chain`: checks `TIn` in Memory, adds `TOut` |
 | `.AddServices<T1, T2>()` | Adds each type argument to Memory |
@@ -138,4 +138,4 @@ Or suppress at the project level in your `.csproj`:
 
 ## SDK Reference
 
-> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) | [Extract](/docs/sdk-reference/train-methods/extract) | [AddServices](/docs/sdk-reference/train-methods/add-services) | [Activate](/docs/sdk-reference/train-methods/activate) | [Resolve](/docs/sdk-reference/train-methods/resolve)
+> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) | [Extract](/docs/sdk-reference/train-methods/extract) | [AddServices](/docs/sdk-reference/train-methods/add-services) | [Resolve](/docs/sdk-reference/train-methods/resolve)

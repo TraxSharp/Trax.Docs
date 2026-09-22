@@ -16,7 +16,7 @@ For conceptual explanations and tutorials, see [Core](/docs/core), [Effect](/doc
 
 ### [Train Methods](/docs/sdk-reference/train-methods) (Core)
 
-Methods available on `Train<TInput, TReturn>` for composing junctions. Override `Junctions()` for the standard pattern, or `RunInternal` for advanced cases.
+Methods available on `Train<TInput, TReturn>` for composing junctions. `Junctions()` is the only way to declare a chain.
 
 Includes: `Junctions`, `Chain`, `ShortCircuit`, `Extract`, `AddServices`, `Activate`, `Resolve`, `Run` / `RunEither`.
 

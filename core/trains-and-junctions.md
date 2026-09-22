@@ -322,4 +322,4 @@ Property dependencies marked `[Inject]` (like `GameDbFactory` above) are populat
 
 ## SDK Reference
 
-> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Activate](/docs/sdk-reference/train-methods/activate) | [Chain](/docs/sdk-reference/train-methods/chain) | [Resolve](/docs/sdk-reference/train-methods/resolve)
+> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [Resolve](/docs/sdk-reference/train-methods/resolve)

@@ -25,7 +25,7 @@ protected override Task<Either<Exception, User>> Junctions() =>
         .Chain<CreateUserJunction>().Resolve();
 ```
 
-Under the hood, the chain handles the wrapping. If a junction throws, the chain catches it and returns `Left(exception)`. If everything succeeds, you get `Right(result)`. When using `Junctions()`, this is invisible to you. When using `RunInternal`, you work with `Either` directly.
+Under the hood, the chain handles the wrapping. If a junction throws, the chain catches it and returns `Left(exception)`. If everything succeeds, you get `Right(result)`. Inside `Junctions()` this is invisible to you: you name junctions, and the `Either` is what the chain hands back to the caller.
 
 To inspect the result:
 
