@@ -263,7 +263,13 @@ Configure the grace period:
 - `BeginTransaction(CancellationToken)`: transaction starts use the token
 - Junction effect providers receive the token for their before/after hooks
 
+With one deliberate exception: **the write that records how the train ended does not use the caller's token.**
+
 If a train is cancelled mid-execution, the `ServiceTrain` catch block still runs `FinishTrain` to record the cancellation in Metadata, so you get an audit trail even for cancelled trains. `FinishTrain` also clears the junction progress columns (`CurrentlyRunningJunction` and `JunctionStartedAt`) as a safety net.
+
+That audit trail only exists because the terminal `SaveChanges` runs on `CancellationToken.None` rather than the caller's token. The caller's token is cancelled in precisely the case the record is written for, so using it would mean the row could never be updated: the execution would stay `InProgress` with no `EndTime`, and a scheduler's `ReapStaleInProgressMetadataJunction` would later rewrite it to `Failed` after `StaleInProgressTimeout`. That is the wrong terminal state, and for a train whose work completed despite the cancellation it is a false one.
+
+The same applies on the success path. A train whose downstream call takes no token finishes its work even after the caller has disconnected; that run is recorded as `Completed`, because what happened is what gets recorded, not what the caller was still waiting for.
 
 ## Cancelling Running Trains
 
