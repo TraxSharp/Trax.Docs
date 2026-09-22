@@ -228,22 +228,39 @@ public class CreateUserTrain : ServiceTrain<CreateUserRequest, User>, ICreateUse
 
 `Junctions()` returns `TReturn` directly. There is no `Either`, no `async Task`, no `Activate`, no `Resolve`. The framework handles all of that. Chain methods (`Chain`, `ShortCircuit`, `Extract`, `AddServices`) are available as protected methods on the train itself.
 
-### When to use RunInternal
+### There is no escape hatch, on purpose
 
-For advanced cases (custom logic before/after the chain, manual `Either` construction, or passing extra objects into Memory), override `RunInternal` instead:
+`Junctions()` is the only way to declare a chain. `RunInternal` is private and `Activate` is
+internal, so a train cannot build its chain imperatively.
+
+That is what makes a chain readable before it runs. A chain assembled in code has no single
+shape, so the host could not check it at startup, and a chain that varies by input would mean the
+shape verified is not necessarily the shape that runs. To keep the guarantee, the declaration has
+to be the only option.
+
+Two rules follow from it:
+
+**A chain cannot read the value being processed.** `TrainInput` and `TrainOutput` throw while a
+chain is being declared. Work that needs the input belongs in a junction, which receives it as
+its argument.
+
+**A chain cannot seed arbitrary values into Memory.** A value a later junction reads is produced
+by an earlier junction. That is the same mechanism in both directions: a junction's return value
+lands in Memory keyed by its output type.
 
 ```csharp
 public class CreateUserTrain : ServiceTrain<CreateUserRequest, User>, ICreateUserTrain
 {
-    protected override async Task<Either<Exception, User>> RunInternal(CreateUserRequest input) =>
-        Activate(input)
+    protected override Task<Either<Exception, User>> Junctions() =>
+        Chain<StampCorrelationId>()   // work that used to sit above the chain
             .Chain<ValidateEmailJunction>()
             .Chain<CreateUserJunction>()
             .Resolve();
 }
 ```
 
-`RunInternal` gives you full control: `Activate(input)` seeds Memory, `.Chain<T>()` adds junctions, and `.Resolve()` extracts the result as `Either<Exception, TReturn>`. Use it when `Junctions()` isn't expressive enough.
+`Resolve()` on its own ends a chain that declares no junctions, for a train whose return type is
+already in Memory because it is the input type or `Unit`.
 
 ## Train Lifecycle Hooks
 

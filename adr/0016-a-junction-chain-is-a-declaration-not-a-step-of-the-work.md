@@ -64,9 +64,17 @@ records whichever shape boot-time conditions select, with no signal that it did.
 is closed by construction; ambient state is merely unlikely. Closing it needs the static
 declaration above.
 
-**`RunInternal` opts out.** A train overriding it builds its chain imperatively and cannot be
-read this way. Those trains are excluded from verification and reported, which is also the signal
-for migrating them.
+**`RunInternal` and `Activate` are no longer reachable.** A train that built its chain
+imperatively could not be read, so the escape hatch and the guarantee could not both exist.
+`RunInternal` is private and `Activate` is internal, which means `Junctions()` is the only way to
+declare a chain and every train is therefore readable. Closing them cost four `Chain` overloads
+and a parameterless `Resolve()`, added so the declaration can express what the imperative form
+could.
+
+**Seeding arbitrary values into Memory is gone with it.** `Activate(input, otherInputs)` had no
+declarative equivalent, and adding one would have let a declaration inject values the junctions
+it names never produced. The trains that used it were restructured: a value a later junction
+reads is now produced by an earlier junction, which is where work belongs.
 
 ## Exemplars
 
@@ -82,4 +90,6 @@ verification is the follow-on work this decision exists to enable.
 
 ## Changelog
 
+- **2026-09-22**: `RunInternal` made private and `Activate` internal, once every train in the
+  workspace declared its chain through `Junctions()`.
 - **2026-09-22**: Recorded.
