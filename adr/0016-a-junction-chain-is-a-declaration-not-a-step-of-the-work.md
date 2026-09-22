@@ -83,13 +83,21 @@ order with its junction's input and output types, that no junction runs, that an
 junction is still declared, and that the train is runnable afterwards. `ChainDeclarationTests` in
 Trax.Effect pins that reading `TrainInput` or `TrainOutput` while declaring throws, naming the
 train and the member, and that a chain naming only junctions declares cleanly.
+`TrainChainStartupValidatorTests` in Trax.Mediator pins that a host refuses to start when a train
+names a junction whose input never reaches Memory or declares a chain that reads the input, that
+it starts when every chain lines up, and that the opt-out works.
+`ChainVerificationTests` in Trax.Core pins the replay itself, including that a short circuit
+supplies the return value and that a tuple contributes its elements.
 
-Not covered: nothing detects a chain that branches on ambient state, and nothing yet fails a host
-whose train reads its input. The gate throws where it is called; wiring it into startup
-verification is the follow-on work this decision exists to enable.
+Not covered: nothing detects a chain that branches on ambient state. The replay also knows
+declared types rather than the concrete ones that flow, so a junction declaring an interface its
+runtime value implements only incidentally reads as a fault; that is why the check has an opt-out
+rather than being unconditional.
 
 ## Changelog
 
+- **2026-09-22**: Wired into startup: a host now replays every registered train's chain and
+  refuses to start when one cannot run.
 - **2026-09-22**: `RunInternal` made private and `Activate` internal, once every train in the
   workspace declared its chain through `Junctions()`.
 - **2026-09-22**: Recorded.

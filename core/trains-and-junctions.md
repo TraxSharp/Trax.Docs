@@ -262,6 +262,26 @@ public class CreateUserTrain : ServiceTrain<CreateUserRequest, User>, ICreateUse
 `Resolve()` on its own ends a chain that declares no junctions, for a train whose return type is
 already in Memory because it is the input type or `Unit`.
 
+### The host checks every chain before it serves traffic
+
+Because a chain is a declaration of types, whether it can run is decidable without running it. At
+startup Trax reads every registered train's chain and refuses to start if one of them cannot run:
+
+- the chain could not be read, because it reads the input
+- it names a junction that is neither registered nor constructible
+- a junction needs something in Memory that nothing before it produces
+- the chain ends without the train's return type in Memory
+
+Every train is checked before anything is reported, so one start tells you about all of them.
+
+The replay knows the types a chain declares, not the concrete types that will flow, so a junction
+declaring an interface that its runtime value implements only incidentally reads as a fault. That
+is the one case for turning the check off:
+
+```csharp
+.AddMediator(mediator => mediator.SkipChainVerification())
+```
+
 ## Train Lifecycle Hooks
 
 `ServiceTrain` provides `protected virtual` methods you can override to react to your train's own lifecycle events, with no global hook registration needed:
