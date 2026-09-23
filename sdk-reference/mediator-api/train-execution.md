@@ -8,7 +8,7 @@ nav_order: 4
 
 # TrainExecution
 
-`ITrainExecutionService` provides programmatic train execution by name. Instead of resolving a specific train interface, you pass the train's service type name and a JSON string. The service handles discovery, deserialization, and dispatch. Train lookup matches by fully-qualified canonical name first (`ServiceType.FullName`), then friendly name (`ServiceTypeName`), then short name (`ServiceType.Name`).
+`ITrainExecutionService` provides programmatic train execution by name. Instead of resolving a specific train interface, you pass the train's service type name and a JSON string. The service handles discovery, deserialization, and dispatch. Train lookup matches by fully-qualified canonical name first (`ServiceType.FullName`), then by friendly name (`ServiceTypeName`). There is no short-name fallback.
 
 It supports two execution paths:
 - **Queue**: creates a WorkQueue entry for asynchronous dispatch by the scheduler.
@@ -53,10 +53,10 @@ Task<QueueTrainResult> QueueAsync(
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `trainName` | `string` | Yes | N/A | Train name, matched by canonical name (`ServiceType.FullName`), then friendly name (`ServiceTypeName`), then short name (`ServiceType.Name`). Prefer the fully-qualified interface name (e.g. `"MyApp.Trains.IProcessOrderTrain"`). |
-| `inputJson` | `string?` | Yes | N/A | JSON-serialized input matching the train's `InputType`. May be null. |
+| `trainName` | `string` | Yes | N/A | Train name, matched by canonical name (`ServiceType.FullName`), then friendly name (`ServiceTypeName`). Prefer the fully-qualified interface name (e.g. `"MyApp.Trains.IProcessOrderTrain"`). |
+| `inputJson` | `string?` | Yes | N/A | JSON-serialized input matching the train's `InputType`. Null or blank is read as an empty object, `{}`. |
 | `priority` | `int` | No | `0` | Dispatch priority (0-31, higher runs first) |
-| `scheduledAt` | `DateTime?` | No | `null` | Earliest time the entry may be dispatched. Stored and compared as UTC, so pass a UTC value. Null dispatches as soon as a worker is free. |
+| `scheduledAt` | `DateTime?` | No | `null` | Earliest time the entry may be dispatched, stored as UTC. A `Local` value is converted; an `Unspecified` one is taken to already be UTC, which is how a timestamp without an offset arrives from JSON. Null dispatches as soon as a worker is free. |
 | `ct` | `CancellationToken` | No | `default` | Cancellation token |
 
 **Returns**: `QueueTrainResult`
@@ -70,32 +70,34 @@ Task<QueueTrainResult> QueueAsync(
 - `TrainNotFoundException` (an `InvalidOperationException`) if no train is registered with the given name. Use `ITrainDiscoveryService.DiscoverTrains()` to list available trains.
 - `AmbiguousTrainNameException` if the name matches more than one train's friendly name.
 - `TrainInputValidationException` if `inputJson` exceeds the configured size cap (`WithMaxInputJsonBytes`, 256 KiB by default).
+- `JsonException` if `inputJson` does not deserialize to the train's input type. That includes a null or blank `inputJson` for an input type that cannot be built from `{}`, such as one with a `required` member: it fails here, at enqueue, rather than at dispatch.
 - `InvalidOperationException` if JSON deserialization returns null.
-- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet. Authorization applies to **every** enqueue, including the operations surface (`queueTrain`, `requeueExecution`) and the dashboard's re-queue, which all route through this method.
+- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet. Authorization runs before the input is read, and applies to **every** caller-built enqueue, including the operations surface (`queueTrain`, `requeueExecution`) and the dashboard's queue dialog and re-queue button, which all route through this method. See [ADR 0017](/docs/adr/0017-a-callers-enqueue-goes-through-the-mediator).
 - `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered. The check fails closed; a host that serves no API submissions opts out with `AddMediator(m => m.AllowMissingAuthorizationService())`, after which the missing service is a no-op.
 - Any exception thrown by the train's `QueueSubjectKey` override. A key that cannot be computed aborts the enqueue rather than becoming null.
-- Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. The hook fires before the entry is persisted, so a throw aborts the enqueue and no entry is written, including when the train defers promotion, where the staged entry is removed.
+- `InvalidOperationException` if `QueueSubjectKey` returns an empty string or a key longer than 512 characters. Return null for an entry that should not be serialized.
+- Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. A throw aborts the enqueue and leaves no entry behind: on the default path the hook runs before the entry is committed, and for a train that defers promotion the already-staged entry is removed, whether or not the caller has cancelled.
 
 ### What it does
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
 2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
-3. Deserializes `inputJson` to the train's `InputType`.
+3. Deserializes `inputJson` to the train's `InputType`, reading null or blank as `{}`, so `OnQueue` and `QueueSubjectKey` always receive a real input.
 4. Re-serializes the input using manifest serialization options (normalizes the JSON).
-5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, priority, and `scheduledAt`.
-6. Stamps the entry's subject key from the train's `QueueSubjectKey` override, if it has one. An exception from `QueueSubjectKey` propagates and aborts the enqueue, so no entry is written.
-7. Tracks the entry, then (if the train overrides [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook)) invokes the hook with the entry's `ExternalId` and the input, then saves and commits, all in one transaction. A throw rolls the whole thing back, so nothing the hook tracked on `IEnqueueContextAccessor.Current` survives either. Trains that do not override the hook are never resolved here.
+5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, priority, and `scheduledAt` converted to UTC.
+6. Stamps the entry's subject key from the train's [`QueueSubjectKey`](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) override, if it has one. An exception from `QueueSubjectKey`, or an empty or over-long key, aborts the enqueue, so no entry is written.
+7. Tracks the entry, then (if the train overrides [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook)) enters the enqueue context and invokes the hook with the entry's `ExternalId` and the input, then saves and commits, all in one transaction. A throw rolls the whole thing back, so nothing the hook tracked on `IEnqueueContextAccessor.Current` survives either. Trains that do not override the hook are never resolved here and enter no context.
 8. Returns the entry's ID and external ID.
 
 Tracking the entry before the hook runs does not insert it (`Track` is change tracking only), so the hook still runs before the row exists, as its contract states.
 
-When the train sets [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable), the shape changes to three steps instead: the entry is committed **unconfirmed** and undispatchable, the hook runs outside that transaction, and a second commit promotes it. A throwing hook removes the staged entry, so the observable contract is the same. A crash leaves the entry unconfirmed for `IWorkQueuePromotion.PromoteStaleAsync` to recover.
+When the train sets [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable), the shape changes to three steps instead: the entry is committed **unconfirmed** and undispatchable, the hook runs outside that transaction, and a second commit promotes it. A throwing hook removes the staged entry, so the observable contract is the same. Once the hook has returned the mutation counts as accepted, so the promotion runs even if the caller cancels. `IEnqueueContextAccessor.Current` is null inside such a hook, because the entry is already committed and there is no transaction to join. A crash between the two commits leaves the entry unconfirmed, and the scheduler's [stale staged entry sweep](/docs/scheduler/admin-trains/manifest-manager#resolvestalestagedentriesjunction) cancels it (or promotes it, if the host opted in) once it is older than `StaleStagedEntryTimeout`.
 
 Providers without transaction support (the in-memory provider) degrade to a single `SaveChanges` with no explicit transaction.
 
 ## RunAsync
 
-Executes a train synchronously via `ITrainBus`. This is a blocking call that returns when the train completes.
+Executes a train synchronously via `ITrainBus`. This is a blocking call that returns when the train completes. It creates no work queue entry, so it does not fire `OnQueue` and does not consult `QueueSubjectKey`: a synchronous run can overlap queued work for the same subject.
 
 ```csharp
 Task<RunTrainResult> RunAsync(
@@ -107,7 +109,7 @@ Task<RunTrainResult> RunAsync(
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `trainName` | `string` | Yes | N/A | Train name (matched by canonical name, then friendly name, then short name) |
+| `trainName` | `string` | Yes | N/A | Train name (matched by canonical name, then friendly name) |
 | `inputJson` | `string` | Yes | N/A | JSON-serialized input matching the train's `InputType` |
 | `ct` | `CancellationToken` | No | `default` | Cancellation token forwarded to `ITrainBus.RunAsync` |
 

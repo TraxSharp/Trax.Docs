@@ -574,7 +574,7 @@ The ManifestManager also runs a `ReapStaleInProgressMetadataJunction` on every p
 )
 ```
 
-This timeout should be longer than `DefaultJobTimeout` (default: 20 minutes) to give cooperative cancellation time to propagate before force-failing. The ordering in the ManifestManager pipeline is: `CancelTimedOutJobsJunction` (cooperative cancel) → `ReapStalePendingMetadataJunction` → `ReapStaleInProgressMetadataJunction` (force-fail) → `ReapFailedJobsJunction` (dead-letter).
+This timeout should be longer than `DefaultJobTimeout` (default: 20 minutes) to give cooperative cancellation time to propagate before force-failing. The ordering in the ManifestManager pipeline is: `CancelTimedOutJobsJunction` (cooperative cancel) → `ReapStalePendingMetadataJunction` → `ReapStaleInProgressMetadataJunction` (force-fail) → `ResolveStaleStagedEntriesJunction` → `ReapFailedJobsJunction` (dead-letter).
 
 ### 5. Dead-Lettering
 

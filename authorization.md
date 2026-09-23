@@ -324,7 +324,7 @@ Trax evaluates these policies at runtime using ASP.NET Core's `IAuthorizationSer
 1. `ITrainDiscoveryService` reads `[TraxAuthorize]` and `[TraxAllowAnonymous]` attributes across the implementation, its base chain, and every implemented interface. Roles are normalized to upper-invariant; policies are deduplicated. The requirements (and a `HasAllowAnonymousAttribute` flag) are stored on each `TrainRegistration`.
 2. `AddTraxGraphQL` enforces the [Required Exposure Posture](#required-exposure-posture) for every exposed train, and `TraxGraphQLBuilder.Build()` does the same for every `[TraxQueryModel]` entity. Both share one rule: a surface with neither marker (on an open endpoint), both markers, or `[TraxAllowAnonymous]` under `RequireAuthorization()` fails startup with a message naming the offending types.
 3. At host start, `AuthorizationRegistrationValidator` runs as a hosted service. It throws if any train carries `[TraxAuthorize]` but no `ITrainAuthorizationService` is registered (this can be opted out of per below), and it throws on malformed attribute shapes (empty policy strings, whitespace-only roles) so typos are caught before traffic arrives.
-4. When `ITrainExecutionService.QueueAsync()` or `RunAsync()` runs, it invokes the registered `ITrainAuthorizationService`.
+4. When `ITrainExecutionService.QueueAsync()` or `RunAsync()` runs, it invokes the registered `ITrainAuthorizationService` before reading the input JSON. Every caller-built enqueue goes through `QueueAsync`, including the operations surface and the dashboard; see [The Operations Surface](#the-operations-surface).
 5. The default implementation (`TrainAuthorizationService` from `Trax.Api`) is fail-closed. It grabs the current user from `IHttpContextAccessor` and evaluates each requirement:
    - **Policy**: calls `IAuthorizationService.AuthorizeAsync(user, policyName)`.
    - **Roles**: compares the upper-invariant `ClaimTypes.Role` claims against the normalized required set.
@@ -395,6 +395,19 @@ Later execution paths are trusted:
 - Remote workers pull queued work over HTTP and execute it via `ITrainExecutionService.RunAsync()`. Because there is no `HttpContext` on the worker side, the authorization check treats the caller as trusted infrastructure and skips.
 
 This means you can safely decorate a train with `[TraxAuthorize("Admin")]` and still schedule it via `AddScheduler()`, run it from a remote worker, or both. The authorization gate is the API boundary.
+
+## The Operations Surface
+
+The admin and operations surface (the GraphQL `operations` namespace and the dashboard) enqueues work in two ways, and they are authorized differently. The decision is recorded in [ADR 0017](/docs/adr/0017-a-callers-enqueue-goes-through-the-mediator).
+
+| Action | What decides the train and input | Authorized by |
+|---|---|---|
+| `queueTrain`, `requeueExecution`, the dashboard's queue dialog and **Re-queue** button | The caller | The train's own `[TraxAuthorize]` requirements, through `ITrainExecutionService.QueueAsync`, **plus** the operations gate |
+| `triggerManifest`, `triggerManifestDelayed`, `triggerGroup`, re-queueing dead letters | A manifest | The operations gate only (`GateOperations`, `RequireAuthorization`, or `AllowAnonymousOperations`), not per-train requirements |
+
+A caller-built enqueue is authorized **before** its input JSON is read, so a caller who may not run the train gets `TRAX_AUTHORIZATION` even when the input is malformed, and learns nothing about the input the train expects.
+
+Triggering a manifest re-runs work whose train and input were fixed when the manifest was defined, so it is treated as operating the scheduler rather than as submitting new work. That puts the whole trigger and dead-letter surface behind a single admin gate. Protect it accordingly: an operator who passes the gate can trigger any manifest. The admin area is expected to gain its own user-provided authorization (for example Microsoft Entra) later.
 
 ## Custom Authorization Logic
 

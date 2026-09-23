@@ -40,6 +40,26 @@ refused start. Code that used the `input` parameter of `RunInternal` moves to on
 The same applies to values passed through `Activate(input, otherInputs)`. A value a later junction
 reads is produced by an earlier junction.
 
+## Bodies that are not a pure declaration
+
+A `RunInternal` body could do anything before returning. `Junctions()` cannot, and the startup
+check refuses three more shapes that tend to come across from the old code:
+
+| The body | Why it is refused | Instead |
+|---|---|---|
+| Awaits something before returning the chain | It does work instead of declaring a chain | Move the awaited work into a junction |
+| Returns a value directly, such as `Task.FromResult(value)` | There is no chain to verify | Chain the junction that produces the value, end in `Resolve()` |
+| Ends in `Resolve(value)` | It states the result instead of naming what produces it | End in `Resolve()`; a train with no junctions uses `Task.FromResult(Resolve())` |
+
+## Memory rules the check enforces
+
+The check replays Memory the way the runtime fills it, which can surface a chain that only worked
+by accident. The train's input (and each element of a tuple) is available under its type and every
+interface it implements; a junction's output, an `Extract` result and an `AddServices` value are
+available only under their exact declared type. A junction that asks for an interface the previous
+junction's output merely implements is refused, because the run would not find it either. Declare
+the producer's output as that interface, or ask for the concrete type.
+
 ## If the upgrade is blocked on it
 
 The input-reading fault compiles cleanly and only surfaces at startup. While chains are being

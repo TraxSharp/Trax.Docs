@@ -13,7 +13,7 @@ The ManifestManager is the first half of each polling cycle. It figures out whic
 ## Chain
 
 ```
-LoadManifestsJunction → CancelTimedOutJobsJunction → ReapStalePendingMetadataJunction → ReapStaleInProgressMetadataJunction → ReapFailedJobsJunction → DetermineJobsToQueueJunction → CreateWorkQueueEntriesJunction
+LoadManifestsJunction → CancelTimedOutJobsJunction → ReapStalePendingMetadataJunction → ReapStaleInProgressMetadataJunction → ResolveStaleStagedEntriesJunction → ReapFailedJobsJunction → DetermineJobsToQueueJunction → CreateWorkQueueEntriesJunction
 ```
 
 ## Junctions
@@ -39,6 +39,19 @@ Fails Pending metadata that has not been picked up within `StalePendingTimeout` 
 Fails InProgress metadata that has not completed within `StaleInProgressTimeout` (default: 60 minutes). Acts as a safety net for hard crashes. Lambda hard-kills, OOM events, or process crashes where the worker dies without reaching `FinishServiceTrain`. This timeout should be longer than `DefaultJobTimeout` to allow cooperative cancellation (via `CancelTimedOutJobsJunction`) to propagate before force-failing.
 
 Newly-failed metadata from both stale reapers is visible to `ReapFailedJobsJunction` in the same ManifestManager cycle, enabling dead-lettering if retries are exhausted.
+
+Failing a run also releases its [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing), so a run still working past `StaleInProgressTimeout` stops holding its subject.
+
+### ResolveStaleStagedEntriesJunction
+
+Resolves work queue entries that a crash left unconfirmed. A train with [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable) commits its entry unconfirmed, runs `OnQueue`, then confirms it; a process that stopped in between leaves an entry the dispatcher will never claim. Any entry still `Queued` and unconfirmed after `StaleStagedEntryTimeout` (default: 10 minutes) is:
+
+| Setting | Outcome |
+|---|---|
+| Default | **Cancelled**, via `IWorkQueuePromotion.CancelStaleAsync`. Nothing recorded tells a hook that succeeded from one that never ran or one that rejected the mutation, so the entry is kept visible rather than run |
+| `PromoteStaleStagedEntries()` | **Promoted**, via `IWorkQueuePromotion.PromoteStaleAsync`, and dispatched like any other entry. The run re-executes the whole chain, so this assumes idempotent hooks and a chain that re-checks what the hook checked |
+
+`IWorkQueuePromotion.PromoteAsync`, which an enqueue calls once its hook returns, only confirms an entry that is still `Queued`, so an entry this junction has already cancelled stays cancelled. The promotion methods work on every data provider, the InMemory provider included. Like the rest of the train, this runs only on the server holding the leader lock.
 
 ### ReapFailedJobsJunction
 

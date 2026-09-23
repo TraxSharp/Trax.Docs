@@ -33,7 +33,8 @@ public Either<Exception, TReturn> Resolve(Either<Exception, TReturn> returnType)
 The train's own `Resolve()` has no overload taking a value. A declaration says which junctions
 run, so stating a result directly would let it return something the junctions it names never
 produced. The chain types `Monad` and `MonadTask` do carry a public `Resolve(returnType)`
-overload, described under Remarks.
+overload, but a `Junctions()` that ends in it is refused by the startup chain check, and the host
+will not start. It exists for code that drives a `Monad` directly, outside a train's declaration.
 
 ## Returns
 
@@ -68,4 +69,4 @@ public class EchoTrain : ServiceTrain<string, string>, IEchoTrain
 ## Remarks
 
 - `Resolve()` does not throw. It returns an `Either`. The calling `Run()` method unwraps the Either and throws if needed.
-- The parameterized `Resolve(returnType)` on `Monad` and `MonadTask` is simpler: it returns the chain's exception if one exists, otherwise the provided value. It does **not** check short-circuit or Memory.
+- The parameterized `Resolve(returnType)` on `Monad` and `MonadTask` is simpler: it returns the chain's exception if one exists, otherwise the provided value. It does **not** check short-circuit or Memory. Inside `Junctions()` it is refused at startup, as is returning a value without `Resolve()` at all (`Task.FromResult(value)`).

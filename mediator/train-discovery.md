@@ -30,11 +30,12 @@ Each input type maps to exactly one train. When duplicate input types are found,
 
 ### Train Name Resolution
 
-When looking up a train by name (e.g., via `ITrainExecutionService`), the system tries three matches in order:
+When looking up a train by name (e.g., via `ITrainExecutionService`), the system tries two matches in order:
 
 1. **Canonical name**: `ServiceType.FullName` (the interface's fully-qualified name, e.g. `MyApp.Trains.IProcessOrderTrain`)
-2. **Friendly name**: `ServiceTypeName` (the display name from the registration)
-3. **Short name**: `ServiceType.Name` (the unqualified interface name, e.g. `IProcessOrderTrain`)
+2. **Friendly name**: `ServiceTypeName` (the display name from the registration). A name that matches more than one train's friendly name throws `AmbiguousTrainNameException`.
+
+There is no short-name fallback.
 
 The canonical name is the preferred identifier. It is stable across implementation class renames and matches what is stored in metadata and work queue entries.
 

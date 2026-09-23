@@ -70,7 +70,14 @@ public class NotifyTrain(ISlackClient slack) : ServiceTrain<NotifyInput, Unit>
 4. If a junction throws, the remaining junctions are skipped and the exception comes back as `Left`. An exception thrown by `Junctions()` itself is caught and returned as `Left` too.
 5. `Run()` unwraps the result and rethrows a `Left`; `RunEither()` returns it as is.
 
-The same `Junctions()` is also read, without running anything, by the startup chain check. See [Trains & Junctions](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic).
+The same `Junctions()` is also read, without running anything, by the startup chain check. A body must therefore be a declaration and nothing else. The host refuses to start when `Junctions()`:
+
+- reads `TrainInput` or `TrainOutput`
+- awaits something before returning, which means it does work
+- returns a result directly (`Task.FromResult(value)`) instead of ending in `Resolve()`
+- ends in `Resolve(value)`
+
+A train with no junctions ends in `Task.FromResult(Resolve())`. The full list of faults, and the Memory rules the check replays, are in [Trains & Junctions](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic).
 
 ## There is no alternative to Junctions()
 
