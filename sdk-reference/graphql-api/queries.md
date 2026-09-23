@@ -619,7 +619,9 @@ query {
 canonical form). There is no separate junction table: junction context is the
 `currentlyRunningJunction` (while `IN_PROGRESS`) and `failureJunction` (on failure) fields.
 `childCount` is the number of sub-executions (metadata rows whose `parentId` is this
-execution), for rendering a parent/child tree. `failureClass` is the same `FailureClass` enum as
+execution), for rendering a parent/child tree. Nothing in Trax sets `parentId` at present, a
+train dispatched from a junction included (see [Nested Trains](/docs/mediator#nested-trains)), so
+it is `0` unless something outside Trax writes the column. `failureClass` is the same `FailureClass` enum as
 on [`ExecutionSummary`](#executionsummary-fields).
 
 ---

@@ -18,7 +18,7 @@ var result = await _createOrderTrain.Run(orderInput);
 var result = await _trainBus.RunAsync<OrderResult>(orderInput);
 ```
 
-This decouples callers from specific train implementations and enables train composition (nested trains that participate in the same metadata chain).
+This decouples callers from specific train implementations and enables train composition (a junction can dispatch another train; the child is recorded as a run of its own, not linked to the parent, see [Nested Trains](/docs/mediator#nested-trains)).
 
 | Page | Description |
 |------|-------------|

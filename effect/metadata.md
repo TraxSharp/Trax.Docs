@@ -25,7 +25,7 @@ Every train execution produces a metadata record. It captures everything about t
 | `FailureReason` | `string?` | Error message |
 | `StackTrace` | `string?` | Stack trace if failed |
 | `FailureClass` | `FailureClass` | `Unclassified` / `Transient` / `Conflict` / `Permanent`, from the registered [failure classifier](/docs/core/trains-and-junctions#classifying-failures). `Unclassified` when the run did not fail or nothing classified it |
-| `ParentId` | `long?` | Links to parent metadata for nested trains |
+| `ParentId` | `long?` | The parent run's metadata id. Nothing in Trax sets it at present, so it is null for every run, including a train dispatched from a junction; see [Nested Trains](#nested-trains) |
 | `ManifestId` | `long?` | Links to manifest for scheduled trains |
 | `ScheduledTime` | `DateTime?` | Scheduled execution time |
 | `CancellationRequested` | `bool` | Cross-server cancellation flag |
@@ -58,9 +58,9 @@ In distributed environments (Lambda, ECS, multiple servers), every metadata reco
 
 ## Nested Trains
 
-A junction can dispatch another train mid-execution by injecting `ITrainBus`. Pass the current `Metadata` to the child train to link the executions. This creates a tree of metadata records you can query to trace execution across an entire network of trains.
+A junction can dispatch another train mid-execution by injecting `ITrainBus`. The child gets a metadata record of its own, but it is not linked to the parent's: its `ParentId` is not set, and passing the parent's `Metadata` to `RunAsync` throws rather than linking them. The column, the API's `childCount` and `executionChildren`, and the cleanup that clears a deleted parent's children all exist, but no Trax code path writes a parent link today.
 
-See [Mediator: Nested Trains](/docs/mediator#nested-trains) for implementation details.
+See [Mediator: Nested Trains](/docs/mediator#nested-trains) for how to dispatch a child train.
 
 ## Execution Flow
 

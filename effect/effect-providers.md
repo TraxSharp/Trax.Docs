@@ -35,7 +35,7 @@ This persists a `Metadata` record for each train execution containing:
 - Start and end timestamps
 - Serialized input and output
 - Exception details if failed
-- Parent train ID for nested trains
+- A parent run ID column, which nothing in Trax sets at present (see [Nested Trains](/docs/mediator#nested-trains))
 
 See [Data Persistence](effect-providers/data-persistence.md) for the full breakdown of both backends, what gets persisted, and DataContext logging.
 

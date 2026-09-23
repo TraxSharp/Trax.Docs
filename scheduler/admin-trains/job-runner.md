@@ -37,7 +37,7 @@ Checks that the loaded metadata is in `TrainState.Pending`. If it's already `InP
 
 ### RunScheduledTrainJunction
 
-Resolves the target train via `ITrainBus` using the deserialized input and invokes it. The train name stored in the metadata record is the canonical interface name (set via `CanonicalName` during DI registration), which `ITrainBus` uses for resolution. This is where your train's `Junctions()` declaration gets run. The train runs as a nested train under the JobRunner's own metadata, maintaining the parent-child relationship in the metadata tree.
+Resolves the target train via `ITrainBus` using the deserialized input and invokes it. The train name stored in the metadata record is the canonical interface name (set via `CanonicalName` during DI registration), which `ITrainBus` uses for resolution. This is where your train's `Junctions()` declaration gets run. The train runs as the `Pending` metadata record the dispatcher created (the request's `MetadataId`), passed to `ITrainBus.RunAsync`, so its execution is recorded on that row. The JobRunner's own run is a separate record, and the two are not linked by `ParentId`.
 
 ### UpdateManifestSuccessJunction
 
