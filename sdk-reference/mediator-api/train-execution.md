@@ -63,10 +63,13 @@ Task<QueueTrainResult> QueueAsync(
 | `WorkQueueId` | `long` | Database ID of the created WorkQueue entry |
 | `ExternalId` | `string` | External ID assigned to the entry |
 
+`scheduledAt` sets the earliest time the entry may be dispatched; null dispatches as soon as a worker is free. `inputJson` may be null, which stores no input rather than a default instance, so "nothing was given" stays distinguishable from "an empty object was given".
+
 **Throws**:
 - `InvalidOperationException` if no train is registered with the given name. The message includes a hint to use `ITrainDiscoveryService.DiscoverTrains()` to list available trains.
 - `InvalidOperationException` if JSON deserialization returns null.
 - `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements that the current user does not satisfy. Only applies when `ITrainAuthorizationService` is registered (i.e., the API layer is in use).
+- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet, or `InvalidOperationException` if it has requirements and no `ITrainAuthorizationService` is registered. This applies to **every** enqueue, including the operations surface (`queueTrain`, `requeueExecution`) and the dashboard's re-queue, which all route through this method.
 - Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. The hook fires before the entry is persisted, so a throw aborts the enqueue and no entry is written — including when the train defers promotion, where the staged entry is removed.
 
 ### What it does
