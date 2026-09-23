@@ -394,6 +394,27 @@ A hook that *throws* still aborts the enqueue outright: the staged entry is remo
 
 Deferral is opt-in because it costs an extra round trip and earns nothing when the hook writes nowhere Trax's transaction cannot reach. **Immediate promotion is the default**, and a train that does not override `OnQueue` never stages anything.
 
+### QueueSubjectKey (serializing work that touches the same thing)
+
+Queued entries are claimed by several workers at once, keyed on nothing, so two mutations for the same record can run simultaneously. Against a system that resolves concurrent writes by last-write-wins, that is a lost update.
+
+A train can say what its work touches:
+
+```csharp
+protected override string? QueueSubjectKey(Metadata metadata) =>
+    $"customer-{metadata.GetInput<PatchCustomerInput>()!.CustomerId}";
+```
+
+The key is an opaque string — Trax compares it and nothing else, so its shape is yours to choose. A record identity is the usual pick. It is read at enqueue time from a metadata carrying the input, so it varies per mutation rather than being fixed per train.
+
+Returning null, which is the default, means no serialization. Every train that does not override this is unaffected.
+
+**Throwing aborts the enqueue.** A key that cannot be computed must not quietly become null: that would drop the guarantee at exactly the moment the caller was relying on it.
+
+Two limits worth knowing. Only entries created through the mediator's queue path carry a key — work queued from a manifest is not about a record and has no subject, and the dashboard's rerun builds its entry directly rather than through `QueueAsync`. And ordering within a subject is enqueue order *at equal priority*; a higher-priority entry for the same subject still goes first, because priority should mean something.
+
+> The key is recorded on the entry today. The dispatcher change that acts on it — refusing to claim an entry whose subject already has a run in flight — is a separate change; until it lands, the column is carried and not enforced.
+
 ## SDK Reference
 
 > [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [Resolve](/docs/sdk-reference/train-methods/resolve)
