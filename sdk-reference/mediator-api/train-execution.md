@@ -71,7 +71,7 @@ Task<QueueTrainResult> QueueAsync(
 - `AmbiguousTrainNameException` if the name matches more than one train's friendly name.
 - `TrainInputValidationException` if `inputJson` exceeds the configured size cap (`WithMaxInputJsonBytes`, 256 KiB by default).
 - `JsonException` if `inputJson` does not deserialize to the train's input type. That includes a null or blank `inputJson` for an input type that cannot be built from `{}`, such as one with a `required` member: it fails here, at enqueue, rather than at dispatch.
-- `InvalidOperationException` if JSON deserialization returns null.
+- `JsonException` if `inputJson` is the JSON literal `null`, which is well-formed but is not an input.
 - `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet. Authorization runs before the input is read, and applies to **every** caller-built enqueue, including the operations surface (`queueTrain`, `requeueExecution`) and the dashboard's queue dialog and re-queue button, which all route through this method. See [ADR 0017](/docs/adr/0017-a-callers-enqueue-goes-through-the-mediator).
 - `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered. The check fails closed; a host that serves no API submissions opts out with `AddMediator(m => m.AllowMissingAuthorizationService())`, after which the missing service is a no-op.
 - Any exception thrown by the train's `QueueSubjectKey` override. A key that cannot be computed aborts the enqueue rather than becoming null.
@@ -123,7 +123,7 @@ Task<RunTrainResult> RunAsync(
 **Throws**:
 - `TrainNotFoundException` (an `InvalidOperationException`) if no train is registered with the given name, or `AmbiguousTrainNameException` if the name matches more than one train's friendly name.
 - `TrainInputValidationException` if `inputJson` exceeds the configured size cap.
-- `InvalidOperationException` if JSON deserialization returns null.
+- `JsonException` if `inputJson` is the JSON literal `null`, which is well-formed but is not an input.
 - `TrainException` if the train itself fails during execution (propagated from `ITrainBus`).
 - `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet.
 - `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered, unless the host called `AllowMissingAuthorizationService()`. The same fail-closed rule as `QueueAsync`.
