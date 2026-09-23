@@ -413,7 +413,11 @@ Returning null, which is the default, means no serialization. Every train that d
 
 Two limits worth knowing. Only entries created through the mediator's queue path carry a key — work queued from a manifest is not about a record and has no subject, and the dashboard's rerun builds its entry directly rather than through `QueueAsync`. And ordering within a subject is enqueue order *at equal priority*; a higher-priority entry for the same subject still goes first, because priority should mean something.
 
-> The key is recorded on the entry today. The dispatcher change that acts on it — refusing to claim an entry whose subject already has a run in flight — is a separate change; until it lands, the column is carried and not enforced.
+**What "in flight" means.** A subject is busy while a dispatched entry for it has a run that has not reached a terminal state — the same definition used elsewhere for an active execution. The dispatcher will not claim an entry whose subject is busy; the entry stays queued and is picked up on a later cycle, so nothing is skipped or lost.
+
+That ties the block to run completion, and therefore to stale-run reaping. A worker killed mid-run leaves its metadata in a non-terminal state, and the subject stays blocked until the stale-metadata reaper marks it failed. **A subject can be blocked for at most that window**, which gives the reaper's timeout a second meaning worth knowing about.
+
+Serialization is enforced in the claim, not just in candidate selection, because two entries for one subject are two different rows: row locking does not make them contend, and while both are still queued neither can see a dispatched sibling to refuse itself. On Postgres the claim takes a transaction-scoped advisory lock on the subject first. That lock is held only for the claim — which commits before the job is submitted — so nothing remote happens while it is held. Providers with a single writer need no lock and do not take one.
 
 ## SDK Reference
 
