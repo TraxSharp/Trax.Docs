@@ -226,12 +226,13 @@ public class CreateUserTrain : ServiceTrain<CreateUserRequest, User>, ICreateUse
 }
 ```
 
-`Junctions()` returns `TReturn` directly. There is no `Either`, no `async Task`, no `Activate`, no `Resolve`. The framework handles all of that. Chain methods (`Chain`, `ShortCircuit`, `Extract`, `AddServices`) are available as protected methods on the train itself.
+`Junctions()` returns `Task<Either<Exception, TReturn>>`, and the chain ends in `.Resolve()`, which yields the train's return value from Memory or the exception that stopped the chain. The framework seeds Memory with the input before calling it. Chain methods (`Chain`, `ShortCircuit`, `Extract`, `AddServices`) are available as protected methods on the train itself, and each returns a `MonadTask` so the calls chain fluently.
 
 ### There is no escape hatch, on purpose
 
 `Junctions()` is the only way to declare a chain. `RunInternal` is private and `Activate` is
-internal, so a train cannot build its chain imperatively.
+internal, so a train cannot build its chain imperatively. Upgrading a train that used them is
+covered in [Removal of RunInternal and Activate](/docs/migration-guides/runinternal-and-activate).
 
 That is what makes a chain readable before it runs. A chain assembled in code has no single
 shape, so the host could not check it at startup, and a chain that varies by input would mean the
@@ -268,7 +269,6 @@ Because a chain is a declaration of types, whether it can run is decidable witho
 startup Trax reads every registered train's chain and refuses to start if one of them cannot run:
 
 - the chain could not be read, because it reads the input
-- it names a junction that is neither registered nor constructible
 - a junction needs something in Memory that nothing before it produces
 - the chain ends without the train's return type in Memory
 
@@ -292,13 +292,13 @@ protected override Task<Either<Exception, Unit>> Junctions()
 }
 ```
 
-Work that needs the input belongs in a junction, which receives it, or — for something that must
-happen as the mutation is accepted — in [`OnQueue`](#onqueue-enqueue-time-hook), which is handed a
+Work that needs the input belongs in a junction, which receives it, or (for something that must
+happen as the mutation is accepted) in [`OnQueue`](#onqueue-enqueue-time-hook), which is handed a
 `Metadata` carrying the input.
 
 This is a compile-clean change that only surfaces at startup, so a consumer upgrading has no way to
 discover it beforehand. If an upgrade is blocked on it, `SkipChainVerification()` turns the check
-off while the chains are moved over — but it silences every other fault in the list too, so it is a
+off while the chains are moved over. It silences every other fault in the list too, so it is a
 stopgap rather than a setting to leave on.
 
 The replay knows the types a chain declares, not the concrete types that will flow, so a junction
@@ -317,9 +317,10 @@ is the one case for turning the check off:
 public class CreateUserTrain(ISlackClient slack)
     : ServiceTrain<CreateUserRequest, User>, ICreateUserTrain
 {
-    protected override User Junctions() =>
+    protected override Task<Either<Exception, User>> Junctions() =>
         Chain<ValidateEmailJunction>()
-            .Chain<CreateUserJunction>();
+            .Chain<CreateUserJunction>()
+            .Resolve();
 
     protected override async Task OnFailed(
         Metadata metadata, Exception exception, CancellationToken ct)
@@ -369,26 +370,26 @@ Property dependencies marked `[Inject]` (like `GameDbFactory` above) are populat
 
 #### Making the side-effect durable
 
-The hook and the work queue row are two writes. If the process dies between them, the side-effect can be left with no queued work to consume it — a provisional row nothing will ever reconcile. There are two ways to close that, and which one applies depends on where the hook writes.
+The hook and the work queue row are two writes. If the process dies between them, the side-effect can be left with no queued work to consume it: a provisional row nothing will ever reconcile. There are two ways to close that, and which one applies depends on where the hook writes.
 
 **Writing through Trax's own context.** `IEnqueueContextAccessor.Current` exposes the data context the enqueue is about to commit on. Anything tracked on it is committed with the work queue row and rolled back with it:
 
 ```csharp
 protected override async Task OnQueue(Metadata metadata, CancellationToken ct)
 {
-    await accessor.Current!.Track(someTraxEntity);   // no SaveChanges — the enqueue commits it
+    await accessor.Current!.Track(someTraxEntity);   // no SaveChanges: the enqueue commits it
 }
 ```
 
 `Current` is non-null only while `OnQueue` is running, and the hook must not call `SaveChanges` or commit on it: the enqueue owns the lifetime. This only covers entities in Trax's own model.
 
-**Writing through your own `DbContext`.** EF can only share a transaction between contexts that share a connection, so a separately-registered context — the common case, and the one in the example above — commits independently and cannot be rolled back with the entry. For that, defer promotion:
+**Writing through your own `DbContext`.** EF can only share a transaction between contexts that share a connection, so a separately-registered context (the common case, and the one in the example above) commits independently and cannot be rolled back with the entry. For that, defer promotion:
 
 ```csharp
 protected override bool DeferQueuePromotion => true;
 ```
 
-The entry is then committed **unconfirmed** and is not dispatchable. The hook runs. A second commit stamps `confirmed_at` and the entry becomes claimable. This does not make the two writes atomic — nothing can, across two databases — but it makes a failure *findable*: a crash leaves an unconfirmed entry instead of an invisible side-effect. `IWorkQueuePromotion.PromoteStaleAsync` sweeps those up, promoting rather than cancelling them, because the deferred run re-executes the whole chain and the hook is required to be idempotent anyway.
+The entry is then committed **unconfirmed** and is not dispatchable. The hook runs. A second commit stamps `confirmed_at` and the entry becomes claimable. This does not make the two writes atomic (nothing can, across two databases), but it makes a failure *findable*: a crash leaves an unconfirmed entry instead of an invisible side-effect. `IWorkQueuePromotion.PromoteStaleAsync` sweeps those up, promoting rather than cancelling them, because the deferred run re-executes the whole chain and the hook is required to be idempotent anyway.
 
 A hook that *throws* still aborts the enqueue outright: the staged entry is removed, so the observable contract is unchanged either way.
 
@@ -411,18 +412,26 @@ public class NetSuiteFailureClassifier : IFailureClassifier
 }
 ```
 
-Trax records the answer on the run — `metadata.FailureClass`, readable in `OnFailed` and persisted, so "how many conflicts this hour" is a query rather than a log trawl. The vocabulary is `Unclassified | Transient | Conflict | Permanent`.
+Register it as an ordinary service:
+
+```csharp
+services.AddSingleton<IFailureClassifier, NetSuiteFailureClassifier>();
+```
+
+Trax resolves a single `IFailureClassifier` from the train's service provider, so only one is used. If several are registered, the container hands back the last registration and the others are never asked.
+
+Trax records the answer on the run as `metadata.FailureClass`, readable in `OnFailed` and persisted, so "how many conflicts this hour" is a query rather than a log trawl. The vocabulary is `Unclassified | Transient | Conflict | Permanent`.
 
 The classifier runs where the failure happened, holding the **original** exception object: junctions enrich an exception and return it rather than wrapping it, so you can type-check and read structured error data instead of parsing text.
 
 Four things worth knowing:
 
-- **Registering one is optional.** With none, every failure records `Unclassified`, which means "decide as you did before this existed". Nothing in Trax acts on a classification yet — retry is still purely count-based — so adding a classifier changes what is recorded, not what happens.
+- **Registering one is optional.** With none, every failure records `Unclassified`, which means "decide as you did before this existed". Nothing in Trax acts on a classification yet (retry is still purely count-based), so adding a classifier changes what is recorded, not what happens.
 - **Returning null is fine** and means the same as not recognising the failure.
 - **Throwing is not fatal.** The classifier's exception is logged and the failure records as `Unclassified`. A classifier must never be able to mask the failure it was asked about.
-- **Cancellation is not a failure** and is not classified.
+- **Cancellation is not a failure** and is not classified. That includes an `HttpClient` timeout: it surfaces as `TaskCanceledException`, the run records as `Cancelled`, and the classifier never sees it. A timeout your code turns into its own exception type is a failure like any other and can be classified `Transient`.
 
-**Runs executed remotely are classified too**, but by the worker rather than the caller. The worker holds the real exception, so it classifies there and the answer travels back with the failure; the calling side records what it was told instead of re-deriving it from a rebuilt exception whose type is gone. A worker that sends nothing — an older one, say — records `Unclassified` rather than failing.
+**Runs executed remotely are classified too**, but by the worker rather than the caller. The worker holds the real exception, so it classifies there and the answer travels back with the failure. That means the classifier must be registered in the **worker** process: one registered only on the calling side is never asked about a remote run. The calling side records what it was told instead of re-deriving it from a rebuilt exception whose type is gone. A worker that sends nothing (an older one, say) records `Unclassified` rather than failing.
 
 For work sent through a job submitter there is nothing to carry: the worker is given the metadata id and writes to that same row, so its classification is already the one you read.
 
@@ -437,19 +446,19 @@ protected override string? QueueSubjectKey(Metadata metadata) =>
     $"customer-{metadata.GetInput<PatchCustomerInput>()!.CustomerId}";
 ```
 
-The key is an opaque string — Trax compares it and nothing else, so its shape is yours to choose. A record identity is the usual pick. It is read at enqueue time from a metadata carrying the input, so it varies per mutation rather than being fixed per train.
+The key is an opaque string. Trax compares it and nothing else, so its shape is yours to choose. A record identity is the usual pick. It is read at enqueue time from a metadata carrying the input, so it varies per mutation rather than being fixed per train.
 
 Returning null, which is the default, means no serialization. Every train that does not override this is unaffected.
 
 **Throwing aborts the enqueue.** A key that cannot be computed must not quietly become null: that would drop the guarantee at exactly the moment the caller was relying on it.
 
-Two limits worth knowing. Only entries created through the mediator's queue path carry a key — work queued from a manifest is not about a record and has no subject, and the dashboard's rerun builds its entry directly rather than through `QueueAsync`. And ordering within a subject is enqueue order *at equal priority*; a higher-priority entry for the same subject still goes first, because priority should mean something.
+Two limits worth knowing. Only entries created through the mediator's queue path carry a key: work queued from a manifest is not about a record and has no subject. And ordering within a subject is enqueue order *at equal priority*; a higher-priority entry for the same subject still goes first, because priority should mean something.
 
-**What "in flight" means.** A subject is busy while a dispatched entry for it has a run that has not reached a terminal state — the same definition used elsewhere for an active execution. The dispatcher will not claim an entry whose subject is busy; the entry stays queued and is picked up on a later cycle, so nothing is skipped or lost.
+**What "in flight" means.** A subject is busy while a dispatched entry for it has a run that has not reached a terminal state, the same definition used elsewhere for an active execution. The dispatcher will not claim an entry whose subject is busy; the entry stays queued and is picked up on a later cycle, so nothing is skipped or lost.
 
 That ties the block to run completion, and therefore to stale-run reaping. A worker killed mid-run leaves its metadata in a non-terminal state, and the subject stays blocked until the stale-metadata reaper marks it failed. **A subject can be blocked for at most that window**, which gives the reaper's timeout a second meaning worth knowing about.
 
-Serialization is enforced in the claim, not just in candidate selection, because two entries for one subject are two different rows: row locking does not make them contend, and while both are still queued neither can see a dispatched sibling to refuse itself. On Postgres the claim takes a transaction-scoped advisory lock on the subject first. That lock is held only for the claim — which commits before the job is submitted — so nothing remote happens while it is held. Providers with a single writer need no lock and do not take one.
+Serialization is enforced in the claim, not just in candidate selection, because two entries for one subject are two different rows: row locking does not make them contend, and while both are still queued neither can see a dispatched sibling to refuse itself. On Postgres the claim takes a transaction-scoped advisory lock on the subject first. That lock is held only for the claim (which commits before the job is submitted), so nothing remote happens while it is held. Providers with a single writer need no lock and do not take one.
 
 ## SDK Reference
 

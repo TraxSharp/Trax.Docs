@@ -6,7 +6,9 @@ Trax 1.x ships `Junctions()`, `Chain`, `Resolve`, `Extract`, `ShortCircuit`, and
 > is internal, so `Junctions()` is the only way to declare a chain. The patterns below that
 > override `RunInternal` are kept because they describe a migration that happened; for a train
 > being written now, only the `Junctions()` shapes apply. See
-> [Trains and Junctions](/docs/core/trains-and-junctions).
+> [Trains and Junctions](/docs/core/trains-and-junctions), and
+> [Removal of RunInternal and Activate](/docs/migration-guides/runinternal-and-activate) for
+> moving a train off them.
 
 ## Why
 

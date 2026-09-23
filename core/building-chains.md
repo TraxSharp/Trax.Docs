@@ -20,7 +20,7 @@ protected override Task<Either<Exception, User>> Junctions() =>
         .Chain<SendEmailJunction>().Resolve();
 ```
 
-For all overloads, type parameter constraints, and junction-wiring behavior, see [SDK Reference: Chain](/docs/sdk-reference/train-methods/chain). The [Analyzer](analyzer.md) catches missing types at compile time, so you'll see these errors in your IDE before you ever run the code.
+For all overloads, type parameter constraints, and junction-wiring behavior, see [SDK Reference: Chain](/docs/sdk-reference/train-methods/chain). The host's [startup chain verification](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic) catches missing types before it serves traffic, so a broken chain fails the deploy rather than the first request that takes it.
 
 ### Railway Behavior
 
@@ -50,7 +50,7 @@ On a train whose return type is already in Memory, because it is the input type 
 
 There is no overload taking a value. To merge a nested train's result into the output, the junction that calls the nested train returns the merged value, which lands in Memory like any other junction output.
 
-The [Analyzer](analyzer.md) catches missing return types at compile time with **CHAIN002**.
+The host catches a missing return type at startup: the [chain verification](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic) refuses to start when a chain ends without `TReturn` in Memory. (The Roslyn [Analyzer](analyzer.md) that used to report this as **CHAIN002** is deprecated and no longer fires.)
 
 ## ShortCircuit
 
@@ -61,12 +61,13 @@ The [Analyzer](analyzer.md) catches missing return types at compile time with **
 ```csharp
 public class ProcessOrderTrain : ServiceTrain<OrderRequest, OrderResult>
 {
-    protected override OrderResult Junctions() =>
+    protected override Task<Either<Exception, OrderResult>> Junctions() =>
         Chain<ValidateOrderJunction>()
             .ShortCircuit<CheckCacheJunction>()  // If cached, capture result for Resolve
             .Chain<CalculatePricingJunction>()   // Still executes (short-circuit only affects Resolve)
             .Chain<ProcessPaymentJunction>()     // Still executes (short-circuit only affects Resolve)
-            .Chain<SaveOrderJunction>();
+            .Chain<SaveOrderJunction>()
+            .Resolve();
 }
 ```
 
@@ -108,7 +109,7 @@ public class GetUserEmailJunction : Junction<User, EmailAddress>
 `.AddServices()` puts service instances directly into [Memory](memory.md), making them available to subsequent junctions. This bypasses the DI container. The instances you pass are stored as-is.
 
 ```csharp
-protected override User Junctions()
+protected override Task<Either<Exception, User>> Junctions()
 {
     var validator = new CustomValidator();
     var notifier = new SlackNotifier();
@@ -116,7 +117,8 @@ protected override User Junctions()
     return AddServices<IValidator, INotifier>(validator, notifier)
         .Chain<ValidateJunction>()     // Can take IValidator from Memory
         .Chain<CreateUserJunction>()
-        .Chain<NotifyJunction>();      // Can take INotifier from Memory
+        .Chain<NotifyJunction>()       // Can take INotifier from Memory
+        .Resolve();
 }
 ```
 

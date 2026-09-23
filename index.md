@@ -32,7 +32,7 @@ Each package adds one layer of capability. Stop at whatever layer solves your pr
 
 | Layer | What it adds |
 |-------|-------------|
-| [**Core**](/docs/core) | Typed pipelines, error propagation, compile-time analyzer |
+| [**Core**](/docs/core) | Typed pipelines, error propagation, startup chain verification |
 | [**Effect**](/docs/effect) | Execution metadata, dependency injection, pluggable effect providers |
 | [**Mediator**](/docs/mediator) | Decoupled dispatch: route by input type instead of direct injection |
 | [**Scheduling**](/docs/scheduler) | Cron/interval scheduling, retries, dead-letter handling, job dependencies |

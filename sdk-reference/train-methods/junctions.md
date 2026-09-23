@@ -13,16 +13,13 @@ Override `Junctions()` to define the train's route, the sequence of junctions it
 ## Signature
 
 ```csharp
-// Train<TInput, TReturn>
-protected virtual TReturn Junctions()
-
-// ServiceTrain<TIn, TOut>: same signature
-protected virtual TOut Junctions()
+// Train<TInput, TReturn>, inherited unchanged by ServiceTrain<TIn, TOut>
+protected virtual Task<Either<Exception, TReturn>> Junctions()
 ```
 
 ## Returns
 
-`TReturn`, the train's output type. The return value is resolved automatically from Memory via an implicit conversion on `Monad`. You do not need to call `Resolve()` or wrap the result in `Either`.
+`Task<Either<Exception, TReturn>>`, the train's railway result. The chain ends in [`Resolve()`](/docs/sdk-reference/train-methods/resolve), which takes `TReturn` out of Memory, or carries the exception that stopped the chain as `Left`.
 
 ## Examples
 
@@ -44,11 +41,12 @@ All chain methods (`Chain`, `ShortCircuit`, `Extract`, `AddServices`) are availa
 ```csharp
 public class ProcessOrderTrain : ServiceTrain<OrderInput, OrderResult>
 {
-    protected override OrderResult Junctions() =>
+    protected override Task<Either<Exception, OrderResult>> Junctions() =>
         ShortCircuit<CheckCacheJunction>()
             .Chain<ValidateOrderJunction>()
             .Extract<OrderInput, OrderDetails>()
-            .Chain<ProcessPaymentJunction>();
+            .Chain<ProcessPaymentJunction>()
+            .Resolve();
 }
 ```
 
@@ -57,19 +55,22 @@ public class ProcessOrderTrain : ServiceTrain<OrderInput, OrderResult>
 ```csharp
 public class NotifyTrain(ISlackClient slack) : ServiceTrain<NotifyInput, Unit>
 {
-    protected override Unit Junctions() =>
+    protected override Task<Either<Exception, Unit>> Junctions() =>
         AddServices<ISlackClient>(slack)
-            .Chain<SendNotificationJunction>();
+            .Chain<SendNotificationJunction>()
+            .Resolve();
 }
 ```
 
 ## Behavior
 
-1. The framework calls `Activate(input)` automatically before `Junctions()` executes, seeding Memory with the train input and `Unit`.
-2. Chain methods are called as protected methods on the train itself (not on a separate `Monad` returned by `Activate`).
-3. The final chain call returns a `Monad<TInput, TReturn>`, which is implicitly converted to `TReturn` by extracting the result from Memory.
-4. If any junction threw an exception, the implicit conversion returns `default(TReturn)` and the framework handles the exception via the railway error path.
-5. The `Run()` / `RunEither()` public API is unchanged for callers.
+1. The framework seeds Memory with the train input and `Unit` before `Junctions()` executes.
+2. Chain methods are called as protected methods on the train itself. `Chain`, `IChain` and `ShortCircuit` return a `MonadTask<TInput, TReturn>`, an awaitable wrapper that keeps the fluent surface across async links; `Extract` and `AddServices` on the train return a `Monad<TInput, TReturn>`.
+3. The final `.Resolve()` awaits the chain and returns `Either<Exception, TReturn>`, following the priority exception > short-circuit value > Memory lookup.
+4. If a junction throws, the remaining junctions are skipped and the exception comes back as `Left`. An exception thrown by `Junctions()` itself is caught and returned as `Left` too.
+5. `Run()` unwraps the result and rethrows a `Left`; `RunEither()` returns it as is.
+
+The same `Junctions()` is also read, without running anything, by the startup chain check. See [Trains & Junctions](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic).
 
 ## There is no alternative to Junctions()
 
@@ -108,5 +109,5 @@ internal class RunChildTrain(ITrainBus trainBus) : Junction<ParentInput, ParentR
 
 ## Remarks
 
-- The implicit conversion from `Monad<TInput, TReturn>` to `TReturn` calls `Resolve()` internally, following the same resolution priority: exception > short-circuit value > Memory lookup.
+- Upgrading a train that overrode `RunInternal` or called `Activate`: see [Removal of RunInternal and Activate](/docs/migration-guides/runinternal-and-activate).
 - `TrainInput` and `TrainOutput` throw while the chain is being declared. A chain that branched on its input would have no single shape, so the shape checked at startup need not be the one that runs.

@@ -44,6 +44,7 @@ Every `ServiceTrain` execution creates a `Metadata` row:
 | `FailureException` | Exception type |
 | `FailureReason` | Error message |
 | `StackTrace` | Full stack trace on failure |
+| `FailureClass` | [Failure classification](/docs/core/trains-and-junctions#classifying-failures), stored in the `failure_class` column (the `trax.failure_class` enum type on Postgres). `Unclassified` unless a classifier assigned one |
 | `ParentId` | Links to parent train for [nested trains](/docs/mediator#nested-trains) |
 | `ManifestId` | Links to scheduling manifest |
 

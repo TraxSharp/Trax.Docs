@@ -23,8 +23,9 @@ public interface ITrainExecutionService
 {
     Task<QueueTrainResult> QueueAsync(
         string trainName,
-        string inputJson,
+        string? inputJson,
         int priority = 0,
+        DateTime? scheduledAt = null,
         CancellationToken ct = default
     );
 
@@ -43,8 +44,9 @@ Creates a WorkQueue entry for asynchronous execution. The scheduler picks up the
 ```csharp
 Task<QueueTrainResult> QueueAsync(
     string trainName,
-    string inputJson,
+    string? inputJson,
     int priority = 0,
+    DateTime? scheduledAt = null,
     CancellationToken ct = default
 )
 ```
@@ -52,8 +54,9 @@ Task<QueueTrainResult> QueueAsync(
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `trainName` | `string` | Yes | N/A | Train name, matched by canonical name (`ServiceType.FullName`), then friendly name (`ServiceTypeName`), then short name (`ServiceType.Name`). Prefer the fully-qualified interface name (e.g. `"MyApp.Trains.IProcessOrderTrain"`). |
-| `inputJson` | `string` | Yes | N/A | JSON-serialized input matching the train's `InputType` |
+| `inputJson` | `string?` | Yes | N/A | JSON-serialized input matching the train's `InputType`. May be null. |
 | `priority` | `int` | No | `0` | Dispatch priority (0-31, higher runs first) |
+| `scheduledAt` | `DateTime?` | No | `null` | Earliest time the entry may be dispatched. Stored and compared as UTC, so pass a UTC value. Null dispatches as soon as a worker is free. |
 | `ct` | `CancellationToken` | No | `default` | Cancellation token |
 
 **Returns**: `QueueTrainResult`
@@ -63,26 +66,28 @@ Task<QueueTrainResult> QueueAsync(
 | `WorkQueueId` | `long` | Database ID of the created WorkQueue entry |
 | `ExternalId` | `string` | External ID assigned to the entry |
 
-`scheduledAt` sets the earliest time the entry may be dispatched; null dispatches as soon as a worker is free. `inputJson` may be null, which stores no input rather than a default instance, so "nothing was given" stays distinguishable from "an empty object was given".
-
 **Throws**:
-- `InvalidOperationException` if no train is registered with the given name. The message includes a hint to use `ITrainDiscoveryService.DiscoverTrains()` to list available trains.
+- `TrainNotFoundException` (an `InvalidOperationException`) if no train is registered with the given name. Use `ITrainDiscoveryService.DiscoverTrains()` to list available trains.
+- `AmbiguousTrainNameException` if the name matches more than one train's friendly name.
+- `TrainInputValidationException` if `inputJson` exceeds the configured size cap (`WithMaxInputJsonBytes`, 256 KiB by default).
 - `InvalidOperationException` if JSON deserialization returns null.
-- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements that the current user does not satisfy. Only applies when `ITrainAuthorizationService` is registered (i.e., the API layer is in use).
-- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet, or `InvalidOperationException` if it has requirements and no `ITrainAuthorizationService` is registered. This applies to **every** enqueue, including the operations surface (`queueTrain`, `requeueExecution`) and the dashboard's re-queue, which all route through this method.
-- Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. The hook fires before the entry is persisted, so a throw aborts the enqueue and no entry is written — including when the train defers promotion, where the staged entry is removed.
+- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet. Authorization applies to **every** enqueue, including the operations surface (`queueTrain`, `requeueExecution`) and the dashboard's re-queue, which all route through this method.
+- `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered. The check fails closed; a host that serves no API submissions opts out with `AddMediator(m => m.AllowMissingAuthorizationService())`, after which the missing service is a no-op.
+- Any exception thrown by the train's `QueueSubjectKey` override. A key that cannot be computed aborts the enqueue rather than becoming null.
+- Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. The hook fires before the entry is persisted, so a throw aborts the enqueue and no entry is written, including when the train defers promotion, where the staged entry is removed.
 
 ### What it does
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
-2. If an `ITrainAuthorizationService` is registered, checks the user against the train's authorization requirements. Throws on failure.
+2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
 3. Deserializes `inputJson` to the train's `InputType`.
 4. Re-serializes the input using manifest serialization options (normalizes the JSON).
-5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, and priority.
-6. Tracks the entry, then — if the train overrides [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) — invokes the hook with the entry's `ExternalId` and the input, then saves and commits, all in one transaction. A throw rolls the whole thing back, so nothing the hook tracked on `IEnqueueContextAccessor.Current` survives either. Trains that do not override the hook are never resolved here.
-7. Returns the entry's ID and external ID.
+5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, priority, and `scheduledAt`.
+6. Stamps the entry's subject key from the train's `QueueSubjectKey` override, if it has one. An exception from `QueueSubjectKey` propagates and aborts the enqueue, so no entry is written.
+7. Tracks the entry, then (if the train overrides [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook)) invokes the hook with the entry's `ExternalId` and the input, then saves and commits, all in one transaction. A throw rolls the whole thing back, so nothing the hook tracked on `IEnqueueContextAccessor.Current` survives either. Trains that do not override the hook are never resolved here.
+8. Returns the entry's ID and external ID.
 
-Tracking the entry before the hook runs does not insert it — `Track` is change tracking only — so the hook still runs before the row exists, as its contract states.
+Tracking the entry before the hook runs does not insert it (`Track` is change tracking only), so the hook still runs before the row exists, as its contract states.
 
 When the train sets [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable), the shape changes to three steps instead: the entry is committed **unconfirmed** and undispatchable, the hook runs outside that transaction, and a second commit promotes it. A throwing hook removes the staged entry, so the observable contract is the same. A crash leaves the entry unconfirmed for `IWorkQueuePromotion.PromoteStaleAsync` to recover.
 
@@ -114,15 +119,17 @@ Task<RunTrainResult> RunAsync(
 | `Output` | `object?` | The train's typed output. `null` for `Unit` trains; the actual output object for trains with a typed `TOut` parameter. |
 
 **Throws**:
-- `InvalidOperationException` if no train is registered with the given name.
+- `TrainNotFoundException` (an `InvalidOperationException`) if no train is registered with the given name, or `AmbiguousTrainNameException` if the name matches more than one train's friendly name.
+- `TrainInputValidationException` if `inputJson` exceeds the configured size cap.
 - `InvalidOperationException` if JSON deserialization returns null.
 - `TrainException` if the train itself fails during execution (propagated from `ITrainBus`).
-- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements that the current user does not satisfy. Only applies when `ITrainAuthorizationService` is registered.
+- `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet.
+- `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered, unless the host called `AllowMissingAuthorizationService()`. The same fail-closed rule as `QueueAsync`.
 
 ### What it does
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
-2. If an `ITrainAuthorizationService` is registered, checks the user against the train's authorization requirements. Throws on failure.
+2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
 3. Deserializes `inputJson` to the train's `InputType`.
 4. Creates a `Metadata` record with a generated external ID.
 5. Persists the metadata via the data context.

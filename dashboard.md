@@ -102,6 +102,7 @@ When `Trax.Effect.Data` is registered, the dashboard exposes pages for browsing 
 | **Manifests** | Scheduled job definitions (requires Scheduler) |
 | **Manifest Groups** | Manifest group settings and aggregate execution stats (requires Scheduler). Includes a "Cancel All Running" button. |
 | **Dead Letters** | Failed jobs that exhausted their retry budget (requires Scheduler) |
+| **Work Queue** | Entries waiting for dispatch (requires Scheduler). The **Subject** column shows the entry's [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) when the train sets one. The **Confirmed** column shows a **Staged** badge on an entry that is not yet confirmed, which the dispatcher will not claim. The subject key is computed by your train, so it may carry record identifiers. |
 
 These pages are accessible from the **Data** section in the sidebar navigation.
 
@@ -125,7 +126,7 @@ Clicking a metadata row opens a detail page with train state, timing, input/outp
 
 **State Transition Timeline.** A visual horizontal stepper at the top of the detail page shows the train's state progression: Pending -> InProgress -> Completed/Failed/Cancelled. Each state is color-coded and displays the timestamp when that state was reached, along with the duration between transitions (wait time, execution time). Past states are filled, the current state pulses, and future states are dimmed.
 
-**Exception Viewer.** When a train has failed, the failure details card includes a collapsible stack trace viewer with:
+**Exception Viewer.** When a train has failed, the failure details card shows a **Failure class** field with the run's [failure classification](/docs/core/trains-and-junctions#classifying-failures) (`Unclassified` unless a registered classifier assigned one), and a collapsible stack trace viewer with:
 - Syntax highlighting for C# stack traces (method names, file paths, and line numbers each in distinct colors)
 - A **Copy** button for copying the raw stack trace to the clipboard
 - Auto-collapse for long stack traces (expanded by default for short ones)

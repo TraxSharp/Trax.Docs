@@ -113,14 +113,14 @@ public class WhoAmITrain : ServiceTrain<Unit, UserInfo>, IWhoAmITrain
 [TraxAuthorize("Admin")]
 public class DeleteUserTrain : ServiceTrain<DeleteUserInput, Unit>, IDeleteUserTrain
 {
-    protected override Unit Junctions() => Chain<DeleteUserJunction>();
+    protected override Task<Either<Exception, Unit>> Junctions() => Chain<DeleteUserJunction>().Resolve();
 }
 
 // Requires the user to have at least one of the listed roles
 [TraxAuthorize(Roles = "Manager,Admin")]
 public class GenerateReportTrain : ServiceTrain<ReportInput, ReportOutput>, IGenerateReportTrain
 {
-    protected override ReportOutput Junctions() => Chain<GenerateReportJunction>();
+    protected override Task<Either<Exception, ReportOutput>> Junctions() => Chain<GenerateReportJunction>().Resolve();
 }
 
 // No attribute, no per-train auth check. Valid only because this train is not
@@ -128,7 +128,7 @@ public class GenerateReportTrain : ServiceTrain<ReportInput, ReportOutput>, IGen
 // with no marker fails startup (see Required Exposure Posture above).
 public class PingTrain : ServiceTrain<PingInput, PongOutput>, IPingTrain
 {
-    protected override PongOutput Junctions() => Chain<PingJunction>();
+    protected override Task<Either<Exception, PongOutput>> Junctions() => Chain<PingJunction>().Resolve();
 }
 ```
 

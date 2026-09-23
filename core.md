@@ -20,7 +20,7 @@ dotnet add package Trax.Core
 - **Junctions**: single-responsibility units of work with typed input/output
 - **Memory**: a type-keyed store that wires junction outputs to junction inputs automatically
 - **Railway error propagation**: if any junction fails, the train switches to the left track and skips the rest
-- **Compile-time analyzer**: catches broken chains before you run anything
+- **Startup chain verification**: the host refuses to start if a train's chain cannot run
 - **IDE extensions**: inlay hints showing cargo types at each junction
 
 ## The Railway

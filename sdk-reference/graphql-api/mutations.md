@@ -400,7 +400,9 @@ mutation {
 ### requeueExecution
 
 Re-queues an execution: reads its train name + input from the metadata row and enqueues a
-fresh work queue entry for the dispatcher (the dashboard's Re-queue action).
+fresh work queue entry for the dispatcher (the dashboard's Re-queue action). It goes through the
+same path as [`queueTrain`](#queuetrain), so a caller who may not run the train gets a GraphQL
+error with code `TRAX_AUTHORIZATION` (`"Not authorized."`) rather than `success: false`.
 
 ```graphql
 mutation {
@@ -552,6 +554,8 @@ The `operations.workQueue` namespace lets the dashboard (and other API clients) 
 #### queueTrain
 
 Creates a new work queue entry. The dispatcher picks it up on its next poll. Validation happens before any DB write: an unknown `trainName`, malformed `inputJson`, or JSON that deserializes to `null` returns `OperationResponse(success: false, message: ...)` and inserts nothing.
+
+The entry is then created through [`ITrainExecutionService.QueueAsync`](/docs/sdk-reference/mediator-api/train-execution#queueasync), so the train's `[TraxAuthorize]` requirements apply. A caller who may not run the train gets a GraphQL error with code `TRAX_AUTHORIZATION` and message `"Not authorized."`, not `success: false`, and nothing is inserted.
 
 ```graphql
 mutation {

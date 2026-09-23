@@ -30,7 +30,7 @@ public interface IJunction<TIn, TOut>
 }
 
 // Chaining is done via methods on Train<TIn, TOut> itself
-// Primary:  override Junctions() => Chain<MyJunction>().Chain<MyOtherJunction>();
+// Primary:  override Junctions() => Chain<MyJunction>().Chain<MyOtherJunction>().Resolve();
 // A chain that names no junctions: Junctions() => Task.FromResult(Resolve());
 // See SDK Reference > Train Methods for all overloads
 ```
@@ -60,7 +60,7 @@ public abstract class ServiceTrain<TIn, TOut> : Train<TIn, TOut>, IServiceTrain<
     public string TrainName => CanonicalName ?? GetType().FullName ?? GetType().Name;
     public long? ParentId { get; internal set; }
 
-    protected virtual TOut Junctions() => ...;     // Override for standard pattern
+    protected virtual Task<Either<Exception, TOut>> Junctions() => ...;  // Inherited from Train; override to declare the chain
 }
 ```
 

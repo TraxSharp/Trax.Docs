@@ -40,9 +40,11 @@ shape of every train in every repo, and it cannot carry the `AddServices<T>(T se
 runtime gate gets the same guarantee for input-dependence at zero migration. This remains the
 option to take if ambient branching ever turns up in practice.
 
-**A Roslyn analyzer.** `TrainChainAnalyzer` already parses these chains, so it could report a
-chain that reads the input. Rejected as the primary mechanism because an analyzer has to be
-referenced to run, which makes correctness opt-in and silently absent wherever someone forgot.
+**A Roslyn analyzer.** `TrainChainAnalyzer` parses fluent chains, so it could in principle report
+a chain that reads the input. It only inspects chains rooted at `Activate()`, though, and with
+`Activate` internal it no longer sees any chain a train can write; it is deprecated. Rejected as
+the primary mechanism because an analyzer has to be referenced to run, which makes correctness
+opt-in and silently absent wherever someone forgot.
 An analyzer remains useful as a second, earlier signal; it is not what the guarantee rests on.
 
 **Reading the chain from IL.** Inspecting the method body avoids both executing the chain and
@@ -56,8 +58,10 @@ belong, and a junction receives the input as its argument. A train that wants to
 identifier onto its input declares a junction that does it.
 
 **Reading a chain resolves nothing.** Steps are recorded from type arguments, so a junction that
-cannot be constructed is still declared. Whether a junction resolves is a separate check against
-the container, which keeps the two failures distinguishable.
+cannot be constructed is still declared. Whether a junction can be constructed is not checked at
+all: a junction takes its constructor arguments from Memory, which the chain fills as it runs, so
+the answer is not decidable from the declaration. The container is consulted only to decide
+whether a junction's input can be supplied from outside Memory.
 
 **Branching on ambient state is still possible.** A chain that reads the clock or a static flag
 records whichever shape boot-time conditions select, with no signal that it did. Instance state
@@ -96,6 +100,12 @@ rather than being unconditional.
 
 ## Changelog
 
+- **2026-09-23**: Corrected two claims. The considered-options entry said `TrainChainAnalyzer`
+  already parses these chains; it only parses chains rooted at `Activate()`, which no train can
+  write any more, so it checks nothing and is deprecated. The consequences entry said whether a
+  junction resolves is a separate check against the container; that check was removed
+  (Trax.Mediator `a20ce54`) because constructibility is not decidable from the declaration. The
+  decision is unchanged.
 - **2026-09-22**: Wired into startup: a host now replays every registered train's chain and
   refuses to start when one cannot run.
 - **2026-09-22**: `RunInternal` made private and `Activate` internal, once every train in the

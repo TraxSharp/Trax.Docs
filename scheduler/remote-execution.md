@@ -604,8 +604,9 @@ When a train fails on a remote worker, Trax preserves the full exception context
 | `ExceptionType` | The .NET exception type name (e.g., `"InvalidOperationException"`) |
 | `FailureJunction` | The train junction where the failure occurred (extracted from `TrainExceptionData`) |
 | `StackTrace` | The remote stack trace |
+| `FailureClass` | `/trax/run` only (`RemoteRunResponse`). The [failure class](/docs/core/trains-and-junctions#classifying-failures) the worker's classifier assigned, or null when the worker sent none |
 
-On the API side, `HttpJobSubmitter` and `HttpRunExecutor` read the response body and reconstruct a `TrainException` with the structured data intact. `Metadata.AddException()` populates `FailureException`, `FailureJunction`, `FailureReason`, and `StackTrace` from the reconstructed exception. Locally-executed trains attach this data via `Exception.Data["TrainExceptionData"]`; remote trains carry it as JSON in the exception message instead.
+On the API side, `HttpJobSubmitter` and `HttpRunExecutor` read the response body and reconstruct a `TrainException` with the structured data intact. `Metadata.AddException()` populates `FailureException`, `FailureJunction`, `FailureReason`, `StackTrace`, and (for `/trax/run`) `FailureClass` from the reconstructed exception. The class is carried rather than recomputed, because the original exception type is gone by the time the response arrives; a null `FailureClass` records as `Unclassified`. `/trax/execute` needs no such field: the worker writes to the same metadata row, so its classification is already recorded. Locally-executed trains attach this data via `Exception.Data["TrainExceptionData"]`; remote trains carry it as JSON in the exception message instead.
 
 ```
 Runner Process                         API Process

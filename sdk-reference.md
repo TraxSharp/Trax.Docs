@@ -18,7 +18,7 @@ For conceptual explanations and tutorials, see [Core](/docs/core), [Effect](/doc
 
 Methods available on `Train<TInput, TReturn>` for composing junctions. `Junctions()` is the only way to declare a chain.
 
-Includes: `Junctions`, `Chain`, `ShortCircuit`, `Extract`, `AddServices`, `Activate`, `Resolve`, `Run` / `RunEither`.
+Includes: `Junctions`, `Chain`, `ShortCircuit`, `Extract`, `AddServices`, `Resolve`, `Run` / `RunEither`.
 
 ### [Configuration](/docs/sdk-reference/configuration) (Effect)
 

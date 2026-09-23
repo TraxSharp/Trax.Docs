@@ -18,16 +18,29 @@ input type or as `Unit`, it is the only call.
 ## Signature
 
 ```csharp
+// On the train: ends a chain that names no junctions
 protected Either<Exception, TReturn> Resolve()
+
+// On MonadTask<TInput, TReturn>, returned by Chain, IChain and ShortCircuit
+public Task<Either<Exception, TReturn>> Resolve()
+public Task<Either<Exception, TReturn>> Resolve(Either<Exception, TReturn> returnType)
+
+// On Monad<TInput, TReturn>, returned by Extract and AddServices on the train
+public Either<Exception, TReturn> Resolve()
+public Either<Exception, TReturn> Resolve(Either<Exception, TReturn> returnType)
 ```
 
-There is no overload taking a value. A declaration says which junctions run, so stating a result
-directly would let it return something the junctions it names never produced.
+The train's own `Resolve()` has no overload taking a value. A declaration says which junctions
+run, so stating a result directly would let it return something the junctions it names never
+produced. The chain types `Monad` and `MonadTask` do carry a public `Resolve(returnType)`
+overload, described under Remarks.
 
 ## Returns
 
-`Either<Exception, TReturn>`, the train result. `Left` contains the exception on failure; `Right`
-contains the `TReturn` value on success.
+`Either<Exception, TReturn>` (wrapped in a `Task` on `MonadTask`), the train result. `Left`
+contains the exception on failure; `Right` contains the `TReturn` value on success. A chain whose
+last step is synchronous (`Resolve()` on the train, or after `Extract` with no junction) is
+wrapped in `Task.FromResult` to match the `Junctions()` return type.
 
 ## Examples
 
@@ -55,4 +68,4 @@ public class EchoTrain : ServiceTrain<string, string>, IEchoTrain
 ## Remarks
 
 - `Resolve()` does not throw. It returns an `Either`. The calling `Run()` method unwraps the Either and throws if needed.
-- The parameterized `Resolve(returnType)` is simpler: it returns the exception if one exists, otherwise returns the provided value. It does **not** check short-circuit or Memory.
+- The parameterized `Resolve(returnType)` on `Monad` and `MonadTask` is simpler: it returns the chain's exception if one exists, otherwise the provided value. It does **not** check short-circuit or Memory.

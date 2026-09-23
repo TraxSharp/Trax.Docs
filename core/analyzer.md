@@ -7,6 +7,17 @@ nav_order: 4
 
 # Analyzer
 
+> **Deprecated.** The `TrainChainAnalyzer` in `Trax.Core.Analyzers` no longer checks anything.
+> It only inspects chains that start at `Activate()`, and `Activate` is now internal, so no
+> train can write a chain the analyzer recognises. A chain declared in `Junctions()` produces no
+> CHAIN001 or CHAIN002 diagnostics, whether it is correct or not.
+>
+> The [startup chain verification](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic)
+> replaces it. At host startup Trax reads every registered train's `Junctions()` declaration and
+> refuses to start if a junction's input never reaches Memory or the chain ends without the
+> train's return type, which are the same two faults the analyzer reported. The rest of this page
+> describes the analyzer as it was designed, for projects that still reference the package.
+
 Trax.Core includes a Roslyn analyzer that validates your train's route at compile time, like a route planner that checks every junction has the cargo it needs before the train ever departs. When you chain junctions via `.Chain<TJunction>()`, the analyzer simulates the runtime Memory dictionary to verify that each junction's input type is available before that junction executes.
 
 ## The Problem
@@ -26,7 +37,7 @@ The analyzer makes it a compile-time error. You see the problem immediately in y
 
 ## What It Checks
 
-The analyzer triggers on `Junctions()` overrides and `.Resolve()` calls in `Train<,>` or `ServiceTrain<,>` subclasses. It walks through the chain and simulates Memory forward:
+The analyzer triggers on `.Resolve()` calls in `Train<,>` or `ServiceTrain<,>` subclasses whose chain starts at `Activate()` (which is why it no longer fires). It walks through the chain and simulates Memory forward:
 
 ```
 Junctions()           -> Memory = { TInput, Unit }
@@ -73,9 +84,9 @@ Fires when `Resolve()` needs a type that hasn't been produced. The analyzer trac
 ```csharp
 public class MissingReturnTrain : ServiceTrain<OrderRequest, Receipt>
 {
-    protected override Receipt Junctions() =>
-        Chain<ValidateOrderJunction>();  // Returns Unit
-                                         // <- CHAIN002: Receipt not in Memory
+    protected override Task<Either<Exception, Receipt>> Junctions() =>
+        Chain<ValidateOrderJunction>()  // Returns Unit
+            .Resolve();                 // <- CHAIN002: Receipt not in Memory
 }
 ```
 

@@ -24,6 +24,7 @@ Every train execution produces a metadata record. It captures everything about t
 | `FailureException` | `string?` | Exception type |
 | `FailureReason` | `string?` | Error message |
 | `StackTrace` | `string?` | Stack trace if failed |
+| `FailureClass` | `FailureClass` | `Unclassified` / `Transient` / `Conflict` / `Permanent`, from the registered [failure classifier](/docs/core/trains-and-junctions#classifying-failures). `Unclassified` when the run did not fail or nothing classified it |
 | `ParentId` | `long?` | Links to parent metadata for nested trains |
 | `ManifestId` | `long?` | Links to manifest for scheduled trains |
 | `ScheduledTime` | `DateTime?` | Scheduled execution time |
@@ -47,6 +48,7 @@ When a junction throws, Trax captures structured context without modifying the o
 | `FailureException` | Exception type short name | `"InvalidOperationException"` |
 | `FailureReason` | Original exception message (unmodified) | `"Input 'email' was null"` |
 | `StackTrace` | Stack trace from the original throw site | Points to the junction's `Run` method |
+| `FailureClass` | The registered `IFailureClassifier`'s answer, set before the failure is recorded. Cancelled runs are not classified | `Conflict` |
 
 The original exception is rethrown to callers with its type, message, and stack trace intact. `TrainExceptionData` rides along in `Exception.Data` for any code that wants structured context (e.g., logging, monitoring).
 

@@ -540,6 +540,7 @@ When any filter or `afterId` is supplied the count is exact (`isEstimatedCount: 
 | `failureReason` | `String` | Exception message on failure |
 | `manifestId` | `Long` | Associated manifest ID (null if not scheduler-initiated) |
 | `cancellationRequested` | `Boolean!` | Whether cancellation was requested |
+| `failureClass` | `FailureClass!` | How the failure was classified: `UNCLASSIFIED`, `TRANSIENT`, `CONFLICT`, or `PERMANENT`. `UNCLASSIFIED` when the run did not fail, no [failure classifier](/docs/core/trains-and-junctions#classifying-failures) is registered, or it did not recognise the failure |
 
 ---
 
@@ -601,6 +602,7 @@ query {
       hostName
       hostEnvironment
       hostInstanceId
+      failureClass
     }
   }
 }
@@ -616,7 +618,8 @@ query {
 canonical form). There is no separate junction table: junction context is the
 `currentlyRunningJunction` (while `IN_PROGRESS`) and `failureJunction` (on failure) fields.
 `childCount` is the number of sub-executions (metadata rows whose `parentId` is this
-execution), for rendering a parent/child tree.
+execution), for rendering a parent/child tree. `failureClass` is the same `FailureClass` enum as
+on [`ExecutionSummary`](#executionsummary-fields).
 
 ---
 
@@ -1208,6 +1211,8 @@ When any filter or `afterId` is supplied, the count is exact and `isEstimatedCou
 | `metadataId` | `Long` | Metadata ID created at dispatch, if dispatched |
 | `deadLetterId` | `Long` | Dead letter that triggered this requeue, if applicable |
 | `inputTypeName` | `String` | Fully qualified type name of the input, for deserialization |
+| `confirmedAt` | `DateTime` | When the entry became eligible for dispatch. Null while it is still being staged; the dispatcher never claims an unconfirmed entry |
+| `subjectKey` | `String` | The subject the entry is serialized against, from the train's [`QueueSubjectKey`](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing). Null when the train does not set one. The value is computed by the consumer's train, so it may carry record identifiers |
 
 ### workQueue (single)
 
