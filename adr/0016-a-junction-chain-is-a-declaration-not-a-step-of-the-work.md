@@ -25,10 +25,10 @@ whichever shape the reading conditions happen to select, so the chain verified a
 not be the chain that runs, and a green startup check would mean nothing. The value of eager
 verification depends entirely on there being a single chain to verify.
 
-The rule was also already true everywhere it mattered and simply unenforced. All 96 `Junctions()`
-overrides across the eight repos were already pure when the gate was added; the only violations
-found anywhere were in a consumer's generated `POST` trains, which read the input to stamp an
-identifier before building the chain.
+The rule was also already true everywhere it mattered and simply unenforced. None of the 96
+`Junctions()` overrides across the eight repos read the input when the gate was added; the only
+violations found anywhere were in a consumer's generated `POST` trains, which read the input to
+stamp an identifier before building the chain.
 
 ## Considered options
 
@@ -63,10 +63,22 @@ all: a junction takes its constructor arguments from Memory, which the chain fil
 the answer is not decidable from the declaration. The container is consulted only to decide
 whether a junction's input can be supplied from outside Memory.
 
+**A declaration that does work is refused.** `Junctions()` runs when a chain is read, so a body
+that awaits before returning, returns a result instead of ending in `Resolve()`, or ends in
+`Resolve(value)` has no chain to read. Each is recorded as a refusal and the host will not
+start, instead of the train reading as an empty, clean chain. Whatever such a body started at
+boot is not undone.
+
+**The replay has to mirror the runtime.** A chain is only as verified as the replay is faithful.
+The train's input and tuple elements enter Memory under their type and interfaces, but a
+junction's output, an extracted value and an `AddServices` value enter under exactly one type,
+and lookup is by exact type before the container. A short circuit's output is not available to
+what follows it, because the path that continues is the one where it returned Left.
+
 **Branching on ambient state is still possible.** A chain that reads the clock or a static flag
-records whichever shape boot-time conditions select, with no signal that it did. Instance state
-is closed by construction; ambient state is merely unlikely. Closing it needs the static
-declaration above.
+records whichever shape boot-time conditions select, with no signal that it did. Only
+`TrainInput` and `TrainOutput` are gated; branching on `Metadata`, an injected property or any
+other instance state is equally unchecked. Closing that needs the static declaration above.
 
 **`RunInternal` and `Activate` are no longer reachable.** A train that built its chain
 imperatively could not be read, so the escape hatch and the guarantee could not both exist.
@@ -75,10 +87,10 @@ declare a chain and every train is therefore readable. Closing them cost four `C
 and a parameterless `Resolve()`, added so the declaration can express what the imperative form
 could.
 
-**Seeding arbitrary values into Memory is gone with it.** `Activate(input, otherInputs)` had no
-declarative equivalent, and adding one would have let a declaration inject values the junctions
-it names never produced. The trains that used it were restructured: a value a later junction
-reads is now produced by an earlier junction, which is where work belongs.
+**Seeding extra inputs is gone with it.** `Activate(input, otherInputs)` had no declarative
+equivalent, and the trains that used it were restructured so that a value a later junction reads
+is produced by an earlier junction. `AddServices(value)` and `Extract(value)` still put a value in
+Memory directly; the replay records each as a seed of its declared type.
 
 ## Exemplars
 
@@ -87,19 +99,28 @@ order with its junction's input and output types, that no junction runs, that an
 junction is still declared, and that the train is runnable afterwards. `ChainDeclarationTests` in
 Trax.Effect pins that reading `TrainInput` or `TrainOutput` while declaring throws, naming the
 train and the member, and that a chain naming only junctions declares cleanly.
-`TrainChainStartupValidatorTests` in Trax.Mediator pins that a host refuses to start when a train
-names a junction whose input never reaches Memory or declares a chain that reads the input, that
-it starts when every chain lines up, and that the opt-out works.
-`ChainVerificationTests` in Trax.Core pins the replay itself, including that a short circuit
-supplies the return value and that a tuple contributes its elements.
+`DeclaredChainTests` also pins the refusals: an awaiting body, a direct result, `Resolve(value)`,
+and an async body's exception being rethrown. `TrainChainStartupValidatorTests` in Trax.Mediator
+pins that a host refuses to start when a train names a junction whose input never reaches Memory,
+declares a chain that reads the input (synchronously or in an async body), or does work before
+declaring; that it reports every failing train at once; that a container-supplied input is
+checked without building the service; and that the opt-out works. `ChainVerificationTests` in
+Trax.Core pins the replay itself: a junction output's interfaces are not available and the run
+fails the same way, a short circuit neither supplies the return value nor its output, seeds and
+tuples are available, `Extract` ignores the container and `IChain` needs its junction.
 
-Not covered: nothing detects a chain that branches on ambient state. The replay also knows
-declared types rather than the concrete ones that flow, so a junction declaring an interface its
-runtime value implements only incidentally reads as a fault; that is why the check has an opt-out
-rather than being unconditional.
+Not covered: nothing detects a chain that branches on ambient state or on instance state other
+than the input and output. The replay knows the train's declared input type, not the subtype that
+flows, so a junction asking for an interface only that subtype implements reads as a fault; that
+is why the check has an opt-out rather than being unconditional.
 
 ## Changelog
 
+- **2026-09-23**: The replay was reading a junction output's interfaces as available and letting
+  a short circuit excuse the rest of the chain, both of which the runtime does not do, so it passed
+  chains that failed on every run. It now mirrors the runtime, and a declaration that awaits,
+  returns a result or ends in `Resolve(value)` is refused. Corrected the overstatements about
+  instance state being closed and value seeding being gone.
 - **2026-09-23**: Corrected two claims. The considered-options entry said `TrainChainAnalyzer`
   already parses these chains; it only parses chains rooted at `Activate()`, which no train can
   write any more, so it checks nothing and is deprecated. The consequences entry said whether a
