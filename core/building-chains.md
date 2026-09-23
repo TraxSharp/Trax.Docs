@@ -50,7 +50,7 @@ On a train whose return type is already in Memory, because it is the input type 
 
 There is no overload taking a value. To merge a nested train's result into the output, the junction that calls the nested train returns the merged value, which lands in Memory like any other junction output.
 
-The host catches a missing return type at startup: the [chain verification](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic) refuses to start when a chain ends without `TReturn` in Memory. (The Roslyn [Analyzer](analyzer.md) that used to report this as **CHAIN002** is deprecated and no longer fires.)
+The host catches a missing return type at startup: the [chain verification](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic) refuses to start when a chain ends without `TReturn` in Memory. (The Roslyn [Analyzer](/docs/core/analyzer) that used to report this as **CHAIN002** is deprecated and no longer fires.)
 
 ## ShortCircuit
 

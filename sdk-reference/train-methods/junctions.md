@@ -64,7 +64,7 @@ public class NotifyTrain(ISlackClient slack) : ServiceTrain<NotifyInput, Unit>
 
 ## Behavior
 
-1. The framework seeds Memory with the train input and `Unit` before `Junctions()` executes.
+1. The framework seeds Memory with the train input (under its declared type, its runtime type and that type's interfaces) and `Unit` before `Junctions()` executes.
 2. Chain methods are called as protected methods on the train itself. `Chain`, `IChain` and `ShortCircuit` return a `MonadTask<TInput, TReturn>`, an awaitable wrapper that keeps the fluent surface across async links; `Extract` and `AddServices` on the train return a `Monad<TInput, TReturn>`.
 3. The final `.Resolve()` awaits the chain and returns `Either<Exception, TReturn>`, following the priority exception > short-circuit value > Memory lookup.
 4. If a junction throws, the remaining junctions are skipped and the exception comes back as `Left`. An exception thrown by `Junctions()` itself is caught and returned as `Left` too.
@@ -76,6 +76,8 @@ The same `Junctions()` is also read, without running anything, by the startup ch
 - awaits something before returning, which means it does work
 - returns a result directly (`Task.FromResult(value)`) instead of ending in `Resolve()`
 - ends in `Resolve(value)`
+- uses `IChain<T>` or `AddServices<T>` with a class instead of an interface
+- short-circuits with a junction whose output cannot be the train's return type
 
 A train with no junctions ends in `Task.FromResult(Resolve())`. The full list of faults, and the Memory rules the check replays, are in [Trains & Junctions](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic).
 
@@ -90,7 +92,7 @@ Everything that used to justify reaching for `RunInternal` has a place in the ch
 | What you need | Where it goes |
 |---|---|
 | Logic before or after the chain | A junction at the head or the tail of it |
-| Extra objects in Memory | A junction whose return value is that object |
+| Extra objects in Memory | A junction whose return value is that object, or `AddServices<IService>(value)` / `Extract<TIn, TOut>(value)` in the chain |
 | Returning a failure | A junction throws; the chain turns it into `Left` |
 | Async setup | A junction, which is async already |
 | Merging a nested train's result | A junction that calls `TrainBus` and returns the merged value |

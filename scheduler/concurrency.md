@@ -160,7 +160,7 @@ This is the blocking two-key form. The second claimant waits until the first com
 
 SQLite needs no lock: it has a single writer, so two claims cannot interleave. Its dialect's lock is a no-op.
 
-Candidate loading also drops entries whose subject is busy and keeps only the first queued entry per subject in a cycle, so entries the claim will refuse do not consume `MaxActiveJobs` slots. See [JobDispatcher](admin-trains/job-dispatcher.md#loadqueuedjobsjunction).
+Candidate loading also drops entries whose subject is busy and keeps only the first queued entry per subject in a cycle, so entries the claim will refuse do not consume `MaxActiveJobs` slots. See [JobDispatcher](/docs/scheduler/admin-trains/job-dispatcher#loadqueuedjobsjunction).
 
 ### Intra-Cycle Parallelism
 
@@ -168,7 +168,7 @@ In addition to multi-server parallelism, a single server can dispatch multiple e
 
 With `MaxConcurrentDispatch(10)`, the same 50 entries are dispatched in ~10 seconds (5 batches of 10). The `FOR UPDATE SKIP LOCKED` pattern prevents conflicts: concurrent dispatches within the same cycle cannot claim the same entry, just as concurrent dispatches across servers cannot.
 
-See [JobDispatcher. Parallel Dispatch](admin-trains/job-dispatcher.md#parallel-dispatch) for configuration details.
+See [JobDispatcher. Parallel Dispatch](/docs/scheduler/admin-trains/job-dispatcher#parallel-dispatch) for configuration details.
 
 ### Per-Entry DI Scope
 

@@ -52,6 +52,7 @@ The builder overload passes a `TraxMediatorBuilder` with the following methods:
 |--------|---------|-------------|
 | `ScanAssemblies(params Assembly[])` | `TraxMediatorBuilder` | Adds assemblies to scan for `IServiceTrain<,>` implementations |
 | `TrainLifetime(ServiceLifetime)` | `TraxMediatorBuilder` | Sets the DI lifetime for discovered train registrations (default: `Transient`) |
+| `SkipChainVerification()` | `TraxMediatorBuilder` | Turns off the startup chain check. Logs a warning at startup instead. Use it only while migrating chains, or for the declared-input blind spot described in [Trains & Junctions](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic) |
 
 ## Returns
 
@@ -106,6 +107,7 @@ services.AddTrax(trax => trax
 2. Registers each discovered train with the DI container at the specified lifetime
 3. Registers `ITrainBus` for dynamic train dispatch
 4. Registers `ITrainRegistry` for train type lookup
+5. Registers the startup chain validator, a hosted service that reads every registered train's `Junctions()` declaration when the host starts and refuses to start if any chain cannot run, reporting every failing train at once. `SkipChainVerification()` turns it off. See [Trains & Junctions](/docs/core/trains-and-junctions#the-host-checks-every-chain-before-it-serves-traffic)
 
 ## How Discovery Works
 

@@ -45,10 +45,22 @@ run's outcome: a record that is only written when the caller is still listening 
 instance that does not know the column are dispatchable. A deferring train's hook has no enqueue
 context to join, because its entry is already committed.
 
+If the entry stops being staged while its hook runs, because an operator cancelled it or the
+sweep resolved it after the hook outlived `StaleStagedEntryTimeout`, the enqueue throws
+`InvalidOperationException` rather than reporting success: the work will not run, and the hook's
+side-effect may already have landed. Removing the entry after a hook throws deletes it only while
+it is still staged, never once promoted or dispatched, and a failure to remove it does not
+replace the hook's exception. Only a train with an `OnQueue` hook opens a transaction for its
+enqueue; the common path is a single write.
+
+The sweep runs in the ManifestManager. A deployment where the ManifestManager is disabled
+everywhere (`ManifestManagerEnabled = false`) never resolves a stranded entry.
+
 ## Exemplars
 
 **Enforced elsewhere:** `DeferredPromotionTests` in Trax.Mediator (staging, removal on a throw,
-cancellation before and after the hook, the sweeps), `WorkQueuePromotionTests` in Trax.Effect
+cancellation before and after the hook, the sweeps, an entry cancelled while its hook ran
+failing the enqueue, and a promoted entry surviving a hook that throws), `WorkQueuePromotionTests` in Trax.Effect
 (the in-memory provider), `ResolveStaleStagedEntriesJunctionTests` in Trax.Scheduler (cancel by
 default, promote when opted in), `SubjectKeySerializationTests` in Trax.Scheduler (stranded
 staged entries take no dispatch capacity on either load path), and `EnqueueContextAccessorTests`

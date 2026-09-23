@@ -1,6 +1,6 @@
 ---
 authors: [Theauxm]
-repos: [effect, mediator, scheduler, dashboard]
+repos: [effect, mediator, scheduler, api, dashboard]
 areas: [platform, data-model]
 status: accepted
 ---
@@ -36,9 +36,12 @@ a per-subject queue.
 
 The key is an opaque string compared exactly across every train, so two trains returning the same
 key serialize against each other. It is refused when empty or longer than 512 characters. The
-guarantee holds within the stale-run window: when the reaper fails a run that has been in progress
-longer than `StaleInProgressTimeout`, the subject is released even if that run is still working. A
-synchronous run through the mediator does not consult the key. Dispatch drops busy subjects and
+guarantee holds within the stale-run window: when a reaper fails a run (pending longer than
+`StalePendingTimeout`, or in progress longer than `StaleInProgressTimeout`), the subject is
+released even if that run is still working. A synchronous run through the mediator does not
+consult the key, and neither does a dormant dependent a parent train activates: its entry is built
+by the scheduler with input the parent chose at runtime, and carries no subject. The API exposes
+the key as `subjectKey` on work queue reads. Dispatch drops busy subjects and
 duplicate siblings from its candidates, so entries the claim would refuse do not use up
 `MaxActiveJobs`.
 

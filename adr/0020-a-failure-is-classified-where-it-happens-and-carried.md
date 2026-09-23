@@ -38,10 +38,17 @@ writer uses it (effect/0006). Failures the scheduler records itself, a dispatch 
 the reaper fails, are Unclassified, and a client-side timeout that surfaces as a cancellation is
 never classified.
 
+A failure rebuilt from a serialized record, which is how a remote failure reaches the calling
+side, is never passed to the local classifier. If the worker sent a class it is recorded; if it
+sent none the run stays Unclassified, because re-deriving one from the rebuilt exception is the
+option rejected above. The wire carries the class as an integer whatever either host's JSON
+options, and both executors accept an integer or a name (scheduler/0001).
+
 ## Exemplars
 
 **Enforced elsewhere:** `FailureClassificationTests` in Trax.Effect (recording, failures outside a
-junction, a carried class winning, a throwing classifier), `JunctionFailureClassTests` in
+junction, a carried class winning, a throwing classifier, and a rebuilt remote failure with no
+class staying Unclassified), `JunctionFailureClassTests` in
 Trax.Core (a junction keeps a class the failure carried), and `RemoteFailureClassificationTests`
 and `LambdaRunExecutorTests` in Trax.Scheduler (the class crossing HTTP and Lambda, and an older
 worker that sends none).

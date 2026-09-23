@@ -102,7 +102,7 @@ When `Trax.Effect.Data` is registered, the dashboard exposes pages for browsing 
 | **Manifests** | Scheduled job definitions (requires Scheduler) |
 | **Manifest Groups** | Manifest group settings and aggregate execution stats (requires Scheduler). Includes a "Cancel All Running" button. |
 | **Dead Letters** | Failed jobs that exhausted their retry budget (requires Scheduler) |
-| **Work Queue** | Entries waiting for dispatch (requires Scheduler). The **Subject** column shows the entry's [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) when the train sets one. The **Confirmed** column shows a **Staged** badge on an entry that is not yet confirmed, which the dispatcher will not claim. The subject key is computed by your train, so it may carry record identifiers. An entry's detail page shows **Waiting On: Entry N** when the entry is queued behind a run in flight for the same subject. |
+| **Work Queue** | Entries waiting for dispatch (requires Scheduler). The **Subject** column shows the entry's [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) when the train sets one. The **Confirmed** column shows **Yes** for a confirmed entry, and a **Staged** badge on a queued entry that is not yet confirmed, which the dispatcher will not claim (an unconfirmed entry that is no longer queued, such as one the stale sweep cancelled, shows a dash). The subject key is computed by your train, so it may carry record identifiers. An entry's detail page shows **Waiting On: Entry N** when the entry is queued behind a run in flight for the same subject. |
 
 These pages are accessible from the **Data** section in the sidebar navigation.
 
@@ -145,7 +145,7 @@ The dashboard supports running any registered train with **custom inputs**, a ca
 - **From the Trains page**: Click the **Queue** button next to any train to open a dialog with a form builder (auto-generated from the input type's properties) or a raw JSON editor.
 - **From the Metadata Detail page**: Click the **Re-queue** button to re-run a train with its original input.
 
-Both go through `ITrainExecutionService.QueueAsync`, the same path as the GraphQL `queueTrain` mutation, so the train's `[TraxAuthorize]` requirements apply, its `OnQueue` hook fires, and its subject key is stamped. Dead-letter **Re-queue** and manifest triggers re-run what a manifest fixed and are governed by access to the dashboard itself. See [Authorization: The Operations Surface](/docs/authorization#the-operations-surface).
+Both go through `ITrainExecutionService.QueueAsync`, the same path as the GraphQL `queueTrain` mutation, so the train's `OnQueue` hook fires, its subject key is stamped and the input size cap applies. They enqueue inside a trusted scope (`"dashboard"`), so per-train `[TraxAuthorize]` requirements do **not** apply: the dashboard is the admin surface, gated as a whole by its host, and anyone who can reach it can queue any train. Protect the dashboard route accordingly. The **Run** dialog submits directly to the job submitter. Dead-letter **Re-queue** and manifest triggers re-run what a manifest fixed and are likewise governed by access to the dashboard itself. See [Authorization: The Operations Surface](/docs/authorization#the-operations-surface).
 
 #### Real-Time Metrics on Home Page
 

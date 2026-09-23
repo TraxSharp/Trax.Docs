@@ -72,9 +72,9 @@ WHERE w.id = :entry_id
 FOR UPDATE SKIP LOCKED
 ```
 
-If the entry has already been claimed by another server (locked in another transaction or already `Dispatched`), is unconfirmed, or its subject has a run in flight, the query returns no rows and the entry is skipped.
+If the entry has already been claimed by another server (locked in another transaction or already `Dispatched`), is unconfirmed, or its subject has a run in flight, the query returns no rows and the entry is skipped. This prevents duplicate dispatch in multi-server deployments. See [Multi-Server Concurrency](/docs/scheduler/concurrency#jobdispatcher-row-level-locking) for details.
 
-**Subject lock**: for an entry with a subject key, the claim transaction first takes a per-subject advisory lock on Postgres, `pg_advisory_xact_lock(hashtext('trax_subject'), hashtext(key))`. Row locking alone cannot serialize two entries for one subject, because they are different rows. The lock is released when the claim commits, before the job is submitted. SQLite relies on its single writer and takes no lock. See [Multi-Server Concurrency](../concurrency.md#subject-serialization-advisory-lock-per-subject). This prevents duplicate dispatch in multi-server deployments. See [Multi-Server Concurrency](../concurrency.md#jobdispatcher-row-level-locking) for details.
+**Subject lock**: for an entry with a subject key, the claim transaction first takes a per-subject advisory lock on Postgres, `pg_advisory_xact_lock(hashtext('trax_subject'), hashtext(key))`. Row locking alone cannot serialize two entries for one subject, because they are different rows. The lock is released when the claim commits, before the job is submitted. SQLite relies on its single writer and takes no lock. See [Multi-Server Concurrency](/docs/scheduler/concurrency#subject-serialization-advisory-lock-per-subject).
 
 For each successfully claimed entry, the dispatcher:
 

@@ -67,13 +67,19 @@ whether a junction's input can be supplied from outside Memory.
 that awaits before returning, returns a result instead of ending in `Resolve()`, or ends in
 `Resolve(value)` has no chain to read. Each is recorded as a refusal and the host will not
 start, instead of the train reading as an empty, clean chain. Whatever such a body started at
-boot is not undone.
+boot is not undone. A monad the train creates while declaring, through `NewMonad()` as much as by
+the train itself, records instead of running, so reading a chain never executes a junction.
 
 **The replay has to mirror the runtime.** A chain is only as verified as the replay is faithful.
-The train's input and tuple elements enter Memory under their type and interfaces, but a
-junction's output, an extracted value and an `AddServices` value enter under exactly one type,
-and lookup is by exact type before the container. A short circuit's output is not available to
-what follows it, because the path that continues is the one where it returned Left.
+The train's input enters Memory under its declared type and interfaces (a run stores it under its
+declared type as well as its runtime type, so a junction taking the declared base type works for
+any subtype), and tuple elements under their type and interfaces. A junction's output, an
+extracted value and an `AddServices` value enter under exactly one type, and lookup is by exact
+type before the container, except that a tuple input is assembled from Memory alone, never the
+container. A short circuit's output is not available to what follows it, because the path that
+continues is the one where it returned Left. Shapes the runtime refuses on every run are refused
+when the chain is read: `IChain` or `AddServices` of a class, and a short circuit whose output
+cannot be the train's return type.
 
 **Branching on ambient state is still possible.** A chain that reads the clock or a static flag
 records whichever shape boot-time conditions select, with no signal that it did. Only
@@ -107,7 +113,10 @@ declaring; that it reports every failing train at once; that a container-supplie
 checked without building the service; and that the opt-out works. `ChainVerificationTests` in
 Trax.Core pins the replay itself: a junction output's interfaces are not available and the run
 fails the same way, a short circuit neither supplies the return value nor its output, seeds and
-tuples are available, `Extract` ignores the container and `IChain` needs its junction.
+tuples are available, a tuple element is not taken from the container, `Extract` ignores the
+container, `IChain` needs its junction, and a short circuit whose output cannot be the result is
+refused. `DeclaredChainTests` also pins that `IChain` and `AddServices` of a class are refused and
+that a monad created through `NewMonad()` while declaring records instead of running.
 
 Not covered: nothing detects a chain that branches on ambient state or on instance state other
 than the input and output. The replay knows the train's declared input type, not the subtype that
@@ -116,19 +125,4 @@ is why the check has an opt-out rather than being unconditional.
 
 ## Changelog
 
-- **2026-09-23**: The replay was reading a junction output's interfaces as available and letting
-  a short circuit excuse the rest of the chain, both of which the runtime does not do, so it passed
-  chains that failed on every run. It now mirrors the runtime, and a declaration that awaits,
-  returns a result or ends in `Resolve(value)` is refused. Corrected the overstatements about
-  instance state being closed and value seeding being gone.
-- **2026-09-23**: Corrected two claims. The considered-options entry said `TrainChainAnalyzer`
-  already parses these chains; it only parses chains rooted at `Activate()`, which no train can
-  write any more, so it checks nothing and is deprecated. The consequences entry said whether a
-  junction resolves is a separate check against the container; that check was removed
-  (Trax.Mediator `a20ce54`) because constructibility is not decidable from the declaration. The
-  decision is unchanged.
-- **2026-09-22**: Wired into startup: a host now replays every registered train's chain and
-  refuses to start when one cannot run.
-- **2026-09-22**: `RunInternal` made private and `Activate` internal, once every train in the
-  workspace declared its chain through `Junctions()`.
-- **2026-09-22**: Recorded.
+- **2026-09-23**: Recorded.

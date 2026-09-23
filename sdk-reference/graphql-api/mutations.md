@@ -402,9 +402,16 @@ mutation {
 ### requeueExecution
 
 Re-queues an execution: reads its train name + input from the metadata row and enqueues a
-fresh work queue entry for the dispatcher (the dashboard's Re-queue action). It goes through the
-same path as [`queueTrain`](#queuetrain), so a caller who may not run the train gets a GraphQL
-error with code `TRAX_AUTHORIZATION` (`"Not authorized."`) rather than `success: false`.
+fresh work queue entry for the dispatcher (the GraphQL counterpart of the dashboard's Re-queue
+button). It goes through the same path as [`queueTrain`](#queuetrain), so a caller who may not
+run the train gets a GraphQL error with code `TRAX_AUTHORIZATION` (`"Not authorized."`) rather
+than `success: false`.
+
+An execution with no saved input is refused with `success: false` and a message saying inputs are
+saved only when [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters)
+is on. An enqueue reads a missing input as `{}`, so re-queueing it would re-run the train with
+defaults rather than with what it ran with. This check runs before authorization, so it answers
+the same for every caller; a missing execution id also returns `success: false`.
 
 ```graphql
 mutation {
