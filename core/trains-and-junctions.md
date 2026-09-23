@@ -422,7 +422,9 @@ Four things worth knowing:
 - **Throwing is not fatal.** The classifier's exception is logged and the failure records as `Unclassified`. A classifier must never be able to mask the failure it was asked about.
 - **Cancellation is not a failure** and is not classified.
 
-> Runs executed on a remote runner are not classified yet: the exception is rebuilt from JSON on the API side, so the original type is gone. Carrying the classification across that boundary is a separate change; until it lands, a remotely-executed failure records `Unclassified`.
+**Runs executed remotely are classified too**, but by the worker rather than the caller. The worker holds the real exception, so it classifies there and the answer travels back with the failure; the calling side records what it was told instead of re-deriving it from a rebuilt exception whose type is gone. A worker that sends nothing — an older one, say — records `Unclassified` rather than failing.
+
+For work sent through a job submitter there is nothing to carry: the worker is given the metadata id and writes to that same row, so its classification is already the one you read.
 
 ### QueueSubjectKey (serializing work that touches the same thing)
 
