@@ -274,6 +274,33 @@ startup Trax reads every registered train's chain and refuses to start if one of
 
 Every train is checked before anything is reported, so one start tells you about all of them.
 
+#### Reading the input inside `Junctions()`
+
+The first of those is the one most likely to bite on upgrade. `Junctions()` declares a chain; it
+does not process a value, so there is no input to read yet. `TrainInput` and `TrainOutput` throw
+`ChainDeclarationException` while a chain is being declared, and the startup check turns that into
+a refused start.
+
+```csharp
+protected override Task<Either<Exception, Unit>> Junctions()
+{
+    // Throws: there is no input at declaration time.
+    if (!string.IsNullOrEmpty(TrainInput.ExternalId))
+        this.ExternalId = TrainInput.ExternalId;
+
+    return Chain<DoWorkJunction>().Resolve();
+}
+```
+
+Work that needs the input belongs in a junction, which receives it, or — for something that must
+happen as the mutation is accepted — in [`OnQueue`](#onqueue-enqueue-time-hook), which is handed a
+`Metadata` carrying the input.
+
+This is a compile-clean change that only surfaces at startup, so a consumer upgrading has no way to
+discover it beforehand. If an upgrade is blocked on it, `SkipChainVerification()` turns the check
+off while the chains are moved over — but it silences every other fault in the list too, so it is a
+stopgap rather than a setting to leave on.
+
 The replay knows the types a chain declares, not the concrete types that will flow, so a junction
 declaring an interface that its runtime value implements only incidentally reads as a fault. That
 is the one case for turning the check off:
@@ -339,6 +366,33 @@ public class ProcessMatchResultTrain
 - **It must be idempotent.** The deferred run re-executes the full `Junctions()` chain, so any effect the chain also performs will happen again. Write `OnQueue` so running it plus the chain is safe.
 
 Property dependencies marked `[Inject]` (like `GameDbFactory` above) are populated before `OnQueue` is called, the same as during a normal run. Trains that do not override `OnQueue` skip resolution entirely, so the enqueue path is unaffected.
+
+#### Making the side-effect durable
+
+The hook and the work queue row are two writes. If the process dies between them, the side-effect can be left with no queued work to consume it — a provisional row nothing will ever reconcile. There are two ways to close that, and which one applies depends on where the hook writes.
+
+**Writing through Trax's own context.** `IEnqueueContextAccessor.Current` exposes the data context the enqueue is about to commit on. Anything tracked on it is committed with the work queue row and rolled back with it:
+
+```csharp
+protected override async Task OnQueue(Metadata metadata, CancellationToken ct)
+{
+    await accessor.Current!.Track(someTraxEntity);   // no SaveChanges — the enqueue commits it
+}
+```
+
+`Current` is non-null only while `OnQueue` is running, and the hook must not call `SaveChanges` or commit on it: the enqueue owns the lifetime. This only covers entities in Trax's own model.
+
+**Writing through your own `DbContext`.** EF can only share a transaction between contexts that share a connection, so a separately-registered context — the common case, and the one in the example above — commits independently and cannot be rolled back with the entry. For that, defer promotion:
+
+```csharp
+protected override bool DeferQueuePromotion => true;
+```
+
+The entry is then committed **unconfirmed** and is not dispatchable. The hook runs. A second commit stamps `confirmed_at` and the entry becomes claimable. This does not make the two writes atomic — nothing can, across two databases — but it makes a failure *findable*: a crash leaves an unconfirmed entry instead of an invisible side-effect. `IWorkQueuePromotion.PromoteStaleAsync` sweeps those up, promoting rather than cancelling them, because the deferred run re-executes the whole chain and the hook is required to be idempotent anyway.
+
+A hook that *throws* still aborts the enqueue outright: the staged entry is removed, so the observable contract is unchanged either way.
+
+Deferral is opt-in because it costs an extra round trip and earns nothing when the hook writes nowhere Trax's transaction cannot reach. **Immediate promotion is the default**, and a train that does not override `OnQueue` never stages anything.
 
 ## SDK Reference
 

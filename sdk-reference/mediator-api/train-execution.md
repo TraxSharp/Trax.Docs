@@ -67,7 +67,7 @@ Task<QueueTrainResult> QueueAsync(
 - `InvalidOperationException` if no train is registered with the given name. The message includes a hint to use `ITrainDiscoveryService.DiscoverTrains()` to list available trains.
 - `InvalidOperationException` if JSON deserialization returns null.
 - `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements that the current user does not satisfy. Only applies when `ITrainAuthorizationService` is registered (i.e., the API layer is in use).
-- Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. The hook fires before the entry is persisted, so a throw aborts the enqueue and no entry is written.
+- Any exception thrown by the train's [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) hook, if the train overrides it. The hook fires before the entry is persisted, so a throw aborts the enqueue and no entry is written — including when the train defers promotion, where the staged entry is removed.
 
 ### What it does
 
@@ -76,9 +76,14 @@ Task<QueueTrainResult> QueueAsync(
 3. Deserializes `inputJson` to the train's `InputType`.
 4. Re-serializes the input using manifest serialization options (normalizes the JSON).
 5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, and priority.
-6. If the train overrides [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook), resolves the train and invokes the hook with the entry's `ExternalId` and the input. A throw aborts the enqueue. Trains that do not override it are never resolved here.
-7. Persists the entry via the data context.
-8. Returns the entry's ID and external ID.
+6. Tracks the entry, then — if the train overrides [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) — invokes the hook with the entry's `ExternalId` and the input, then saves and commits, all in one transaction. A throw rolls the whole thing back, so nothing the hook tracked on `IEnqueueContextAccessor.Current` survives either. Trains that do not override the hook are never resolved here.
+7. Returns the entry's ID and external ID.
+
+Tracking the entry before the hook runs does not insert it — `Track` is change tracking only — so the hook still runs before the row exists, as its contract states.
+
+When the train sets [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable), the shape changes to three steps instead: the entry is committed **unconfirmed** and undispatchable, the hook runs outside that transaction, and a second commit promotes it. A throwing hook removes the staged entry, so the observable contract is the same. A crash leaves the entry unconfirmed for `IWorkQueuePromotion.PromoteStaleAsync` to recover.
+
+Providers without transaction support (the in-memory provider) degrade to a single `SaveChanges` with no explicit transaction.
 
 ## RunAsync
 
