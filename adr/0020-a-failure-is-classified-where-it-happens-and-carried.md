@@ -41,8 +41,15 @@ never classified.
 A failure rebuilt from a serialized record, which is how a remote failure reaches the calling
 side, is never passed to the local classifier. If the worker sent a class it is recorded; if it
 sent none the run stays Unclassified, because re-deriving one from the rebuilt exception is the
-option rejected above. The wire carries the class as an integer whatever either host's JSON
-options, and both executors accept an integer or a name (scheduler/0001).
+option rejected above. Trax writes the class on the wire as an integer where it controls the
+serializer (the job-runner endpoint, the Lambda runner's local HTTP route); a Lambda
+invocation's response goes through the function's own serializer, so both executors accept an
+integer or a name, and a class they do not know reads as Unclassified with the worker's error kept
+(scheduler/0001).
+
+A failure raised outside any junction has its class attached to the exception too: when the
+classifier answers and the exception carries no `TrainExceptionData`, it is created, so a remote
+worker reports that class instead of none.
 
 ## Exemplars
 

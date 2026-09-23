@@ -409,7 +409,10 @@ than `success: false`.
 
 An execution with no saved input is refused with `success: false` and a message saying inputs are
 saved only when [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters)
-is on. An enqueue reads a missing input as `{}`, so re-queueing it would re-run the train with
+is on. So is one whose input was too large to save in full and was stored as the truncation
+placeholder (`{"_truncated": true, ...}`). Enqueue refusals (a throwing `OnQueue`, an unusable
+subject key, a deferred entry cancelled before confirmation) come back as `success: false` with
+`"The enqueue was refused: ..."`, as for `queueTrain`. An enqueue reads a missing input as `{}`, so re-queueing it would re-run the train with
 defaults rather than with what it ran with. This check runs before authorization, so it answers
 the same for every caller; a missing execution id also returns `success: false`.
 
@@ -565,6 +568,8 @@ The `operations.workQueue` namespace lets the dashboard (and other API clients) 
 Creates a new work queue entry. The dispatcher picks it up on its next poll. Validation happens before any DB write: an unknown `trainName`, malformed `inputJson`, or JSON that deserializes to `null` returns `OperationResponse(success: false, message: ...)` and inserts nothing.
 
 The entry is created through [`ITrainExecutionService.QueueAsync`](/docs/sdk-reference/mediator-api/train-execution#queueasync), so the train's `[TraxAuthorize]` requirements apply on top of the operations gate. Authorization runs before `inputJson` is read: a caller who may not run the train gets a GraphQL error with code `TRAX_AUTHORIZATION` and message `"Not authorized."`, not `success: false`, even when the input is malformed, and nothing is inserted. See [Authorization: The Operations Surface](/docs/authorization#the-operations-surface).
+
+Authorization is the only refusal that is a GraphQL error. When the enqueue itself refuses, the mutation returns `success: false` with a message starting `"The enqueue was refused: "` followed by the reason, and nothing is queued. That covers the train's `OnQueue` hook throwing, `QueueSubjectKey` returning an empty key or one longer than 512 characters, and a deferred entry being cancelled before it was confirmed (in which case the hook's side-effect may already have landed).
 
 ```graphql
 mutation {

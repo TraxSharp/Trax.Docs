@@ -52,9 +52,12 @@ every such call for a train with requirements.
 The operations service authorizes before it reads the caller's input, so a caller who may not
 run a train learns nothing about the input it expects from a parse error. `OperationsService`
 takes `ITrainExecutionService` as a required dependency, so an API-only host needs
-`AddMediator` as well. The mediator's fail-closed check for a `[TraxAuthorize]` train with no
-enforcer registered honours a trusted scope the same way the enforcer does, so a host running
-only the dashboard or a scheduler is not refused work an enforcer would let through.
+`AddMediator` as well. The mediator's runtime fail-closed check for a `[TraxAuthorize]` train with no
+enforcer registered honours a trusted scope the same way the enforcer does. That exemption only
+matters where hosted services do not run (the Lambda runner, a bare `ServiceProvider`): in a
+hosted app, `AuthorizationRegistrationValidator` refuses to start a host with `[TraxAuthorize]`
+trains and no `ITrainAuthorizationService` unless it calls `AllowMissingAuthorizationService()`
+(mediator/0001), so a dashboard-only or scheduler-only host needs that opt-out or an enforcer.
 
 A dormant dependent's input is chosen at runtime by the parent train's code
 (`IDormantDependentContext.ActivateAsync(externalId, input)`), not fixed by a manifest, and its

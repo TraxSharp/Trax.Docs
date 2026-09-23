@@ -282,11 +282,18 @@ startup Trax reads every registered train's chain and refuses to start if one of
 - an `IChain` step names a class rather than an interface, or names a junction interface that
   neither Memory nor the container holds
 - `AddServices<T>` names a class rather than an interface
+- `Chain<T>` or `ShortCircuit<T>` names a type that is not a junction
 - a `ShortCircuit` junction's output cannot be the train's return type (its value is returned as
   the result by a cast, which would fail on every run)
 - the chain ends without the train's return type in Memory
 
 Every train is checked before anything is reported, so one start tells you about all of them.
+
+A train the check cannot read is logged as a warning and skipped, not refused: one that cannot be
+constructed at startup (its constructor needs a service only a request provides, such as a current
+user read from `HttpContext`), or a registered train that does not derive from `Train<,>`. An
+unreadable train is not evidence of a chain that cannot run, but its chain goes unverified, so read
+the warning.
 
 #### What the check counts as available
 
@@ -295,9 +302,9 @@ The replay follows the same rules the runtime uses to store and find values in M
 | Value | Available under |
 |---|---|
 | The train's input | Its declared type and every interface that type implements. A run stores the input under both its declared type and its runtime type (with interfaces), so a junction taking the declared base type works whatever subtype a caller passes |
-| An element of a tuple | Its type and every interface it implements |
+| An element of a tuple | Its declared type and every interface that type implements. A run stores each element under its declared type as well as its runtime type and interfaces, so a junction taking an element's declared base type works; a null element is skipped, and a junction that needed it fails the ordinary way |
 | A junction's output, an `Extract` result, an `AddServices` value | Exactly its declared type, nothing else |
-| A `ShortCircuit` junction's output | Nothing. On the path that continues past it, it returned `Left` and stored nothing, so it neither feeds later junctions nor satisfies `Resolve()` |
+| A `ShortCircuit` junction's output | Not counted. At runtime a short circuit that returns `Right` does store its output and the chain keeps running (later junctions still execute), but one that returns `Left` stores nothing and the chain also keeps running. A later junction or `Resolve()` cannot rely on a value that is only there on one of the two paths, so the check requires something else to produce it |
 
 Lookup is by exact type, then the container, with one exception: a junction whose input is a
 tuple has each element assembled from Memory only, never from the container, because that is how a
@@ -418,7 +425,7 @@ protected override async Task OnQueue(Metadata metadata, CancellationToken ct)
 
 `Current` is non-null only while `OnQueue` is running for a train that does not defer promotion, and the hook must not call `SaveChanges` or commit on it: the enqueue owns the lifetime. This only covers entities in Trax's own model. The context is entered only for trains that override `OnQueue`.
 
-`Current` flows with the async call, not with the service instance. Two enqueues running at once on one scope each see their own context, and an enqueue started from inside an `OnQueue` hook gets its own context and transaction for as long as it runs, then hands the outer one back. Nesting an enqueue inside a hook is therefore safe.
+`Current` flows with the async call, not with the service instance or its scope: every accessor instance on the same async flow sees it, including a singleton train's or one resolved from another scope. See [IEnqueueContextAccessor](/docs/sdk-reference/mediator-api/i-enqueue-context-accessor). Two enqueues running at once on one scope each see their own context, and an enqueue started from inside an `OnQueue` hook gets its own context and transaction for as long as it runs, then hands the outer one back. Nesting an enqueue inside a hook is therefore safe.
 
 **Writing through your own `DbContext`.** EF can only share a transaction between contexts that share a connection, so a separately-registered context (the common case, and the one in the example above) commits independently and cannot be rolled back with the entry. For that, defer promotion:
 
@@ -430,9 +437,11 @@ The entry is then committed **unconfirmed** and is not dispatchable. The hook ru
 
 `IEnqueueContextAccessor.Current` is null inside a deferring train's hook. The entry is already committed by then, so there is no enqueue transaction to join, and deferral exists for hooks that write elsewhere.
 
-Once the hook has returned, the mutation counts as accepted and its side-effect may have landed, so the promotion runs even if the caller has cancelled. If the entry stopped being staged while the hook ran (an operator cancelled it, or the stale sweep below resolved it), there is nothing to promote: `QueueAsync` throws `InvalidOperationException` saying the work will not run and the hook's side-effect may already have been applied, rather than reporting success. A hook that *throws* still aborts the enqueue outright: the staged entry is removed, again regardless of cancellation, but only while it is still staged, so a promoted or dispatched entry is never deleted. A failure to remove it does not replace the hook's exception.
+Once the hook has returned, the mutation counts as accepted and its side-effect may have landed, so the promotion runs even if the caller has cancelled. If the entry was cancelled while the hook ran (by an operator, or by the stale sweep below), there is nothing to promote: `QueueAsync` throws `InvalidOperationException` saying the work will not run and the hook's side-effect may already have been applied, rather than reporting success. If the sweep promoted it instead, because the host opted into promotion, the entry will run and the enqueue succeeds. A hook that *throws* still aborts the enqueue outright: the staged entry is removed, again regardless of cancellation, but only while it is still staged, so a promoted or dispatched entry is never deleted. A failure to remove it does not replace the hook's exception.
 
 An entry a crash left unconfirmed is resolved by the scheduler. On each cycle the [ManifestManager](/docs/scheduler/admin-trains/manifest-manager#resolvestalestagedentriesjunction) finds entries unconfirmed for longer than `StaleStagedEntryTimeout` (10 minutes by default) and **cancels** them. Cancelling is the default because nothing recorded tells a hook that succeeded from one that never ran or one that rejected the mutation, and only the first is a mutation that was accepted. The cancelled entry stays visible, so a side-effect the hook may have left can be found and reconciled. A host whose deferring trains re-check in their chain whatever the hook checked, and whose hooks are idempotent, can call `PromoteStaleStagedEntries()` to have them promoted instead. Keep the timeout well above your slowest hook: an entry resolved while its hook is still running is resolved wrongly. The sweep runs in the ManifestManager, so it does not run while the ManifestManager is disabled (`SchedulerConfiguration.ManifestManagerEnabled = false`, also the dashboard's Server Settings switch); at least one host sharing the database must run the ManifestManager. `Trax.Docs/adr/0018` records why.
+
+**Upgrade every dispatcher first.** A dispatcher from an earlier Trax version claims entries without checking `confirmed_at`, so during a rolling deploy it would dispatch a staged entry before its hook returned. Finish upgrading every host that runs the JobDispatcher before any train overrides `DeferQueuePromotion`.
 
 Deferral is opt-in because it costs an extra round trip and earns nothing when the hook writes nowhere Trax's transaction cannot reach. **Immediate promotion is the default**, and a train that does not override `OnQueue` never stages anything.
 
@@ -472,11 +481,11 @@ Four things worth knowing:
 - **Throwing is not fatal.** The classifier's exception is logged and the failure records as `Unclassified`. A classifier must never be able to mask the failure it was asked about.
 - **Cancellation is not a failure** and is not classified. That includes an `HttpClient` timeout: it surfaces as `TaskCanceledException`, the run records as `Cancelled`, and the classifier never sees it. A timeout your code turns into its own exception type is a failure like any other and can be classified `Transient`.
 
-A class the failure already carries wins over the local classifier. That is the case for a failure from a remote worker, and for one a calling-side junction preserved when it enriched the exception. A failure rebuilt from a serialized record (a remote failure) is never passed to the local classifier at all: its original type is gone, so a catch-all classifier would stamp a class on something the worker deliberately left alone. The classifier's answer applies to everything else, including a failure raised outside any junction.
+A class the failure already carries wins over the local classifier. That is the case for a failure from a remote worker, and for one a calling-side junction preserved when it enriched the exception. A failure rebuilt from a serialized record (a remote failure) is never passed to the local classifier at all: its original type is gone, so a catch-all classifier would stamp a class on something the worker deliberately left alone. The classifier's answer applies to everything else, including a failure raised outside any junction, whose class is attached to the exception so a remote worker reports it too.
 
 Failures the scheduler records itself, such as a dispatch failure or a run failed by the stale-run reaper, record `Unclassified`: no train saw an exception to classify.
 
-**Runs executed remotely are classified too**, but by the worker rather than the caller. The worker holds the real exception, so it classifies there and the answer travels back with the failure. That means the classifier must be registered in the **worker** process: one registered only on the calling side is never asked about a remote run. The calling side records what it was told, over HTTP or Lambda, instead of re-deriving it from a rebuilt exception whose type is gone. A worker that sends no class (an older one, or one whose classifier did not recognise the failure) records `Unclassified` rather than failing, and the calling side does not fill the gap.
+**Runs executed remotely are classified too**, but by the worker rather than the caller. The worker holds the real exception, so it classifies there and the answer travels back with the failure. That means the classifier must be registered in the **worker** process: one registered only on the calling side is never asked about a remote run. The calling side records what it was told, over HTTP or Lambda, instead of re-deriving it from a rebuilt exception whose type is gone. A worker that sends no class (an older one, or one whose classifier did not recognise the failure) records `Unclassified` rather than failing, and the calling side does not fill the gap. A class the calling side does not know, sent by a newer worker, also records `Unclassified`, and the worker's error is kept.
 
 For work sent through a job submitter there is nothing to carry: the worker is given the metadata id and writes to that same row, so its classification is already the one you read.
 
@@ -507,12 +516,14 @@ Three limits worth knowing:
 - **Ordering within a subject is dispatch order**, priority first and then age, so a higher-priority entry for the same subject still goes first. That holds with a single dispatcher. With `MaxConcurrentDispatch` above 1, or several hosts dispatching, only mutual exclusion is guaranteed, not order.
 - **The guarantee is bounded by the stale-run reaper.** See below.
 
-**What "in flight" means.** A subject is busy while a dispatched entry for it has a run that has not reached a terminal state, the same definition used elsewhere for an active execution. The dispatcher will not claim an entry whose subject is busy; the entry stays queued and is picked up on a later cycle, so nothing is skipped or lost. The dashboard's work queue detail page shows such an entry as **Waiting On: Entry N**, naming the entry whose run holds the subject.
+**What "in flight" means.** A subject is busy while a dispatched entry for it has a run that has not reached a terminal state, the same definition used elsewhere for an active execution. The dispatcher will not claim an entry whose subject is busy; the entry stays queued and is picked up on a later cycle, so nothing is skipped or lost. Dispatch also offers only the first queued entry per subject in each cycle, so a younger sibling waits behind an older one. The dashboard's work queue detail page shows either case under **Waiting On**, naming the entry whose run holds the subject or the older sibling ahead of it.
 
 That ties the block to run completion, and therefore to stale-run reaping. "In flight" ends at any terminal state, including `Failed` set by a stale-run reaper: after `StalePendingTimeout` (20 minutes by default) for a run that never started, or `StaleInProgressTimeout` (60 minutes by default) for one that did. A worker killed mid-run leaves its metadata non-terminal, and the subject stays blocked until the reaper fails it. But the reaper cannot tell a dead worker from a slow one: a run still working after that timeout is failed too, the subject is released, and the next entry for it can run alongside it. **Serialization holds only within the reaper's window**, so keep `StaleInProgressTimeout` above the longest run of any train that sets a subject.
+
+**Upgrade every dispatcher first.** A dispatcher from an earlier Trax version claims without the subject check or lock, so while any old dispatcher is still running, two entries for one subject can run at once. Finish upgrading every host that runs the JobDispatcher before any train overrides `QueueSubjectKey`.
 
 Serialization is enforced in the claim, not just in candidate selection, because two entries for one subject are two different rows: row locking does not make them contend, and while both are still queued neither can see a dispatched sibling to refuse itself. On Postgres the claim takes a transaction-scoped advisory lock on the subject first. That lock is held only for the claim (which commits before the job is submitted), so nothing remote happens while it is held. SQLite has a single writer and needs no lock. [Multi-Server Concurrency](/docs/scheduler/concurrency#subject-serialization-advisory-lock-per-subject) has the details, and `Trax.Docs/adr/0019` records the reasoning.
 
 ## SDK Reference
 
-> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [Resolve](/docs/sdk-reference/train-methods/resolve) | [IFailureClassifier](/docs/sdk-reference/configuration/i-failure-classifier) | [IWorkQueuePromotion](/docs/sdk-reference/scheduler-api/i-work-queue-promotion) | [ITrainExecutionService](/docs/sdk-reference/mediator-api/train-execution)
+> [Junctions](/docs/sdk-reference/train-methods/junctions) | [Chain](/docs/sdk-reference/train-methods/chain) | [Resolve](/docs/sdk-reference/train-methods/resolve) | [IFailureClassifier](/docs/sdk-reference/configuration/i-failure-classifier) | [IWorkQueuePromotion](/docs/sdk-reference/scheduler-api/i-work-queue-promotion) | [IEnqueueContextAccessor](/docs/sdk-reference/mediator-api/i-enqueue-context-accessor) | [DeclaredChain](/docs/sdk-reference/train-methods/declared-chain) | [ITrainExecutionService](/docs/sdk-reference/mediator-api/train-execution)

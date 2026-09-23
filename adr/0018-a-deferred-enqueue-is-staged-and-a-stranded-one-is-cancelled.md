@@ -45,13 +45,18 @@ run's outcome: a record that is only written when the caller is still listening 
 instance that does not know the column are dispatchable. A deferring train's hook has no enqueue
 context to join, because its entry is already committed.
 
-If the entry stops being staged while its hook runs, because an operator cancelled it or the
-sweep resolved it after the hook outlived `StaleStagedEntryTimeout`, the enqueue throws
-`InvalidOperationException` rather than reporting success: the work will not run, and the hook's
-side-effect may already have landed. Removing the entry after a hook throws deletes it only while
+If the entry is cancelled while its hook runs, by an operator or by the sweep after the hook
+outlived `StaleStagedEntryTimeout`, the enqueue throws `InvalidOperationException` rather than
+reporting success: the work will not run, and the hook's side-effect may already have landed. If
+the sweep promoted it instead (a host that opted in), the entry will run and the enqueue
+succeeds. Removing the entry after a hook throws deletes it only while
 it is still staged, never once promoted or dispatched, and a failure to remove it does not
 replace the hook's exception. Only a train with an `OnQueue` hook opens a transaction for its
 enqueue; the common path is a single write.
+
+**Every dispatcher must be upgraded before any train sets `DeferQueuePromotion`.** A dispatcher
+from before this decision claims without checking `confirmed_at`, so during a rolling deploy it
+would dispatch a staged entry whose hook has not returned, or never will.
 
 The sweep runs in the ManifestManager. A deployment where the ManifestManager is disabled
 everywhere (`ManifestManagerEnabled = false`) never resolves a stranded entry.

@@ -51,6 +51,7 @@ check refuses these shapes, which tend to come across from the old code:
 | Awaits something before returning the chain | It does work instead of declaring a chain | Move the awaited work into a junction |
 | Returns a value directly, such as `Task.FromResult(value)` | There is no chain to verify | Chain the junction that produces the value, end in `Resolve()` |
 | Ends in `Resolve(value)` | It states the result instead of naming what produces it | End in `Resolve()`; a train with no junctions uses `Task.FromResult(Resolve())` |
+| `Chain<T>` or `ShortCircuit<T>` of a type that is not a junction | Nothing can run it | Name a junction type |
 | `IChain<T>` or `AddServices<T>` of a class | Both resolve by interface; the run refuses a class every time | Name the interface, or use `Chain<T>` for a concrete junction |
 | A `ShortCircuit` whose output cannot be the train's return type | The value is returned as the result by a cast that would always fail | Short-circuit with a junction producing the return type |
 
@@ -59,9 +60,9 @@ check refuses these shapes, which tend to come across from the old code:
 The check replays Memory the way the runtime fills it, which can surface a chain that only worked
 by accident. The train's input is available under its declared type and every interface it
 implements (a run also stores it under the runtime subtype); each element of a tuple is available
-under its type and interfaces; a junction's output, an `Extract` result and an `AddServices` value
+under its declared type and interfaces (again, a run also stores the runtime type); a junction's output, an `Extract` result and an `AddServices` value
 are available only under their exact declared type. A junction taking a tuple has its elements
-assembled from Memory only, never from the container. A junction that asks for an interface the previous
+assembled from Memory only, never from the container. A `ShortCircuit` junction's output is not counted: at runtime it is stored only when the junction returns `Right` (the chain keeps running either way), so a later junction or `Resolve()` cannot rely on it. A junction that asks for an interface the previous
 junction's output merely implements is refused, because the run would not find it either. Declare
 the producer's output as that interface, or ask for the concrete type.
 

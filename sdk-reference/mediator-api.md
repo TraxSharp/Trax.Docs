@@ -27,3 +27,4 @@ This decouples callers from specific train implementations and enables train com
 | [TrainDiscovery](/docs/sdk-reference/mediator-api/train-discovery) | `ITrainDiscoveryService`: discover registered trains and their input/output types |
 | [TrainExecution](/docs/sdk-reference/mediator-api/train-execution) | `ITrainExecutionService`: queue or run trains programmatically with JSON input |
 | [Concurrency Limiting](/docs/sdk-reference/mediator-api/concurrency-limiting) | Per-train and global concurrency limits for RUN executions |
+| [IEnqueueContextAccessor](/docs/sdk-reference/mediator-api/i-enqueue-context-accessor) | The data context an enqueue commits on, for an `OnQueue` hook's side-effect |

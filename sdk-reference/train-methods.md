@@ -27,8 +27,9 @@ that used to sit above the chain belongs in a junction at the head of it.
 |--------|-------------|
 | [Junctions](/docs/sdk-reference/train-methods/junctions) | Override to define the train's route, the primary way to compose junctions |
 | [Chain](/docs/sdk-reference/train-methods/chain) | Executes a junction, wiring its input from Memory and storing its output back |
-| [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) | Executes a junction that can return early, bypassing remaining junctions |
+| [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) | Executes a junction whose `Right` value becomes the train's result; later junctions still run |
 | [Extract](/docs/sdk-reference/train-methods/extract) | Pulls a nested property/field out of a Memory object into its own Memory slot |
 | [AddServices](/docs/sdk-reference/train-methods/add-services) | Stores DI services into Memory so junctions can access them |
 | [Resolve](/docs/sdk-reference/train-methods/resolve) | Ends the chain, taking the `TReturn` result out of Memory |
 | [Run / RunEither](/docs/sdk-reference/train-methods/run) | Executes the train from the outside. `Run` throws on failure, `RunEither` returns `Either` |
+| [DeclaredChain](/docs/sdk-reference/train-methods/declared-chain) | Reads the declared chain without running it, and verifies it with `ChainVerification.Verify` |

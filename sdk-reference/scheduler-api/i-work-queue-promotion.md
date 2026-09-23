@@ -33,11 +33,11 @@ public interface IWorkQueuePromotion
 | `CancelStaleAsync(olderThan, ct)` | `Task<int>` | Cancels every queued entry left unconfirmed for longer than `olderThan` and returns how many. The safe default for a stranded entry: nothing recorded tells a hook that succeeded from one that never ran or one that rejected the mutation, and cancelling keeps the entry visible |
 | `PromoteStaleAsync(olderThan, ct)` | `Task<int>` | Promotes every queued entry left unconfirmed for longer than `olderThan` and returns how many. Only for hosts whose hooks are idempotent and whose chains re-check what the hook checked, since a promoted entry may be one whose hook never ran or rejected the mutation |
 
-All three work on every data provider, including InMemory.
+All three work on every data provider, including InMemory. The stale sweep that calls the last two runs only in the ManifestManager used with a database provider; the in-memory manifest manager (used when no database provider is configured) has no sweep, which does not matter because an in-memory store does not survive the process that could strand an entry.
 
 ## Who calls it
 
-- `ITrainExecutionService.QueueAsync` calls `PromoteAsync` once a deferring train's hook returns. If the entry was cancelled in the meantime, `QueueAsync` throws `InvalidOperationException` rather than reporting success.
+- `ITrainExecutionService.QueueAsync` calls `PromoteAsync` once a deferring train's hook returns. If the entry was cancelled in the meantime, `QueueAsync` throws `InvalidOperationException` rather than reporting success; if it was already confirmed by the sweep (with promotion opted in), `QueueAsync` succeeds.
 - The ManifestManager's `ResolveStaleStagedEntriesJunction` calls `CancelStaleAsync`, or `PromoteStaleAsync` when the host called `PromoteStaleStagedEntries()`, with `StaleStagedEntryTimeout`. See [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) and [ManifestManager](/docs/scheduler/admin-trains/manifest-manager#resolvestalestagedentriesjunction).
 
 ## Package

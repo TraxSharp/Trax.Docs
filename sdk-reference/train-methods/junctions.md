@@ -104,17 +104,20 @@ public class ParentTrain : ServiceTrain<ParentInput, ParentResult>, IParentTrain
         Chain<RunChildTrain>().Chain<ValidateJunction>().Resolve();
 }
 
-internal class RunChildTrain(ITrainBus trainBus) : Junction<ParentInput, ParentResult>
+internal class RunChildTrain(ITrainBus trainBus) : EffectJunction<ParentInput, ParentResult>
 {
     public override async Task<ParentResult> Run(ParentInput input)
     {
+        // TrainMetadata is this run's metadata; passing it records the child under it.
         var childResult = await trainBus.RunAsync<ChildResult>(
-            new ChildRequest { Data = input.ChildData }, CancellationToken);
+            new ChildRequest { Data = input.ChildData }, CancellationToken, TrainMetadata);
 
         return new ParentResult { ParentData = input.ParentData, ChildResult = childResult };
     }
 }
 ```
+
+The pattern this replaces passed the parent train's `Metadata` to `TrainBus.RunAsync` from `RunInternal`, which records the child run with the parent's id as its `ParentId`. An `EffectJunction` has the same metadata as `TrainMetadata`, set before `Run` is called, so a child started from a junction keeps that link. A plain `Junction` has no train metadata to pass.
 
 ## Remarks
 

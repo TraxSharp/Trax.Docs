@@ -116,8 +116,9 @@ dotnet add package Trax.Core.Analyzers
 ```
 
 It is marked as a development dependency, so it applies to the project that references it
-and does not flow to that project's own consumers. Add it to each project whose trains you
-want checked.
+and does not flow to that project's own consumers. Its NuGet description says it is
+deprecated; there is no reason to add it to a new project, and an existing reference can be
+removed.
 
 For development within the Trax.Core solution itself, the analyzer is propagated to all projects via `Directory.Build.props`:
 

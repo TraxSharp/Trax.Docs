@@ -41,7 +41,12 @@ guarantee holds within the stale-run window: when a reaper fails a run (pending 
 released even if that run is still working. A synchronous run through the mediator does not
 consult the key, and neither does a dormant dependent a parent train activates: its entry is built
 by the scheduler with input the parent chose at runtime, and carries no subject. The API exposes
-the key as `subjectKey` on work queue reads. Dispatch drops busy subjects and
+the key as `subjectKey` on work queue reads.
+
+Every dispatcher must be upgraded before any train overrides `QueueSubjectKey`. A dispatcher from
+before this decision claims without the subject check or lock, so during a rolling deploy it can
+run a second entry for a subject that already has one in flight, and the guarantee does not hold
+until the last old dispatcher is gone. Dispatch drops busy subjects and
 duplicate siblings from its candidates, so entries the claim would refuse do not use up
 `MaxActiveJobs`.
 

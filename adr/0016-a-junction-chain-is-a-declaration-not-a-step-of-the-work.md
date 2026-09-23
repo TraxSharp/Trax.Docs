@@ -73,13 +73,22 @@ the train itself, records instead of running, so reading a chain never executes 
 **The replay has to mirror the runtime.** A chain is only as verified as the replay is faithful.
 The train's input enters Memory under its declared type and interfaces (a run stores it under its
 declared type as well as its runtime type, so a junction taking the declared base type works for
-any subtype), and tuple elements under their type and interfaces. A junction's output, an
+any subtype), and tuple elements likewise under their declared type and interfaces (a run
+stores each element under its declared and runtime types, skipping a null element). A junction's output, an
 extracted value and an `AddServices` value enter under exactly one type, and lookup is by exact
 type before the container, except that a tuple input is assembled from Memory alone, never the
-container. A short circuit's output is not available to what follows it, because the path that
-continues is the one where it returned Left. Shapes the runtime refuses on every run are refused
-when the chain is read: `IChain` or `AddServices` of a class, and a short circuit whose output
-cannot be the train's return type.
+container. A short circuit's output is not counted as available to what follows it. At runtime a short
+circuit that returns Right stores its output and the chain keeps running, but one that returns
+Left stores nothing and the chain keeps running too, so a later junction cannot rely on the
+value. Shapes the runtime refuses on every run are refused when the chain is read: `IChain` or
+`AddServices` of a class, `Chain` or `ShortCircuit` of a type that is not a junction, and a short
+circuit whose output cannot be the train's return type.
+
+**A train the check cannot read is skipped with a warning, not refused.** The check builds every
+train to read its chain. A train that cannot be constructed at startup, because its constructor
+needs something only a request provides, or a registered train that does not derive from
+`Train<,>`, is logged as unverified and skipped. An unreadable train is not evidence of a chain
+that cannot run, and refusing to start over one would take down a host whose trains all work.
 
 **Branching on ambient state is still possible.** A chain that reads the clock or a static flag
 records whichever shape boot-time conditions select, with no signal that it did. Only
@@ -110,13 +119,13 @@ and an async body's exception being rethrown. `TrainChainStartupValidatorTests` 
 pins that a host refuses to start when a train names a junction whose input never reaches Memory,
 declares a chain that reads the input (synchronously or in an async body), or does work before
 declaring; that it reports every failing train at once; that a container-supplied input is
-checked without building the service; and that the opt-out works. `ChainVerificationTests` in
+checked without building the service; that a train which can only be built inside a request is skipped with a warning rather than refused; and that the opt-out works. `ChainVerificationTests` in
 Trax.Core pins the replay itself: a junction output's interfaces are not available and the run
 fails the same way, a short circuit neither supplies the return value nor its output, seeds and
-tuples are available, a tuple element is not taken from the container, `Extract` ignores the
+tuples are available, a tuple element declared as a base class is satisfied whatever subtype it holds, a tuple element is not taken from the container, `Extract` ignores the
 container, `IChain` needs its junction, and a short circuit whose output cannot be the result is
 refused. `DeclaredChainTests` also pins that `IChain` and `AddServices` of a class are refused and
-that a monad created through `NewMonad()` while declaring records instead of running.
+that a monad created through `NewMonad()` while declaring records instead of running, and that naming a type which is not a junction is refused rather than thrown.
 
 Not covered: nothing detects a chain that branches on ambient state or on instance state other
 than the input and output. The replay knows the train's declared input type, not the subtype that

@@ -46,7 +46,7 @@ protected override Task<Either<Exception, User>> Junctions() =>
 
 `Resolve` checks for a captured exception, then a [ShortCircuit](#shortcircuit) value, then looks up `TReturn` in [Memory](memory.md), in that order. See [SDK Reference: Resolve](/docs/sdk-reference/train-methods/resolve) for the full resolution priority and error behavior.
 
-On a train whose return type is already in Memory, because it is the input type or `Unit`, the chain names no junctions and `Resolve()` is the whole declaration.
+On a train whose return type is already in Memory, because it is the input type or `Unit`, the chain names no junctions and the whole declaration is `Task.FromResult(Resolve())`: the train's own `Resolve()` is synchronous, so it is wrapped to match the `Task` that `Junctions()` returns.
 
 There is no overload taking a value. To merge a nested train's result into the output, the junction that calls the nested train returns the merged value, which lands in Memory like any other junction output.
 

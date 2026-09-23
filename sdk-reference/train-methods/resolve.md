@@ -66,6 +66,16 @@ public class EchoTrain : ServiceTrain<string, string>, IEchoTrain
 }
 ```
 
+## Resolution Priority
+
+`Resolve()` follows this order:
+
+1. **Exception**: if any junction set an exception, return `Left(exception)`.
+2. **Short-circuit value**: if a [ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) junction returned `Right`, return `Right(shortCircuitValue)`.
+3. **Memory lookup**: take `TReturn` from Memory by its exact type.
+4. **Container**: if Memory does not hold it, ask the service provider the chain carries.
+5. **Fallback**: if neither has it, return `Left(TrainException("Could not find type: (TReturn)."))`.
+
 ## Remarks
 
 - `Resolve()` does not throw. It returns an `Either`. The calling `Run()` method unwraps the Either and throws if needed.
