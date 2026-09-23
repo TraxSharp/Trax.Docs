@@ -394,6 +394,36 @@ A hook that *throws* still aborts the enqueue outright: the staged entry is remo
 
 Deferral is opt-in because it costs an extra round trip and earns nothing when the hook writes nowhere Trax's transaction cannot reach. **Immediate promotion is the default**, and a train that does not override `OnQueue` never stages anything.
 
+### Classifying failures
+
+`OnFailed` hands you an `Exception`. Deciding from it whether to retry, rebuild against current state, or give up usually means matching on a message, and doing that at every call site is how a vendor's wording change breaks three things at once.
+
+Register a classifier instead:
+
+```csharp
+public class NetSuiteFailureClassifier : IFailureClassifier
+{
+    public FailureClass? Classify(Exception exception) =>
+        exception is NetSuiteRestException { StatusCode: HttpStatusCode.BadRequest } ex
+        && ex.ErrorDetails.Any(d => d.Detail.Contains("Record has been changed"))
+            ? FailureClass.Conflict
+            : null;
+}
+```
+
+Trax records the answer on the run — `metadata.FailureClass`, readable in `OnFailed` and persisted, so "how many conflicts this hour" is a query rather than a log trawl. The vocabulary is `Unclassified | Transient | Conflict | Permanent`.
+
+The classifier runs where the failure happened, holding the **original** exception object: junctions enrich an exception and return it rather than wrapping it, so you can type-check and read structured error data instead of parsing text.
+
+Four things worth knowing:
+
+- **Registering one is optional.** With none, every failure records `Unclassified`, which means "decide as you did before this existed". Nothing in Trax acts on a classification yet — retry is still purely count-based — so adding a classifier changes what is recorded, not what happens.
+- **Returning null is fine** and means the same as not recognising the failure.
+- **Throwing is not fatal.** The classifier's exception is logged and the failure records as `Unclassified`. A classifier must never be able to mask the failure it was asked about.
+- **Cancellation is not a failure** and is not classified.
+
+> Runs executed on a remote runner are not classified yet: the exception is rebuilt from JSON on the API side, so the original type is gone. Carrying the classification across that boundary is a separate change; until it lands, a remotely-executed failure records `Unclassified`.
+
 ### QueueSubjectKey (serializing work that touches the same thing)
 
 Queued entries are claimed by several workers at once, keyed on nothing, so two mutations for the same record can run simultaneously. Against a system that resolves concurrent writes by last-write-wins, that is a lost update.
