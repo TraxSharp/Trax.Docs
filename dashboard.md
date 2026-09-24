@@ -145,7 +145,7 @@ The dashboard supports running any registered train with **custom inputs**, a ca
 - **From the Trains page**: Click the **Queue** button next to any train to open a dialog with a form builder (auto-generated from the input type's properties) or a raw JSON editor.
 - **From the Metadata Detail page**: Click the **Re-queue** button to re-run a train with its original input.
 
-Both go through `ITrainExecutionService.QueueAsync`, the same path as the GraphQL `queueTrain` mutation, so the train's `OnQueue` hook fires, its subject key is stamped and the input size cap applies. They enqueue inside a trusted scope (`"dashboard"`), so per-train `[TraxAuthorize]` requirements do **not** apply: the dashboard is the admin surface, gated as a whole by its host, and anyone who can reach it can queue any train. Protect the dashboard route accordingly. The **Run** dialog submits directly to the job submitter. Dead-letter **Re-queue** and manifest triggers re-run what a manifest fixed and are likewise governed by access to the dashboard itself. See [Authorization: The Operations Surface](/docs/authorization#the-operations-surface).
+Both go through `ITrainExecutionService.QueueAsync`, the same path as the GraphQL `queueTrain` mutation, so the train's `OnQueue` hook fires, its subject key is stamped and the input size cap applies. They enqueue inside a trusted scope (`"dashboard"`), so per-train `[TraxAuthorize]` requirements do **not** apply: the dashboard is the admin surface, gated as a whole by its host, and anyone who can reach it can queue any train. The scope also covers the train's `OnQueue` hook and `QueueSubjectKey`, and anything they run or enqueue through `ITrainExecutionService` (including work started with `Task.Run`), so those skip their own `[TraxAuthorize]` requirements too. Protect the dashboard route accordingly. The **Run** dialog submits directly to the job submitter. Dead-letter **Re-queue** and manifest triggers re-run what a manifest fixed and are likewise governed by access to the dashboard itself. See [Authorization: The Operations Surface](/docs/authorization#the-operations-surface).
 
 #### Real-Time Metrics on Home Page
 
@@ -174,7 +174,7 @@ The **Effects** page (`/trax/settings/effects`) shows all registered effect and 
 - **Enable/disable** toggleable effects at runtime (changes apply to the next train execution scope)
 - **Configure** effects that expose runtime settings. Click the gear icon to open a dynamic form dialog
 
-Configurable effects (those whose factory implements `IConfigurableEffectProviderFactory<TConfiguration>`) show a settings button in the grid. Clicking it opens a form auto-generated from the configuration type's properties. For example, the [Parameter Effect](usage-guide/effect-providers/parameter-effect.md) exposes `SaveInputs` and `SaveOutputs` toggles.
+Configurable effects (those whose factory implements `IConfigurableEffectProviderFactory<TConfiguration>`) show a settings button in the grid. Clicking it opens a form auto-generated from the configuration type's properties. For example, the [Parameter Effect](/docs/effect/effect-providers/parameter-effect) exposes `SaveInputs` and `SaveOutputs` toggles.
 
 The Effects page was previously a section within Server Settings and has been moved to its own dedicated page under **Settings > Effects** in the sidebar.
 

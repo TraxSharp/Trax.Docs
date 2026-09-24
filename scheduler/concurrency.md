@@ -64,7 +64,7 @@ The lock key is `hashtext('trax_manifest_manager')`, which produces a stable 32-
 
 The advisory lock wraps the entire ManifestManager train in a single transaction. This has two implications:
 
-1. **Atomicity**: All `SaveChanges()` calls within the train junctions (ReapFailedJobsJunction, CreateWorkQueueEntriesJunction) are buffered within the transaction. If the train fails partway through, everything rolls back. No partial state (e.g., dead letters created but WorkQueue entries missing).
+1. **Atomicity**: All `SaveChanges()` calls the junctions make on the train's own data context (ReapFailedJobsJunction, CreateWorkQueueEntriesJunction) are buffered within the transaction. If the train fails partway through, those roll back together. No partial state (e.g., dead letters created but WorkQueue entries missing). One write is outside it: `ResolveStaleStagedEntriesJunction` cancels or promotes stranded staged entries through `IWorkQueuePromotion`, which opens its own context and commits immediately, so it is not undone if the train fails later in the cycle. That is safe because the update only touches entries that are still unconfirmed and queued, so repeating it on the next cycle changes nothing already resolved.
 
 2. **Visibility delay**: WorkQueue entries created by CreateWorkQueueEntriesJunction are not visible to the JobDispatcher until the ManifestManager transaction commits. This is typically a few milliseconds of additional latency. The JobDispatcher picks them up on its next polling tick. No work is lost.
 
@@ -132,7 +132,7 @@ SELECT ... WHERE id=3 FOR UPDATE        SKIP LOCKED → row returned ✓
 
 Unlike the ManifestManager, the JobDispatcher benefits from **parallel dispatch** across servers. Each server can claim and dispatch different entries simultaneously, increasing throughput. A single dispatch-wide advisory lock, like the ManifestManager's leader lock, would serialize all dispatch activity to a single server, wasteful when the work queue has many entries.
 
-The `FOR UPDATE SKIP LOCKED` pattern allows fine-grained, per-entry parallelism: multiple servers work through the queue concurrently, each atomically claiming the next available entry. This is the same pattern used by the [LocalWorkerService](job-submission.md#worker-lifecycle) for job execution.
+The `FOR UPDATE SKIP LOCKED` pattern allows fine-grained, per-entry parallelism: multiple servers work through the queue concurrently, each atomically claiming the next available entry. This is the same pattern used by the [LocalWorkerService](/docs/scheduler/job-submission#worker-lifecycle) for job execution.
 
 The dispatcher does take an advisory lock, but a much narrower one: per subject key, and only for entries that have one.
 
@@ -190,7 +190,7 @@ In practice, the overshoot is bounded by the number of servers multiplied by the
 
 The LocalWorkerService has used `FOR UPDATE SKIP LOCKED` since its introduction. Multiple worker threads (across one or many servers) atomically claim jobs from the `background_job` table. Each claim is a separate transaction: lock the row, set `fetched_at`, commit. Other workers skip locked rows and move to the next available job.
 
-See [Job Submission. Worker Lifecycle](job-submission.md#worker-lifecycle) for the full dequeue SQL and crash recovery details.
+See [Job Submission. Worker Lifecycle](/docs/scheduler/job-submission#worker-lifecycle) for the full dequeue SQL and crash recovery details.
 
 ## MetadataCleanupPollingService: Idempotent
 

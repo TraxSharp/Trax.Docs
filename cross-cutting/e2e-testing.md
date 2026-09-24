@@ -148,6 +148,8 @@ await DataContext.SaveChanges(CancellationToken.None);
 DataContext.Reset();
 ```
 
+Build the entry with `WorkQueue.Create`, not `new WorkQueue { ... }`. `Create` stamps `ConfirmedAt` (unless you ask it to defer); an object initializer leaves it null, and an entry with a null `ConfirmedAt` is a staged entry: the dispatcher never claims it, and once it is older than `StaleStagedEntryTimeout` the ManifestManager's sweep cancels it. A test that inserts one waits for a dispatch that never comes.
+
 An entry built this way skips everything `ITrainExecutionService.QueueAsync` does: authorization, the `OnQueue` hook and `QueueSubjectKey`. `CreateWorkQueue` has two more fields for tests that need them:
 
 | Field | Default | Effect |
