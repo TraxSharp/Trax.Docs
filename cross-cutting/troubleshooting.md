@@ -96,7 +96,7 @@ If you catch the exception outside Trax, you'll see the original exception type 
 
 ## Junctions execute out of order or skip unexpectedly
 
-If you're using `ShortCircuit`, remember that throwing an exception means "continue" not "stop." See [ShortCircuit](short-circuit.md) for details or [SDK Reference: ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) for all overloads.
+If you're using `ShortCircuit`, remember that throwing an exception means "continue" not "stop." See [ShortCircuit](/docs/core/building-chains#shortcircuit) for details or [SDK Reference: ShortCircuit](/docs/sdk-reference/train-methods/short-circuit) for all overloads.
 
 ## Scheduled jobs don't execute (no errors)
 

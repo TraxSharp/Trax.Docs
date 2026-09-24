@@ -68,7 +68,7 @@ result.Match(
 - Lightweight junction composition without infrastructure overhead
 - Prototyping trains before adding persistence
 
-When you need execution logging, DI, or persistent metadata, add [Trax.Effect](effect.md).
+When you need execution logging, DI, or persistent metadata, add [Trax.Effect](/docs/effect).
 
 ## SDK Reference
 

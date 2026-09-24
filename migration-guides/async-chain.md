@@ -1,3 +1,10 @@
+---
+layout: default
+title: Async Chain Migration
+parent: Reference
+nav_order: 15
+---
+
 # Async Chain Migration
 
 Trax 1.x ships `Junctions()`, `Chain`, `Resolve`, `Extract`, `ShortCircuit`, and `AddServices` as async-by-default. The same names you used before are still there, the fluent shape is unchanged, but the return types now wrap in `Task` so the framework no longer blocks on async work mid-chain.

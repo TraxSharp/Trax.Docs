@@ -102,7 +102,7 @@ public class UpdateUserMutation(IUpdateUserTrain updateUserTrain)
 - When trains trigger other trains (nested dispatch)
 - When you want to decouple callers from train implementations
 
-When you need recurring background jobs, add [Trax.Scheduler](scheduler.md).
+When you need recurring background jobs, add [Trax.Scheduler](/docs/scheduler).
 
 ## SDK Reference
 

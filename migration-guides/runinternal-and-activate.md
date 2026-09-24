@@ -1,3 +1,10 @@
+---
+layout: default
+title: Removal of RunInternal and Activate
+parent: Reference
+nav_order: 17
+---
+
 # Removal of RunInternal and Activate
 
 `Junctions()` is now the only way to declare a train's chain. `Train.RunInternal` is private,
@@ -5,6 +12,9 @@
 `RunInternal` or called `Activate` no longer compiles. The reason is in
 `Trax.Docs/adr/0016`: a chain built
 imperatively has no single shape, so the host could not read it at startup.
+
+The same release changed how work is enqueued and how a run's outcome is recorded; see
+[Enqueue and Outcome Changes](/docs/migration-guides/enqueue-and-outcome-changes).
 
 ## Overriding RunInternal
 

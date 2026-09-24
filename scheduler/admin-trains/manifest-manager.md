@@ -8,7 +8,7 @@ nav_order: 1
 
 # ManifestManagerTrain
 
-The ManifestManager is the first half of each polling cycle. It figures out which manifests are due for execution and writes them to the work queue. It doesn't dispatch anything; that's the [JobDispatcher's](job-dispatcher.md) job.
+The ManifestManager is the first half of each polling cycle. It figures out which manifests are due for execution and writes them to the work queue. It doesn't dispatch anything; that's the [JobDispatcher's](/docs/scheduler/admin-trains/job-dispatcher) job.
 
 ## Chain
 
@@ -69,9 +69,9 @@ The decision junction. It runs two passes over the loaded manifests:
 
 **Pass 1: Time-based manifests** (Cron and Interval). For each, it checks whether the manifest is due using `SchedulingHelpers.ShouldRunNow()`, which dispatches to either cron parsing or interval arithmetic based on the schedule type.
 
-**Pass 2: Dependent manifests**. For each manifest with `ScheduleType.Dependent`, it finds the parent in the loaded set and checks whether `parent.LastSuccessfulRun > dependent.LastSuccessfulRun`. Before comparing timestamps, the junction verifies that the parent has at least one `Completed` metadata record (`HasSuccessfulMetadata`). If the parent has a `LastSuccessfulRun` timestamp but no successful metadata to back it up (e.g., metadata was truncated or pruned), the timestamp is considered stale and the dependent is not queued. See [Dependent Trains](../dependent-trains.md).
+**Pass 2: Dependent manifests**. For each manifest with `ScheduleType.Dependent`, it finds the parent in the loaded set and checks whether `parent.LastSuccessfulRun > dependent.LastSuccessfulRun`. Before comparing timestamps, the junction verifies that the parent has at least one `Completed` metadata record (`HasSuccessfulMetadata`). If the parent has a `LastSuccessfulRun` timestamp but no successful metadata to back it up (e.g., metadata was truncated or pruned), the timestamp is considered stale and the dependent is not queued. See [Dependent Trains](/docs/scheduler/dependent-trains).
 
-Manifests with `ScheduleType.DormantDependent` are excluded from **both** passes. They are never auto-queued by the ManifestManager, dormant dependents must be explicitly activated at runtime by the parent train via [`IDormantDependentContext`](../dependent-trains.md#dormant-dependents).
+Manifests with `ScheduleType.DormantDependent` are excluded from **both** passes. They are never auto-queued by the ManifestManager, dormant dependents must be explicitly activated at runtime by the parent train via [`IDormantDependentContext`](/docs/scheduler/dependent-trains#dormant-dependents).
 
 Both passes apply the same per-manifest guards before evaluating the schedule:
 - Skip if the manifest's ManifestGroup has `IsEnabled = false`
@@ -150,13 +150,13 @@ If the advisory lock is somehow bypassed (e.g., a bug, a code path that doesn't 
 
 The advisory lock is only acquired when the `IDataContext` is backed by Entity Framework Core (`DbContext`). When using the InMemory provider for tests, the lock is skipped and the train runs directly, safe because InMemory implies a single-process setup.
 
-See [Multi-Server Concurrency](../concurrency.md) for the full cross-service concurrency model.
+See [Multi-Server Concurrency](/docs/scheduler/concurrency) for the full cross-service concurrency model.
 
 ## What Changed
 
 Previously, this train had an `EnqueueJobsJunction` as its final junction. That junction would directly create Metadata records and enqueue to the job submitter (Hangfire). `MaxActiveJobs` was enforced there, meaning the ManifestManager was both the scheduler and the dispatcher.
 
-Now those responsibilities are split. The ManifestManager writes intent to the work queue. The [JobDispatcher](job-dispatcher.md) reads from it and handles the actual dispatch. This means `TriggerAsync`, dashboard re-runs, and scheduled manifests all converge on the same dispatch path.
+Now those responsibilities are split. The ManifestManager writes intent to the work queue. The [JobDispatcher](/docs/scheduler/admin-trains/job-dispatcher) reads from it and handles the actual dispatch. This means `TriggerAsync`, dashboard re-runs, and scheduled manifests all converge on the same dispatch path.
 
 ## SDK Reference
 

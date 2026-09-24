@@ -11,7 +11,7 @@ A train's route is a chain of junctions. Override `Junctions()` to define it. `.
 
 ## Chain
 
-`.Chain<TJunction>()` is the primary way to add a junction to a train's route. It resolves the junction, pulls its input from [Memory](memory.md), runs it, and stores the output back in Memory.
+`.Chain<TJunction>()` is the primary way to add a junction to a train's route. It resolves the junction, pulls its input from [Memory](/docs/core/memory), runs it, and stores the output back in Memory.
 
 ```csharp
 protected override Task<Either<Exception, User>> Junctions() =>
@@ -44,7 +44,7 @@ protected override Task<Either<Exception, User>> Junctions() =>
         .Resolve();
 ```
 
-`Resolve` checks for a captured exception, then a [ShortCircuit](#shortcircuit) value, then looks up `TReturn` in [Memory](memory.md), in that order. See [SDK Reference: Resolve](/docs/sdk-reference/train-methods/resolve) for the full resolution priority and error behavior.
+`Resolve` checks for a captured exception, then a [ShortCircuit](#shortcircuit) value, then looks up `TReturn` in [Memory](/docs/core/memory), in that order. See [SDK Reference: Resolve](/docs/sdk-reference/train-methods/resolve) for the full resolution priority and error behavior.
 
 On a train whose return type is already in Memory, because it is the input type or `Unit`, the chain names no junctions and the whole declaration is `Task.FromResult(Resolve())`: the train's own `Resolve()` is synchronous, so it is wrapped to match the `Task` that `Junctions()` returns.
 
@@ -82,7 +82,7 @@ See [SDK Reference: ShortCircuit](/docs/sdk-reference/train-methods/short-circui
 
 ## Extract
 
-`.Extract<TSource, TTarget>()` pulls a nested value out of an object in [Memory](memory.md). It finds the `TSource` object, looks for a property or field of type `TTarget`, and stores that value in Memory under the `TTarget` type.
+`.Extract<TSource, TTarget>()` pulls a nested value out of an object in [Memory](/docs/core/memory). It finds the `TSource` object, looks for a property or field of type `TTarget`, and stores that value in Memory under the `TTarget` type.
 
 ```csharp
 Chain<LoadUserJunction>()                   // Returns User, stored in Memory
@@ -106,7 +106,7 @@ public class GetUserEmailJunction : Junction<User, EmailAddress>
 
 ## AddServices
 
-`.AddServices()` puts service instances directly into [Memory](memory.md), making them available to subsequent junctions. This bypasses the DI container. The instances you pass are stored as-is.
+`.AddServices()` puts service instances directly into [Memory](/docs/core/memory), making them available to subsequent junctions. This bypasses the DI container. The instances you pass are stored as-is.
 
 ```csharp
 protected override Task<Either<Exception, User>> Junctions()

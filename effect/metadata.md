@@ -54,7 +54,7 @@ The original exception is rethrown to callers with its type, message, and stack 
 
 ## Host Tracking
 
-In distributed environments (Lambda, ECS, multiple servers), every metadata record captures where the train actually executed. Host information is auto-detected at startup and stamped on each execution. See [Host Tracking](host-tracking.md) for details on auto-detection, custom labels, and the builder API.
+In distributed environments (Lambda, ECS, multiple servers), every metadata record captures where the train actually executed. Host information is auto-detected at startup and stamped on each execution. See [Host Tracking](/docs/effect/host-tracking) for details on auto-detection, custom labels, and the builder API.
 
 ## Nested Trains
 
@@ -64,4 +64,4 @@ See [Mediator: Nested Trains](/docs/mediator#nested-trains) for how to dispatch 
 
 ## Execution Flow
 
-For a diagram of the full ServiceTrain lifecycle, from client request through metadata initialization to SaveChanges, see [Effect Architecture](architecture.md#execution-flow).
+For a diagram of the full ServiceTrain lifecycle, from client request through metadata initialization to SaveChanges, see [Effect Architecture](/docs/effect/architecture#execution-flow).
