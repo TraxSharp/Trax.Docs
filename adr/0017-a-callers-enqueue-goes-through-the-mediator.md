@@ -59,6 +59,17 @@ hosted app, `AuthorizationRegistrationValidator` refuses to start a host with `[
 trains and no `ITrainAuthorizationService` unless it calls `AllowMissingAuthorizationService()`
 (mediator/0001), so a dashboard-only or scheduler-only host needs that opt-out or an enforcer.
 
+**The dashboard's trusted scope extends into consumer code.** The scope is an `AsyncLocal`, and the
+dashboard's enqueue runs the train's `OnQueue` hook and `QueueSubjectKey` inside it. Anything
+those run or enqueue through `ITrainExecutionService` is therefore trusted too and skips that
+train's `[TraxAuthorize]` requirements, and code reading `TraxCaller.IsTrusted` sees `true`. That
+includes work the hook starts with `Task.Run` or any other call that captures the execution
+context, which keeps the scope after the dashboard's enqueue has returned. This is a known
+consequence of gating the dashboard as a whole rather than per train, and is recorded rather than
+closed: the scope marks the whole async flow, and nothing separates the dashboard's own call from
+consumer code running inside it. A hook that must not act as trusted has to check
+`ITrustedExecutionScope.IsTrusted` itself.
+
 A dormant dependent's input is chosen at runtime by the parent train's code
 (`IDormantDependentContext.ActivateAsync(externalId, input)`), not fixed by a manifest, and its
 entry skips `QueueSubjectKey` and `OnQueue`. It is system-initiated work running inside a train
@@ -80,4 +91,7 @@ gate; that posture is api/0004's.
 
 ## Changelog
 
+- **2026-09-23**: Recorded that the dashboard's trusted scope flows into the `OnQueue` hook and
+  `QueueSubjectKey`, so trains they run or enqueue, including from `Task.Run`, skip their own
+  `[TraxAuthorize]`.
 - **2026-09-23**: Recorded.
