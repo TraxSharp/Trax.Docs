@@ -148,12 +148,12 @@ The full lifecycle of a `ServiceTrain` execution:
 [Set Output] -> Update
        |
        v
-   Success? --No--> [FinishTrain: Failed] -> Update
+   Success? --No--> [FinishServiceTrain: Failed or Cancelled] -> Update
        |                      |
       Yes                     |
        |                      |
        v                      v
-[FinishTrain: Completed]      |
+[FinishServiceTrain: Completed]
   -> Update                   |
        |                      |
        +----------+-----------+

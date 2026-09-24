@@ -161,7 +161,7 @@ This means cancellation always throws (even with `RunEither`), which matches the
 
 ### TrainState.Cancelled
 
-When an `OperationCanceledException` reaches `FinishTrain`, the train state is set to `Cancelled` instead of `Failed`:
+When an `OperationCanceledException` ends the run, `FinishServiceTrain` sets the train state to `Cancelled` instead of `Failed`:
 
 ```
 OperationCanceledException → TrainState.Cancelled
@@ -265,7 +265,7 @@ Configure the grace period:
 
 With one deliberate exception: **the write that records how the train ended does not use the caller's token.**
 
-If a train is cancelled mid-execution, the `ServiceTrain` catch block still runs `FinishTrain` to record the cancellation in Metadata, so you get an audit trail even for cancelled trains. `FinishTrain` also clears the junction progress columns (`CurrentlyRunningJunction` and `JunctionStartedAt`) as a safety net.
+If a train is cancelled mid-execution, `ServiceTrain.Run` captures the `OperationCanceledException` as the run's result instead of letting it escape. It then calls `FinishServiceTrain`, which sets `Cancelled` and `EndTime` on the metadata and clears the junction progress columns (`CurrentlyRunningJunction` and `JunctionStartedAt`), and saves that. Only after the outcome is saved do the `OnCancelled` hooks run and the exception get rethrown to the caller, so you get an audit trail even for cancelled trains. If saving the outcome itself throws, that error is logged and the `OperationCanceledException` still propagates.
 
 That audit trail only exists because the terminal `SaveChanges` runs on `CancellationToken.None` rather than the caller's token. The caller's token is cancelled in precisely the case the record is written for, so using it would mean the row could never be updated: the execution would stay `InProgress` with no `EndTime`, and a scheduler's `ReapStaleInProgressMetadataJunction` would later rewrite it to `Failed` after `StaleInProgressTimeout`. That is the wrong terminal state, and for a train whose work completed despite the cancellation it is a false one.
 

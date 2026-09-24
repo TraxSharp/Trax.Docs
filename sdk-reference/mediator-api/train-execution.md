@@ -41,6 +41,8 @@ public interface ITrainExecutionService
 
 Creates a WorkQueue entry for asynchronous execution. The scheduler picks up the entry on its next polling cycle and dispatches the train.
 
+> `scheduledAt` was added before `ct`, and a JSON `null` input now throws `JsonException`. A call passing the token positionally after `priority` no longer compiles; name it (`ct: ct`). See [Enqueue and Outcome Changes](/docs/migration-guides/enqueue-and-outcome-changes).
+
 ```csharp
 Task<QueueTrainResult> QueueAsync(
     string trainName,
@@ -127,7 +129,7 @@ Task<RunTrainResult> RunAsync(
 - `JsonException` if `inputJson` is the JSON literal `null`, which is well-formed but is not an input.
 - `TrainException` if the train itself fails during execution (propagated from `ITrainBus`).
 - `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet.
-- `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered, unless the host called `AllowMissingAuthorizationService()`. The same fail-closed rule as `QueueAsync`.
+- `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered, unless the call runs inside a trusted execution scope or the host called `AllowMissingAuthorizationService()`. The same fail-closed rule, and the same trusted-scope exemption, as `QueueAsync`.
 
 ### What it does
 
@@ -155,7 +157,7 @@ public class OrderController(ITrainExecutionService execution) : ControllerBase
             "MyApp.Trains.IProcessOrderTrain",
             input.GetRawText(),
             priority: 5,
-            ct);
+            ct: ct);
 
         return Accepted(new { result.WorkQueueId, result.ExternalId });
     }
