@@ -34,7 +34,9 @@ hooks checked and whose hooks are idempotent.
 **Rejecting nested enqueues.** The ambient enqueue context was a scoped field that refused to
 nest, so two enqueues sharing a scope, such as a Blazor circuit, threw. It flows with the async
 call instead: each enqueue sees its own context, and one started from inside a hook gets its own
-transaction and hands the outer context back.
+transaction and hands the outer context back. That makes a nested enqueue independent, not part
+of the outer one: it commits on its own context and connection before the outer `SaveChanges`, so
+it survives if the outer hook later throws or the outer commit rolls back.
 
 ## Consequences
 
@@ -42,7 +44,12 @@ Once a hook has returned, confirming the entry does not take the caller's token,
 the entry of a hook that threw does not either, for the same reason effect/0005 gives for a
 run's outcome: a record that is only written when the caller is still listening is not a record.
 `confirmed_at` defaults to `now()` on Postgres so that rows written during a rolling deploy by an
-instance that does not know the column are dispatchable. A deferring train's hook has no enqueue
+instance that does not know the column are dispatchable. Migration 041 has to set that default
+before it backfills existing rows, not after: DbUp runs the statements without a transaction, so an
+older instance can insert between any two of them, and a row inserted after the backfill but before
+the default existed would be left with a null `confirmed_at`, never dispatched, and cancelled by
+the sweep. The column is added bare, then the default is set, then existing rows are backfilled
+from `created_at`. A deferring train's hook has no enqueue
 context to join, because its entry is already committed.
 
 If the entry is cancelled while its hook runs, by an operator or by the sweep after the hook
@@ -52,7 +59,10 @@ the sweep promoted it instead (a host that opted in), the entry will run and the
 succeeds. Removing the entry after a hook throws deletes it only while
 it is still staged, never once promoted or dispatched, and a failure to remove it does not
 replace the hook's exception. Only a train with an `OnQueue` hook opens a transaction for its
-enqueue; the common path is a single write.
+enqueue; the common path is a single write. That transaction, and the pooled connection under it,
+stays open for as long as the hook runs, so a slow hook on the default path holds a connection to
+Trax's database for its whole duration. A deferring train does not: its staging context is
+released before the hook runs.
 
 **Every dispatcher must be upgraded before any train sets `DeferQueuePromotion`.** A dispatcher
 from before this decision claims without checking `confirmed_at`, so during a rolling deploy it
@@ -73,8 +83,13 @@ in Trax.Effect (nesting and concurrency).
 
 Not covered: nothing checks that a deferring train's hook is idempotent, which promotion relies
 on, or that `StaleStagedEntryTimeout` is longer than the slowest hook. The rolling-deploy default
-is asserted only by the migration itself.
+is exercised by `Trax.Effect.Tests.Integration.IntegrationTests.PostgresMigrationTests`, which
+inserts rows as an older writer between each of migration 041's statements and requires every one
+to end confirmed; that test does not cite this decision.
 
 ## Changelog
 
+- **2026-09-23**: Recorded that migration 041 must set the `confirmed_at` default before the
+  backfill, that the default path holds a transaction and connection open for the hook's
+  duration, and that an enqueue nested in a hook commits independently of the outer one.
 - **2026-09-23**: Recorded.
