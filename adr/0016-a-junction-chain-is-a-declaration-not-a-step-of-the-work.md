@@ -73,22 +73,34 @@ the train itself, records instead of running, so reading a chain never executes 
 **The replay has to mirror the runtime.** A chain is only as verified as the replay is faithful.
 The train's input enters Memory under its declared type and interfaces (a run stores it under its
 declared type as well as its runtime type, so a junction taking the declared base type works for
-any subtype), and tuple elements likewise under their declared type and interfaces (a run
-stores each element under its declared and runtime types, skipping a null element). A junction's output, an
-extracted value and an `AddServices` value enter under exactly one type, and lookup is by exact
+any subtype), and tuple elements likewise under their declared type and interfaces (a run stores
+each element under its declared and runtime types, skipping a null element). A junction's output,
+an extracted value and an `AddServices` value enter under exactly one type, and lookup is by exact
 type before the container, except that a tuple input is assembled from Memory alone, never the
-container. A short circuit's output is not counted as available to what follows it. At runtime a short
-circuit that returns Right stores its output and the chain keeps running, but one that returns
-Left stores nothing and the chain keeps running too, so a later junction cannot rely on the
-value. Shapes the runtime refuses on every run are refused when the chain is read: `IChain` or
+container. A short circuit's output is not counted as available to what follows it. At runtime a
+short circuit that returns Right stores its output and the chain keeps running, but one that
+returns Left stores nothing and the chain keeps running too, so a later junction cannot rely on
+the value. Shapes the runtime refuses on every run are refused when the chain is read: `IChain` or
 `AddServices` of a class, `Chain` or `ShortCircuit` of a type that is not a junction, and a short
 circuit whose output cannot be the train's return type.
 
-**A train the check cannot read is skipped with a warning, not refused.** The check builds every
+**A train the check cannot build is skipped with a warning, not refused.** The check builds every
 train to read its chain. A train that cannot be constructed at startup, because its constructor
 needs something only a request provides, or a registered train that does not derive from
-`Train<,>`, is logged as unverified and skipped. An unreadable train is not evidence of a chain
-that cannot run, and refusing to start over one would take down a host whose trains all work.
+`Train<,>`, is logged as unverified and skipped. A train that cannot be built is not evidence of a
+chain that cannot run, and refusing to start over one would take down a host whose trains all
+work.
+
+**A train that can be built but whose `Junctions()` throws is refused.** Any exception, not only a
+`ChainDeclarationException`, fails the start and is reported as a chain that could not be read. The
+common case is a `Junctions()` that dereferences `Metadata`, which is null outside a run, and fails
+with `NullReferenceException`. Skipping it would pass a train whose declaration fails every time
+it is read, which is exactly what a run does first.
+
+**The refusal happens only where the check runs.** It is a hosted service `AddMediator` registers,
+so it runs when a generic host starts. A host with `SkipChainVerification()`, the Lambda runner and
+a bare `ServiceProvider` never run it; there, a chain that cannot run fails when something first
+runs the train, as it did before the check existed.
 
 **Branching on ambient state is still possible.** A chain that reads the clock or a static flag
 records whichever shape boot-time conditions select, with no signal that it did. Only
@@ -101,6 +113,17 @@ imperatively could not be read, so the escape hatch and the guarantee could not 
 declare a chain and every train is therefore readable. Closing them cost four `Chain` overloads
 and a parameterless `Resolve()`, added so the declaration can express what the imperative form
 could.
+
+**Closing them ships as a minor release, and that breaks scaffolded projects.** The commits that
+remove them are `feat:`, so Semantic Release cuts a minor, not a major. The cost lands on projects
+that float: `trax generate` from earlier Trax.Cli versions wrote trains overriding `RunInternal`
+into a project referencing Trax with `Version="1.*"`, so such a project stops compiling on its next
+restore with nothing changed in it. Trax.Cli therefore releases its `Junctions()` template before
+Trax.Core and Trax.Effect release the removal. `Junctions()` already exists in the released
+packages, so a project scaffolded by the new Cli compiles against both, while one scaffolded by the
+old Cli breaks whichever order is chosen; the order only keeps the current Cli from generating code
+that does not build. The upgrade note is
+[Enqueue and Outcome Changes](/docs/migration-guides/enqueue-and-outcome-changes).
 
 **Seeding extra inputs is gone with it.** `Activate(input, otherInputs)` had no declarative
 equivalent, and the trains that used it were restructured so that a value a later junction reads
@@ -117,21 +140,35 @@ train and the member, and that a chain naming only junctions declares cleanly.
 `DeclaredChainTests` also pins the refusals: an awaiting body, a direct result, `Resolve(value)`,
 and an async body's exception being rethrown. `TrainChainStartupValidatorTests` in Trax.Mediator
 pins that a host refuses to start when a train names a junction whose input never reaches Memory,
-declares a chain that reads the input (synchronously or in an async body), or does work before
-declaring; that it reports every failing train at once; that a container-supplied input is
-checked without building the service; that a train which can only be built inside a request is skipped with a warning rather than refused; and that the opt-out works. `ChainVerificationTests` in
-Trax.Core pins the replay itself: a junction output's interfaces are not available and the run
-fails the same way, a short circuit neither supplies the return value nor its output, seeds and
-tuples are available, a tuple element declared as a base class is satisfied whatever subtype it holds, a tuple element is not taken from the container, `Extract` ignores the
-container, `IChain` needs its junction, and a short circuit whose output cannot be the result is
-refused. `DeclaredChainTests` also pins that `IChain` and `AddServices` of a class are refused and
-that a monad created through `NewMonad()` while declaring records instead of running, and that naming a type which is not a junction is refused rather than thrown.
+declares a chain that reads the input (synchronously or in an async body), does work before
+declaring, or has a `Junctions()` that throws something other than a declaration error; that it
+reports every failing train at once; that a container-supplied input is checked without building
+the service; that a train which can only be built inside a request is skipped with a warning
+rather than refused; and that the opt-out works. `SchedulerChainVerificationTests` in
+Trax.Scheduler reads and replays the scheduler's own trains (the ManifestManager, the
+JobDispatcher and the JobRunner), so a regression in one of them cannot stop every scheduler host
+from starting. `ChainVerificationTests` in Trax.Core pins the replay itself: a junction output's
+interfaces are not available and the run fails the same way, a short circuit neither supplies the
+return value nor its output, seeds and tuples are available, a tuple element declared as a base
+class is satisfied whatever subtype it holds, a tuple element is not taken from the container,
+`Extract` ignores the container, `IChain` needs its junction, and a short circuit whose output
+cannot be the result is refused. `DeclaredChainTests` also pins that `IChain` and `AddServices` of
+a class are refused, that a monad created through `NewMonad()` while declaring records instead of
+running, and that naming a type which is not a junction is refused rather than thrown.
 
 Not covered: nothing detects a chain that branches on ambient state or on instance state other
 than the input and output. The replay knows the train's declared input type, not the subtype that
 flows, so a junction asking for an interface only that subtype implements reads as a fault; that
 is why the check has an opt-out rather than being unconditional.
+`Trax.Cli.Tests.UnitTests.ScaffoldCompilationTests` compiles the current template against the
+Trax the Cli is pinned to; nothing checks a project an older Cli scaffolded against a new Trax
+release, or that Trax.Cli ships its template before Trax.Core ships a removal.
 
 ## Changelog
 
+- **2026-09-23**: Distinguished a train the check cannot build (skipped with a warning) from one
+  whose `Junctions()` throws (refused), recorded that the refusal happens only where the hosted
+  check runs, and recorded that closing `RunInternal` and `Activate` ships as a minor that breaks
+  projects scaffolded by an older Trax.Cli, hence the Cli-first release order. Added
+  `SchedulerChainVerificationTests`.
 - **2026-09-23**: Recorded.
