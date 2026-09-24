@@ -77,7 +77,7 @@ result.Match(
 );
 ```
 
-**Next:** [Core docs](/docs/core) for Memory, the Analyzer, chain methods, and IDE extensions.
+**Next:** [Core docs](/docs/core) for Memory, chain methods, and IDE extensions.
 
 ---
 

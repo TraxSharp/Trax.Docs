@@ -269,9 +269,14 @@ already in Memory because it is the input type or `Unit`.
 ### The host checks every chain before it serves traffic
 
 Because a chain is a declaration of types, whether it can run is decidable without running it. At
-startup Trax reads every registered train's chain and refuses to start if one of them cannot run:
+startup Trax reads every registered train's chain and refuses to start if one of them cannot run.
+The check is a hosted service that `AddMediator` registers, so it runs wherever the generic host
+starts hosted services; the Lambda runner and a bare `ServiceProvider` never run it. It refuses to
+start when:
 
 - the chain could not be read, because it reads the input
+- `Junctions()` throws anything else, for example a `NullReferenceException` from reading
+  `Metadata`, which is null at startup
 - `Junctions()` awaits something before returning, which means it does work instead of declaring
   a chain
 - `Junctions()` returns a result directly instead of ending in `Resolve()`, for example
@@ -289,11 +294,12 @@ startup Trax reads every registered train's chain and refuses to start if one of
 
 Every train is checked before anything is reported, so one start tells you about all of them.
 
-A train the check cannot read is logged as a warning and skipped, not refused: one that cannot be
+A train the check cannot build is logged as a warning and skipped, not refused: one that cannot be
 constructed at startup (its constructor needs a service only a request provides, such as a current
-user read from `HttpContext`), or a registered train that does not derive from `Train<,>`. An
-unreadable train is not evidence of a chain that cannot run, but its chain goes unverified, so read
-the warning.
+user read from `HttpContext`), or a registered train that does not derive from `Train<,>`. A train
+that cannot be built is not evidence of a chain that cannot run, but its chain goes unverified, so
+read the warning. A train that *can* be built but whose `Junctions()` throws is a different case,
+and is refused as above.
 
 #### What the check counts as available
 
@@ -339,13 +345,14 @@ happen as the mutation is accepted) in [`OnQueue`](#onqueue-enqueue-time-hook), 
 
 This is a compile-clean change that only surfaces at startup, so a consumer upgrading has no way to
 discover it beforehand. If an upgrade is blocked on it, `SkipChainVerification()` turns the check
-off while the chains are moved over. It silences every other fault in the list too, so it is a
-stopgap rather than a setting to leave on.
+off while the chains are moved over. It silences every other fault in the list too, so during a
+migration it is a stopgap to remove once the chains pass, not a setting to leave on.
 
 The replay knows the train's declared input type, not the subtype a caller passes at runtime, so a
 junction asking for an interface that only the runtime subtype implements reads as a fault although
 the run would find it. Declaring the input as that subtype fixes both. That blind spot is the one
-case for turning the check off:
+reason to leave the check off for good; the other reason to turn it off is temporary, while a
+codebase whose chains do not pass yet is being migrated:
 
 ```csharp
 .AddMediator(mediator => mediator.SkipChainVerification())

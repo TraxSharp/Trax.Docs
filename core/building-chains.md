@@ -56,7 +56,7 @@ The host catches a missing return type at startup: the [chain verification](/doc
 
 `.ShortCircuit<TJunction>()` lets a junction take the express route, capturing a result for early return. If the junction returns a value of the train's return type, that value is stored as the short-circuit result and `Resolve()` will return it instead of doing a Memory lookup. If the junction throws, the train continues normally.
 
-> **Note:** Subsequent `Chain` calls after a successful `ShortCircuit` still execute. The short-circuit value only affects `Resolve()`. If you need to truly skip remaining junctions, combine `ShortCircuit` with a conditional pattern or the railway error path.
+> **Note:** Subsequent `Chain` calls after a successful `ShortCircuit` still execute. The short-circuit value only affects `Resolve()`. Nothing in a chain skips the remaining junctions and still returns the short-circuit value. `Junctions()` cannot branch on its input, because a chain is declared once and checked at startup (`Trax.Docs/adr/0016`), and a later junction that fails puts the train on the left track, where `Resolve()` returns that failure rather than the captured value. A junction after a `ShortCircuit` that should not repeat work has to decide that itself, from what it is given.
 
 ```csharp
 public class ProcessOrderTrain : ServiceTrain<OrderRequest, OrderResult>

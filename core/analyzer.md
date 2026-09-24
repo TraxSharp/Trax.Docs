@@ -40,15 +40,15 @@ The analyzer makes it a compile-time error. You see the problem immediately in y
 The analyzer triggers on `.Resolve()` calls in `Train<,>` or `ServiceTrain<,>` subclasses whose chain starts at `Activate()` (which is why it no longer fires). It walks through the chain and simulates Memory forward:
 
 ```
-Junctions()           -> Memory = { TInput, Unit }
-Chain<JunctionA>()    -> Check: is JunctionA's TIn in Memory? Add JunctionA's TOut.
+Activate(input)       -> Memory = { TInput, Unit }
+.Chain<JunctionA>()   -> Check: is JunctionA's TIn in Memory? Add JunctionA's TOut.
 .Chain<JunctionB>()   -> Check: is JunctionB's TIn in Memory? Add JunctionB's TOut.
                       -> Check: is TReturn in Memory?
 ```
 
 | Method | What the analyzer does |
 |--------|----------------------|
-| `Junctions()` | Seeds Memory with `TInput` and `Unit` |
+| `Activate(input, otherInputs...)` | Seeds Memory with `TInput` and `Unit`, plus the type of each extra argument. A chain that does not start here is not analyzed, which is why a `Junctions()` declaration never was |
 | `.Chain<TJunction>()` | Checks `TIn` in Memory, then adds `TOut` |
 | `.ShortCircuit<TJunction>()` | Same as `Chain`: checks `TIn` in Memory, adds `TOut` |
 | `.AddServices<T1, T2>()` | Adds each type argument to Memory |
@@ -64,9 +64,10 @@ Fires when a junction needs a type that no previous junction has produced.
 ```csharp
 public class BrokenTrain : ServiceTrain<string, Unit>
 {
-    protected override Task<Either<Exception, Unit>> Junctions() =>
-        Chain<LogGreetingJunction>().Resolve();  // <- CHAIN001: LogGreetingJunction requires HelloWorldInput,
-                                      //   but Memory only has [string, Unit]
+    // The RunInternal and Activate form this was written for; neither is reachable any more.
+    protected override Task<Either<Exception, Unit>> RunInternal(string input) =>
+        Activate(input).Chain<LogGreetingJunction>().Resolve();  // <- CHAIN001: LogGreetingJunction
+                                      //   requires HelloWorldInput, but Memory only has [string, Unit]
 }
 ```
 
@@ -84,9 +85,10 @@ Fires when `Resolve()` needs a type that hasn't been produced. The analyzer trac
 ```csharp
 public class MissingReturnTrain : ServiceTrain<OrderRequest, Receipt>
 {
-    protected override Task<Either<Exception, Receipt>> Junctions() =>
-        Chain<ValidateOrderJunction>()  // Returns Unit
-            .Resolve();                 // <- CHAIN002: Receipt not in Memory
+    protected override Task<Either<Exception, Receipt>> RunInternal(OrderRequest input) =>
+        Activate(input)
+            .Chain<ValidateOrderJunction>()  // Returns Unit
+            .Resolve();                      // <- CHAIN002: Receipt not in Memory
 }
 ```
 
