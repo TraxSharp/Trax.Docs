@@ -146,7 +146,7 @@ When a dead letter is requeued, the new WorkQueue entry carries a `DeadLetterId`
 
 ### Concurrency Safety
 
-All dead letter operations filter by `status = 'awaiting_intervention'` at query time. If two users resolve the same dead letter simultaneously, the second operation sees no matching record and returns a "not found or already resolved" result. No duplicate work queue entries are created. The check for a manifest's existing queued entry and the insert are separate statements, so if the ManifestManager queues that manifest in between, the insert fails on the unique index and the requeue reports an error rather than creating a second entry.
+All dead letter operations filter by `status = 'awaiting_intervention'` at query time. If two users resolve the same dead letter simultaneously, the second operation sees no matching record and returns a "not found or already resolved" result. No duplicate work queue entries are created. The check for a manifest's existing queued entry and the insert are separate statements, so a concurrent requeue or the ManifestManager can queue that manifest in between. The unique index refuses the second entry; a batch or "all" requeue then rereads and retries, skipping that manifest, and a single requeue reports it as already queued. Two operators pressing **Requeue All** at once both succeed and leave one queued entry per manifest.
 
 ## Retry Delay & Backoff
 
