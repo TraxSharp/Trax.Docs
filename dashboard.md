@@ -113,7 +113,7 @@ Clicking the visibility icon on a dead letter row opens a detail page with:
 - **Dead Letter Details**: Status badge, dead-lettered timestamp, retry count, reason, resolution info
 - **Manifest Details**: Linked manifest name, schedule, max retries, timeout, properties JSON
 - **Most Recent Failure**: The latest failed execution's failure junction, exception, reason, stack trace, and input
-- **Failed Execution History**: A full grid of all failed metadata runs for the manifest, each linking to the metadata detail page
+- **Failed Execution History**: A grid of the failed metadata runs for the manifest, read from the database a page at a time, each linking to the metadata detail page
 
 Two action buttons appear when the dead letter is in `AwaitingIntervention` status:
 
@@ -182,7 +182,7 @@ The Effects page was previously a section within Server Settings and has been mo
 
 ### Manifest Groups
 
-Every manifest belongs to a **ManifestGroup**, a first-class entity with per-group dispatch controls. The **Manifest Groups** page shows one row per group with its settings and aggregate stats: manifest count, total executions, completed, failed, and last run time.
+Every manifest belongs to a **ManifestGroup**, a first-class entity with per-group dispatch controls. The **Manifest Groups** page shows one row per group with its settings and aggregate stats: manifest count, total executions, completed, failed, in progress, and last run time, counted the same way as the API's `stats` query for manifest groups.
 
 Clicking a group opens a detail page with two sections:
 
@@ -232,7 +232,7 @@ The **User Settings** page (`/trax/settings/user`) lets each user customize thei
 | Setting | Default | Description |
 |---------|---------|-------------|
 | **Polling Interval** | 5 seconds | How often dashboard pages re-query for fresh data. Range: 1–300 seconds. |
-| **Hide Administration Trains** | `true` | Exclude scheduler internals (ManifestManager, JobRunner, MetadataCleanup) from statistics and charts. |
+| **Hide Administration Trains** | `true` | Exclude scheduler internals (ManifestManager, JobDispatcher, JobRunner, MetadataCleanup, DeadLetterCleanup) from statistics, charts and the Metadata and Manifests lists. A train is hidden only when its name is one of theirs exactly, as the API's `hideAdminTrains` filter matches, so a train of your own whose name merely ends the same way stays visible. |
 | **Dashboard Components** | All visible | Toggle visibility of individual home page sections (summary cards, charts, real-time metrics, throughput chart, throughput sparkline). |
 
 ## Integration with Existing Blazor Apps
