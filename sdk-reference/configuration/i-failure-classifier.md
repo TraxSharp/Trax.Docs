@@ -43,7 +43,8 @@ Trax resolves one `IFailureClassifier` from the train's service provider, so the
 |---|---|
 | No classifier registered, or it returns null | `Unclassified` |
 | The classifier throws | `Unclassified`; the classifier's exception is logged and the run's failure is unaffected |
-| The run was cancelled, including an `HttpClient` timeout (`TaskCanceledException`) | `Cancelled` state; the classifier is not called |
+| The run was asked to stop (its token was cancelled, or its cancel flag was set) | `Cancelled` state; the classifier is not called |
+| An `OperationCanceledException` nothing asked for, such as an `HttpClient` timeout (`TaskCanceledException`) | `Failed` state; the classifier's answer, or `Transient` when it has none |
 | The failure already carries a class (a remote worker sent one, or a calling-side junction preserved it) | The carried class; it wins over the local classifier |
 | Another exception type whose message is JSON shaped like a failure record | Its message is not read for a class; only a `TrainException` carries one there, so the classifier decides as usual |
 | A carried class outside the vocabulary | `Unclassified` |

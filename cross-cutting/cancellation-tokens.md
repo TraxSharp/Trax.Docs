@@ -155,21 +155,23 @@ public override async Task<string> Run(string input)
 Cancellation is treated differently from regular exceptions:
 
 - **Regular exceptions** are enriched with `TrainExceptionData` (junction name, train name, original stack trace, etc.) via `Exception.Data` and returned as `Left` in the Railway pattern. The original exception type and message are preserved - callers outside Trax see the exception exactly as the junction threw it
-- **`OperationCanceledException`** propagates cleanly without wrapping. It is not a junction failure, it is an explicit abort signal
+- **`OperationCanceledException` while the train's token is cancelled** propagates cleanly without wrapping. It is not a junction failure, it is an explicit abort signal
+- **`OperationCanceledException` while the train's token is not cancelled**, such as an `HttpClient` timeout, is treated as a regular exception: enriched and returned as `Left`
 
-This means cancellation always throws (even with `RunEither`), which matches the .NET convention that cancellation is exceptional flow, not a business error.
+This means a requested cancellation always throws (even with `RunEither`), which matches the .NET convention that cancellation is exceptional flow, not a business error.
 
 ### TrainState.Cancelled
 
-When an `OperationCanceledException` ends the run, `FinishServiceTrain` sets the train state to `Cancelled` instead of `Failed`:
+When an `OperationCanceledException` that the run was asked for ends it, `FinishServiceTrain` sets the train state to `Cancelled` instead of `Failed`. A run is asked to stop when its own token is cancelled, or when its persisted cancel flag is set (the dashboard's cancel button, or the scheduler's job timeout for a run on another host), which `CancellationCheckProvider` turns into a cancellation at the next junction boundary:
 
 ```
-OperationCanceledException → TrainState.Cancelled
-All other exceptions       → TrainState.Failed
-No exception               → TrainState.Completed
+OperationCanceledException, requested     → TrainState.Cancelled
+OperationCanceledException, not requested → TrainState.Failed, FailureClass Transient
+All other exceptions                      → TrainState.Failed
+No exception                              → TrainState.Completed
 ```
 
-Cancelled trains are **not retried** and **do not create dead letters**. Cancellation is a deliberate operator action, not a transient failure. The dashboard shows cancelled trains with a warning (orange) badge to distinguish them from failures.
+Cancelled trains are **not retried** and **do not create dead letters**. Cancellation is a deliberate operator action, not a transient failure. An `OperationCanceledException` nothing asked for is the opposite case: most often an `HttpClient` timeout, it means a dependency was slow, so the run is recorded as a failure, classified `Transient` unless your `IFailureClassifier` answers otherwise, and a manifest retries it. `OnFailed` fires for it, not `OnCancelled`. The dashboard shows cancelled trains with a warning (orange) badge to distinguish them from failures.
 
 ## TrainBus Dispatch
 
