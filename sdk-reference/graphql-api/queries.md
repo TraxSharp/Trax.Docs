@@ -141,6 +141,7 @@ query {
         name
         typeName
         isNullable
+        enumValues
       }
     }
   }
@@ -168,9 +169,13 @@ query {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | `String!` | Property name |
+| `name` | `String!` | The JSON name the input reader expects: the property name under the system JSON naming policy (camelCase by default), or its `[JsonPropertyName]` when it has one. A property marked `[JsonIgnore]` is left out |
 | `typeName` | `String!` | Friendly type name (e.g. `String`, `Int32`, `DateTime?`) |
 | `isNullable` | `Boolean!` | Whether the property is nullable |
+| `enumValues` | `[String!]` | The accepted values when the property is an enum or a nullable enum, spelled as the reader expects them. Null for any other type |
+
+The names and enum spellings come from the same options `queueTrain` and `runTrain` deserialize
+input with, so a client that builds its JSON from this schema writes what the reader accepts.
 
 ---
 
@@ -265,7 +270,7 @@ query {
 
 ### effects
 
-Lists the observational effects registered in the API process, with their enabled and toggleable state. Backs the dashboard's effects list.
+Lists the observational effects registered in the API process, with their enabled and toggleable state and, for an effect whose factory exposes runtime settings, those settings. Backs the dashboard's effects list.
 
 Read-only by design. The effect registry is an in-memory, per-process singleton with no persistence or cross-process broadcast, so this reflects the API host only, not the scheduler/worker processes where effects actually run, and there is no toggle mutation. Changing effect state at runtime across a distributed deployment would need a shared store plus a change-broadcast, which is not built.
 
@@ -277,6 +282,9 @@ query {
       fullName
       enabled
       toggleable
+      isConfigurable
+      configurationTypeName
+      configuration
     }
   }
 }
@@ -292,6 +300,13 @@ query {
 | `fullName` | `String!` | Effect factory type FullName |
 | `enabled` | `Boolean!` | Whether the effect is currently enabled in this process |
 | `toggleable` | `Boolean!` | Whether the effect can be toggled (infrastructure effects are always on) |
+| `isConfigurable` | `Boolean!` | Whether the effect's factory exposes runtime settings (implements `IConfigurableProviderFactory`) |
+| `configurationTypeName` | `String` | FullName of the settings type. Null when not configurable |
+| `configuration` | `String` | The factory's current settings as camelCase JSON. Null when not configurable |
+
+Settings can hold credentials. Like an execution's `input`, they are reachable only under the
+`operations` namespace, so the gate you put on it (`GateOperations` or `RequireAuthorization`)
+decides who reads them. See [Train inputs and the operations gate](#train-inputs-and-the-operations-gate).
 
 ---
 
@@ -357,6 +372,10 @@ query {
 | `manifestGroupId` | `Long!` | Parent group ID |
 | `dependsOnManifestId` | `Long` | ID of the manifest this one depends on |
 | `priority` | `Int!` | Dispatch priority (0-31, higher runs first) |
+| `manifestGroupName` | `String` | Name of the parent group |
+
+A manifest's `properties` (the train input it runs with) are not on this type. Read them from
+[`manifestDetail`](#manifestdetail), one manifest at a time.
 
 ---
 
@@ -385,6 +404,49 @@ query {
 | `id` | `Long!` | Yes | The manifest's database ID |
 
 **Returns**: `ManifestSummary` (nullable, returns `null` if the ID does not exist)
+
+---
+
+### manifestDetail
+
+Returns everything `manifest` does plus the train input the manifest runs with and the rest of
+its scheduling settings. Use it for a manifest detail page.
+
+```graphql
+query {
+  operations {
+    manifestDetail(id: 42) {
+      id
+      name
+      manifestGroupName
+      propertyTypeName
+      properties
+      misfirePolicy
+      misfireThresholdSeconds
+      scheduledAt
+      nextScheduledRun
+      varianceSeconds
+    }
+  }
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `Long!` | Yes | The manifest's database ID |
+
+**Returns**: `ManifestDetail` (nullable, returns `null` if the ID does not exist). It carries every
+[`ManifestSummary`](#manifestsummary-fields) field (with `manifestGroupName` non-null) and:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `propertyTypeName` | `String` | Fully qualified type name of the train input |
+| `properties` | `String` | The train input as stored JSON. Can hold credentials; see [Train inputs and the operations gate](#train-inputs-and-the-operations-gate) |
+| `misfirePolicy` | `MisfirePolicy!` | What the manifest manager does with a missed run |
+| `misfireThresholdSeconds` | `Int` | How late a run can be before it counts as missed |
+| `scheduledAt` | `DateTime` | The one-off run time, for a `Once` manifest |
+| `nextScheduledRun` | `DateTime` | When the manifest manager next plans to run it |
+| `varianceSeconds` | `Int` | Random jitter added to each run |
 
 ---
 
@@ -603,7 +665,11 @@ query {
       hostName
       hostEnvironment
       hostInstanceId
+      hostLabels
       failureClass
+      parentId
+      scheduledTime
+      executor
     }
   }
 }
@@ -619,10 +685,15 @@ query {
 canonical form). There is no separate junction table: junction context is the
 `currentlyRunningJunction` (while `IN_PROGRESS`) and `failureJunction` (on failure) fields.
 `childCount` is the number of sub-executions (metadata rows whose `parentId` is this
-execution), for rendering a parent/child tree. Nothing in Trax sets `parentId` at present, a
+execution), for rendering a parent/child tree, and `parentId` is this execution's own parent. Nothing in Trax sets `parentId` at present, a
 train dispatched from a junction included (see [Nested Trains](/docs/mediator#nested-trains)), so
 it is `0` unless something outside Trax writes the column. `failureClass` is the same `FailureClass` enum as
-on [`ExecutionSummary`](#executionsummary-fields).
+on [`ExecutionSummary`](#executionsummary-fields). `scheduledTime` is when a scheduled run was due
+(null for one that was not scheduled), `executor` is the project name of the process that ran it,
+and `hostLabels` is the host's user-supplied labels as a JSON object.
+
+`input` and `output` can hold credentials. They are on this single-row read and on no list; see
+[Train inputs and the operations gate](#train-inputs-and-the-operations-gate).
 
 ---
 
@@ -651,6 +722,20 @@ query {
 | `afterId` | `Long` | `null` | Keyset cursor (`id < afterId`) |
 
 **Returns**: `PagedResult<ExecutionSummary>` (count is always exact).
+
+---
+
+## Train inputs and the operations gate
+
+A train's input can carry credentials, so the admin surface reads it one row at a time. An
+execution's `input`, a manifest's `properties` and a work queue entry's `input` are on
+[`executionDetail`](#executiondetail), [`manifestDetail`](#manifestdetail) and
+[`workQueue.detail`](#detail) only, never on a list type, and an effect's settings are on
+[`effects`](#effects). All of them sit under the `operations` namespace, so whatever gates it
+(`RequireAuthorization()` or `GateOperations(...)`, see [API security](/docs/api-security)) is what
+decides who reads them. There is no separate field-level gate: a caller who can read one execution's
+input can read a manifest's properties too. The reasoning is recorded in Trax.Api's ADR
+`api/0005`.
 
 ---
 
@@ -759,6 +844,28 @@ query {
 ```
 
 **Returns**: `SchedulerConfigSnapshot`.
+
+### environmentName and logLevels
+
+The API host's environment and its `Logging:LogLevel` configuration, which the dashboard shows as
+its environment badge and on its server settings page.
+
+```graphql
+query {
+  operations {
+    config {
+      environmentName
+      logLevels { category level }
+    }
+  }
+}
+```
+
+`environmentName` is `IHostEnvironment.EnvironmentName` (`String!`). `logLevels` is
+`[LogLevelSetting!]!`, one `{ category, level }` per key under `Logging:LogLevel`, `Default` first
+and the rest by category; empty when the host configures none. Only that section is read, so no
+other configuration value (a connection string, a secret) is reachable from here. Both describe
+the API process, not the scheduler or worker processes.
 
 #### SchedulerConfigSnapshot fields
 
@@ -1236,6 +1343,37 @@ query {
 | `id` | `Long!` | Yes | The work queue entry's database ID |
 
 **Returns**: `WorkQueueSummary` (nullable, returns `null` if the ID does not exist).
+
+### detail
+
+Returns one entry with the train input it was queued with and, for a queued entry with a
+subject, what it is waiting on. Backs a work queue detail page.
+
+```graphql
+query {
+  operations {
+    workQueue {
+      detail(id: 42) { id status subjectKey input subjectHeldBy subjectQueuedBehind }
+    }
+  }
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `Long!` | Yes | The work queue entry's database ID |
+
+**Returns**: `WorkQueueDetail` (nullable, returns `null` if the ID does not exist). It carries every
+[`WorkQueueSummary`](#workqueuesummary-fields) field and:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input` | `String` | The train input as stored JSON. Can hold credentials; see [Train inputs and the operations gate](#train-inputs-and-the-operations-gate) |
+| `subjectHeldBy` | `Long` | For a queued entry with a subject: the dispatched entry for the same subject whose run is still pending or in progress. Dispatch skips the subject until that run finishes |
+| `subjectQueuedBehind` | `Long` | For a queued entry with a subject that nothing holds: the queued entry for the same subject that dispatch offers first (confirmed, due, in an enabled group, then higher priority, then older). Dispatch offers one entry per subject each cycle |
+
+Both are null for an entry that is not queued or has no subject. The Blazor dashboard's work queue
+detail page reports the same two answers from the same predicate.
 
 ---
 
