@@ -79,6 +79,11 @@ would dispatch a staged entry whose hook has not returned, or never will.
 The sweep runs in the ManifestManager. A deployment where the ManifestManager is disabled
 everywhere (`ManifestManagerEnabled = false`) never resolves a stranded entry.
 
+A cancelled entry is visible for a retention, not forever: the same sweep deletes the
+unconfirmed entries it cancelled on an earlier pass once they are 30 days old, because a staged
+entry that never ran has no metadata for metadata cleanup to remove it with. That trade, and why
+the delete lives in a method called `CancelStaleAsync`, is effect/0007.
+
 ## Exemplars
 
 **Enforced elsewhere:** `DeferredPromotionTests` in Trax.Mediator (staging, removal on a throw,
@@ -98,6 +103,8 @@ this decision.
 
 ## Changelog
 
+- **2026-09-27**: A cancelled staged entry is kept for 30 days, then deleted by the sweep that
+  cancelled it (effect/0007).
 - **2026-09-24**: The enqueue of an entry cancelled under its hook throws
   `QueuedWorkCancelledException`, so a caller can tell it from the other refusals.
 - **2026-09-24**: Recorded that migration 041 backfills only rows that can still be dispatched,
