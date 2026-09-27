@@ -119,7 +119,7 @@ The worker resolves `IJobRunnerTrain` from a new DI scope and calls `Run(new Run
 
 **Phase 3. Cleanup** (always runs, success or failure)
 
-The worker deletes the `background_job` row. This matches the previous Hangfire behavior where jobs were auto-deleted on completion. Trax.Core's Metadata and DeadLetter tables handle the audit trail, the background_job table is purely a transient queue.
+The worker deletes the `background_job` row. The delete does not take the host's stopping token, so a job that finishes inside the `ShutdownTimeout` grace period is still removed rather than left for re-claim. This matches the previous Hangfire behavior where jobs were auto-deleted on completion. Trax.Core's Metadata and DeadLetter tables handle the audit trail, the background_job table is purely a transient queue.
 
 ### Crash Recovery
 
