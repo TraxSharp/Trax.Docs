@@ -45,7 +45,8 @@ subject their entry serializes against and where it sits in that subject's order
 train, so a consumer for whom that matters authorizes the record in `OnQueue` or scopes the key per
 tenant. `authorization.md` and `core/trains-and-junctions.md` say so where a consumer will meet it. It is refused when empty or longer than 512 characters, both at
 enqueue and by `WorkQueue.Create`, so an entry built directly cannot carry a key the index cannot
-claim. The
+claim. The enqueue also refuses a key that is only whitespace, which is as surely an unset identity
+as an empty one. The
 guarantee holds only until something writes a terminal state for a run that has not finished,
 and the subject is released even if that run is still working. Three things do: the two reapers
 in the ManifestManager (pending longer than `StalePendingTimeout`, or in progress longer than
@@ -88,6 +89,7 @@ overrides `LockSubject()`.
 
 ## Changelog
 
+- **2026-09-27**: The enqueue refuses a key that is only whitespace, as it refuses an empty one.
 - **2026-09-24**: Recorded that the key and the priority both come from the caller, and that
   authorizing the record in `OnQueue` or scoping keys per tenant is what a consumer does about it.
 - **2026-09-24**: Recorded that `WorkQueue.Create` refuses the same keys the enqueue does.
