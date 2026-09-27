@@ -237,11 +237,11 @@ internal, so a train cannot build its chain imperatively. Upgrading a train that
 covered in [Removal of RunInternal and Activate](/docs/migration-guides/runinternal-and-activate).
 
 A `ServiceTrain` cannot override `Run` either. `Run(input, ct)` is a sealed override, and the
-`Run(input, metadata)` overloads are not virtual. `Run` owns what wraps the chain: the metadata
+`Run(input, metadata)` overloads are not virtual. `NewMonad()`, which builds the monad the chain runs on, is sealed too. `Run` owns what wraps the chain: the metadata
 row, the lifecycle hooks and the outcome write. An override that did its own work, or skipped
 `base.Run`, would run untracked while every surface still reported the train. Put the work in
 junctions, and anything around it in the [lifecycle hooks](#train-lifecycle-hooks). A plain
-`Train<TIn, TOut>` from Trax.Core still has a virtual `Run`.
+`Train<TIn, TOut>` from Trax.Core still has a virtual `Run` and `NewMonad()`.
 
 That is what makes a chain readable before it runs. A chain assembled in code has no single
 shape, so the host could not check it at startup, and a chain that varies by input would mean the
