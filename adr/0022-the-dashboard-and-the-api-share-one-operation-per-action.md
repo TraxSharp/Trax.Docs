@@ -58,9 +58,8 @@ same way.
 call it. As of this ADR's last changelog entry:
 
 - *Met:* queue a train, cancel one work queue entry, edit a group's settings, edit the scheduler
-  settings, dead-letter re-queue and acknowledge, manifest and group trigger, cancel a manifest's
-  or a group's runs through `ITraxScheduler`, the dashboard metrics and the group dependency
-  graphs.
+  settings, dead-letter re-queue and acknowledge, manifest and group trigger, the dashboard
+  metrics and the group dependency graphs.
 - *Shared method exists, surfaces not switched yet* (both wait on the Scheduler release that
   carries it): run a train (`RunTrainAsync`); cancel a list of runs (`CancelExecutionsAsync`, the
   rule `ITraxScheduler.CancelAsync` and `CancelGroupAsync` now share); cancel a list of work
@@ -68,7 +67,8 @@ call it. As of this ADR's last changelog entry:
   stats, group stats and paged logs.
 - *No shared method yet:* re-queue an execution, editing a manifest (`updateManifest` writes the
   row in the API), the executions, work queue and dead-letter list reads, and the persisted
-  operations reads.
+  operations reads. The group detail page's "Cancel All Running" also repeats `CancelGroupAsync`'s
+  query instead of calling it, which needs no release to fix.
 
 Anything in the last two groups is a defect against this decision, not an exception to it.
 
