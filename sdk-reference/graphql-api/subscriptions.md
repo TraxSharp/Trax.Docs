@@ -214,6 +214,8 @@ Each connection gets its own DI scope. The interceptor itself is a singleton (Ho
 
 Cookie auth (`Trax.Api.Auth.Oidc`) needs no interceptor. The browser sends cookies on the upgrade request and the cookie scheme authenticates it like any HTTP request.
 
+That holds only when no token scheme is registered. Once `AddTraxApiKeyAuth`, `AddTraxJwtAuth` or `AddTraxJwtDispatcher` is registered, every connection needs a credential in `connection_init`, and an upgrade that is already authenticated by a session cookie is rejected without one. A browser app on a host with both cookie and token auth sends its token in the payload.
+
 ### Multiple JWT issuers
 
 [`AddTraxJwtDispatcher`](/docs/sdk-reference/api-auth/add-trax-jwt-dispatcher) routes subscription tokens by their `iss` claim across every mapped scheme, the same way it routes HTTP requests. When a dispatcher is registered, JWT connections go to `TraxJwtDispatcherSocketInterceptor` instead of the single-scheme JWT strategy. Each scheme validates fully (signature, issuer, audience, lifetime, JWKS), so an unmapped or forged issuer is rejected.
