@@ -57,7 +57,15 @@ its subject until a scheduler host restarts, or indefinitely if it never left `P
 startup recovery does not touch. Where the ManifestManager is disabled on every host no reaper
 runs at all. A synchronous run through the mediator does not
 consult the key, and neither does a dormant dependent a parent train activates: its entry is built
-by the scheduler with input the parent chose at runtime, and carries no subject. The API exposes
+by the scheduler with input the parent chose at runtime, and carries no subject. Nor does the
+dashboard's Run dialog: it hands its input straight to the job submitter and writes no work queue
+entry, so dispatch never sees the run, and it can overlap queued or in-flight work for the same
+subject. That bypass is deliberate. Queue is the dashboard's serialized path and sits beside Run,
+so making Run wait for a busy subject would only duplicate it, and refusing when the subject is
+busy would need the dialog to compute the key and check for in-flight work outside the claim's
+lock, which is the race this decision exists to close. The dialog says so instead, and points at
+Queue. Nothing published tells the dashboard whether a train overrides `QueueSubjectKey`, so it
+says so for every train. The API exposes
 the key as `subjectKey` on work queue reads.
 
 Every dispatcher must be upgraded before any train overrides `QueueSubjectKey`. A dispatcher from
@@ -78,8 +86,9 @@ above, and both proceed.
 
 **Enforced elsewhere:** `SubjectKeySerializationTests` in Trax.Scheduler (one run per subject,
 release on completion and on reaping, the two-transaction claim race, and capacity on both load
-paths) and `SubjectKeyTests` in Trax.Mediator (where the key comes from, and the empty and length
-limits).
+paths), `SubjectKeyTests` in Trax.Mediator (where the key comes from, and the empty and length
+limits), and `RunTrainDialogSubjectWarningTests` in Trax.Dashboard (the Run dialog warns that it
+bypasses the serialization and points at Queue).
 
 Not covered: ordering with more than one dispatcher, and a reaper or the startup recovery
 releasing a subject whose run is still working, which is the documented limit rather than
@@ -88,6 +97,8 @@ overrides `LockSubject()`.
 
 ## Changelog
 
+- **2026-09-27**: Recorded the dashboard's Run dialog as a deliberate bypass, and why it warns
+  rather than waiting or refusing.
 - **2026-09-24**: Recorded that the key and the priority both come from the caller, and that
   authorizing the record in `OnQueue` or scoping keys per tenant is what a consumer does about it.
 - **2026-09-24**: Recorded that `WorkQueue.Create` refuses the same keys the enqueue does.
