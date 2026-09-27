@@ -138,7 +138,7 @@ Predicate form for patterns:
 opts.AllowOperationsMatching(id => id.StartsWith("dev_"))
 ```
 
-Introspection requests (`IntrospectionQuery`, or any query whose top-level selection set is purely `__schema` / `__type`) bypass enforcement automatically. Disable with `DisableIntrospection()` for tight prod.
+Introspection requests bypass enforcement automatically. A request is introspection when its document parses and every top-level selection is `__schema`, `__type` or `__typename`. Disable with `DisableIntrospection()` for tight prod.
 
 ## Managing operations
 
