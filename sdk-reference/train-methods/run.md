@@ -20,6 +20,19 @@ These are called by **consumers** of the train, not inside `Junctions()`.
 public virtual async Task<TReturn> Run(TInput input, CancellationToken cancellationToken = default)
 ```
 
+On a `ServiceTrain` it is a sealed override, and the two overloads that take a pre-created
+`Metadata` are not virtual:
+
+```csharp
+public sealed override Task<TOut> Run(TIn input, CancellationToken cancellationToken = default)
+public Task<TOut> Run(TIn input, Metadata metadata)
+public Task<TOut> Run(TIn input, Metadata metadata, CancellationToken cancellationToken)
+```
+
+A service train does its work in `Junctions()`, and `Run` owns the metadata row, the lifecycle
+hooks and the outcome write around it, so none of them can be overridden. A plain
+`Train<TInput, TReturn>` keeps a virtual `Run`.
+
 ### RunEither (returns Either)
 
 ```csharp
