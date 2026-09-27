@@ -232,7 +232,7 @@ The **User Settings** page (`/trax/settings/user`) lets each user customize thei
 | Setting | Default | Description |
 |---------|---------|-------------|
 | **Polling Interval** | 5 seconds | How often dashboard pages re-query for fresh data. Range: 1–300 seconds. |
-| **Hide Administration Trains** | `true` | Exclude scheduler internals (ManifestManager, JobDispatcher, JobRunner, MetadataCleanup, DeadLetterCleanup) from statistics, charts and the Metadata and Manifests lists. A train is hidden only when its name is one of theirs exactly, as the API's `hideAdminTrains` filter matches, so a train of your own whose name merely ends the same way stays visible. |
+| **Hide Administration Trains** | `true` | Exclude scheduler internals (ManifestManager, JobDispatcher, JobRunner, MetadataCleanup, DeadLetterCleanup) from statistics, charts, the Trains page and the Metadata and Manifests lists. A train is hidden only when its name is one of theirs exactly, as the API's `hideAdminTrains` filter matches, so a train of your own whose name merely ends the same way stays visible. |
 | **Dashboard Components** | All visible | Toggle visibility of individual home page sections (summary cards, charts, real-time metrics, throughput chart, throughput sparkline). |
 
 ## Integration with Existing Blazor Apps
