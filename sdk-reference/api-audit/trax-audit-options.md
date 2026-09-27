@@ -17,7 +17,7 @@ Tunables for the audit pipeline, passed through `AddAudit<TSink>(opts => ...)`.
 | `BatchSize` | `50` | Max entries handed to the sink in one call. |
 | `FlushInterval` | `500ms` | Max time to wait before flushing a partial batch. |
 | `MaxDocumentLength` | `65_536` | Documents longer than this are truncated with a `...[truncated]` marker. |
-| `SkipIntrospection` | `true` | Drop requests whose operation name is `IntrospectionQuery`. |
+| `SkipIntrospection` | `true` | Drop introspection operations: the executed operation's top-level selections are all `__schema`, `__type` or `__typename`. |
 | `SkipSubscriptions` | `true` | Drop subscription operations. They don't fit a request/response audit model. |
 | `DefaultPrincipalId` | `"<anonymous>"` | Used when the request has no `trax:principal-id` claim. |
 | `MaxRetries` | `3` | Attempts a failing sink gets before the batch is dropped. |
