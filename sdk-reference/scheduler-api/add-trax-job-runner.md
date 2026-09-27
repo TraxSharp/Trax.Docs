@@ -162,7 +162,7 @@ Registers the minimum set of services to run `JobRunnerTrain`:
 
 Maps a `POST` endpoint at the specified route that:
 
-1. Reads a `RemoteJobRequest` from the request body
+1. Reads a `RemoteJobRequest` from the request body. A body that repeats a property (in any case), does not parse, or is `null` gets `400 Bad Request`; a non-JSON body gets `415`. The host's global JSON options are not used for this
 2. Deserializes the input (if present) using the fully-qualified type name
 3. Creates a new DI scope and resolves `IJobRunnerTrain`
 4. Calls `Run(new RunJobRequest(metadataId, input))`
@@ -173,7 +173,7 @@ Maps a `POST` endpoint at the specified route that:
 
 Maps a `POST` endpoint at the specified route that handles synchronous run requests from [`UseRemoteRun()`](/docs/sdk-reference/scheduler-api/use-remote-run):
 
-1. Reads a `RemoteRunRequest` from the request body (contains train name and input JSON)
+1. Reads a `RemoteRunRequest` from the request body (contains train name and input JSON), refused the same way as above
 2. Resolves `ITrainExecutionService` and calls `RunAsync(trainName, inputJson)`
 3. Serializes the train output as JSON
 4. Returns `200 OK` with a `RemoteRunResponse` containing the metadata ID, output JSON, and output type
