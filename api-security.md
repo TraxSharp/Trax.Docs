@@ -147,6 +147,18 @@ ws.onopen = () => ws.send(JSON.stringify({
 
 No extra code required. The browser attaches the session cookie (`trax.oidc`) to the WebSocket upgrade request; ASP.NET Core's cookie middleware reads and validates it on the upgrade, and `HttpContext.User` is populated for the socket lifetime. This is the one genuinely symmetric path across HTTP and WS.
 
+### Allowed origins
+
+A WebSocket upgrade that carries an `Origin` header is accepted only from origins the host serves: the endpoint's own host, or an allowed origin. Anything else is answered with `403` before the handshake. An upgrade with no `Origin` header, which is what non-browser clients send, is accepted. The allowed origins default to those of your CORS default policy (`AddCors(o => o.AddDefaultPolicy(...))`, including `AllowAnyOrigin()`); set them explicitly with `AllowSocketOrigins(...)` on the GraphQL builder, which replaces the CORS default:
+
+```csharp
+services.AddTraxGraphQL(graphql => graphql
+    .AddDbContext<AppDbContext>()
+    .AllowSocketOrigins("https://app.example.com", "https://admin.example.com"));
+```
+
+The endpoint's own host is compared without its scheme, so an https page served through a TLS-terminating proxy is recognised. The check is applied by `UseTraxGraphQL()`; a schema mapped directly with `MapGraphQL(path, "trax")` does not get it. A host whose browser clients are on another origin and whose CORS policy is a named one, not the default, needs `AllowSocketOrigins(...)`.
+
 ### Multiple JWT issuers
 
 `AddTraxJwtDispatcher` routes subscription tokens by their `iss` claim, the same way it routes HTTP requests. When a dispatcher is registered, Trax wires `TraxJwtDispatcherSocketInterceptor` in place of the single-scheme JWT interceptor, so each connection validates against the scheme its issuer maps to. Unmapped issuers are rejected.

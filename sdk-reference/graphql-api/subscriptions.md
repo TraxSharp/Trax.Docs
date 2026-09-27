@@ -172,6 +172,18 @@ For programmatic clients, use any GraphQL client that supports the `graphql-ws` 
 
 `AddTraxGraphQL()` wires the WebSocket upgrade middleware at the front of the pipeline (via an `IStartupFilter`), so the handshake upgrades no matter where you place `UseTraxGraphQL()` relative to other endpoint middleware such as `UseTraxDashboard()`. You do not need to call `app.UseWebSockets()` yourself.
 
+### Allowed origins
+
+A WebSocket upgrade that carries an `Origin` header is accepted only from origins the host serves: the endpoint's own host, or an allowed origin. Anything else is answered with `403` before the handshake. An upgrade with no `Origin` header, which is what non-browser clients send, is accepted. The allowed origins default to those of your CORS default policy (`AddCors(o => o.AddDefaultPolicy(...))`, including `AllowAnyOrigin()`); set them explicitly with `AllowSocketOrigins(...)` on the GraphQL builder, which replaces the CORS default:
+
+```csharp
+services.AddTraxGraphQL(graphql => graphql
+    .AddDbContext<AppDbContext>()
+    .AllowSocketOrigins("https://app.example.com", "https://admin.example.com"));
+```
+
+The endpoint's own host is compared without its scheme, so an https page served through a TLS-terminating proxy is recognised. The check is applied by `UseTraxGraphQL()`; a schema mapped directly with `MapGraphQL(path, "trax")` does not get it. A host whose browser clients are on another origin and whose CORS policy is a named one, not the default, needs `AllowSocketOrigins(...)`.
+
 ### Reconnection
 
 The server does not persist per-subscriber state, and there is no replay: events emitted while a client's socket is down are not redelivered. A resilient client should therefore do two things, both of which the Trax dashboard does:

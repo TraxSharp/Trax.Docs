@@ -60,6 +60,7 @@ builder.Services.AddTraxGraphQL(graphql => graphql
 | `MaxExecutionDepth(int)` | Overrides the default max query depth (default: 15). Queries deeper than this are rejected at validation. Introspection fields are excluded from the count. |
 | `ConfigureCost(Action<CostOptions>)` | Adjusts HotChocolate cost-analyzer options on top of Trax defaults (`MaxFieldCost = 1000`, `DefaultResolverCost = 10`). |
 | `AllowIntrospection(Predicate<HttpContext>)` | Supplies a per-request predicate that decides whether introspection is allowed. Default: allowed in Development, denied elsewhere. |
+| `AllowSocketOrigins(params string[] origins)` | Browser origins, besides the endpoint's own host, from which a WebSocket upgrade is accepted. Each value is a scheme, host and optional port (`https://app.example.com`). Replaces the default, which is the origins of the CORS default policy; with no arguments only the endpoint's own host is allowed. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#allowed-origins). |
 | `MaxOperationsPerRequest(int)` | Overrides the default top-level operation cap (default: 50). Aliased fields and batched operations both count. Rejects with code `TRAX_TOO_MANY_OPERATIONS`. |
 | `ExposeOperationQueries()` | Adds the `operations` namespace under `RootQuery`, exposing `health`, `trains`, `manifests`, `manifest`, `manifestGroups`, `executions`, `execution`, and the nested `operations.deadLetters` read queries. **Off by default**, since these endpoints reveal the topology and execution history of the deployment: `operations.hosts` reports internal hostnames and per-instance execution counts, `operations.config` the scheduler's settings. Exposing them without a gate fails at startup unless you answer with `GateOperations()`, `RequireAuthorization()` or `AllowAnonymousOperations()`. |
 | `ExposeOperationMutations()` | Adds the `operations` namespace under `RootMutation`, exposing `triggerManifest`, `disableManifest`, `enableManifest`, `cancelManifest`, `triggerGroup`, `cancelGroup`, `triggerManifestDelayed`, and the nested `operations.deadLetters` requeue/acknowledge mutations. **Off by default**, since these mutations call the scheduler directly and an unauthenticated caller could disrupt scheduled work. Because of that, exposing them without a gate fails at startup unless you answer with `GateOperations()`, `RequireAuthorization()` or `AllowAnonymousOperations()`. |
@@ -88,6 +89,8 @@ public static WebApplication UseTraxGraphQL(
 **Returns**: `WebApplication` for continued chaining.
 
 `AddTraxGraphQL` registers an `IStartupFilter` that prepends `app.UseWebSockets()` to the pipeline, so the WebSocket transport required for [GraphQL subscriptions](/docs/sdk-reference/graphql-api/subscriptions) is always in place before endpoint execution. You do not need to call `app.UseWebSockets()` yourself, and the ordering of `UseTraxGraphQL()` relative to other endpoint middleware (such as `UseTraxDashboard()`) does not affect the upgrade.
+
+`UseTraxGraphQL()` accepts a WebSocket upgrade only from origins the host serves: no `Origin` header, the endpoint's own host, or an origin allowed by `AllowSocketOrigins(...)` (default: the CORS default policy). Others get `403`. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#allowed-origins).
 
 ## What It Registers
 
