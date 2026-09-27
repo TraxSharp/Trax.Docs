@@ -517,7 +517,7 @@ The key is an opaque string. Trax compares it and nothing else, so its shape is 
 
 **Keys are compared exactly, case-sensitively, across all trains.** They are not namespaced by train: two trains returning `"42"` serialize against each other. Prefix the key with something the train owns (`customer-`, above) unless serializing across trains is what you want.
 
-Returning null, which is the default, means no serialization. Every train that does not override this is unaffected. An empty string is refused, because it is almost always an unset identity and would serialize every train returning it against every other. The key is limited to 512 characters; use a record identity, or a hash of a longer one. Both refusals throw `InvalidOperationException` at enqueue, where the caller sees them.
+Returning null, which is the default, means no serialization. Every train that does not override this is unaffected. An empty string, or one that is only whitespace, is refused, because it is almost always an unset identity and would serialize every train returning it against every other. The key is limited to 512 characters; use a record identity, or a hash of a longer one. Both refusals throw `InvalidOperationException` at enqueue, where the caller sees them.
 
 **Throwing aborts the enqueue.** A key that cannot be computed must not quietly become null: that would drop the guarantee at exactly the moment the caller was relying on it.
 
