@@ -333,7 +333,7 @@ Trax evaluates these policies at runtime using ASP.NET Core's `IAuthorizationSer
 
 ### Fail-Closed Behavior
 
-When an `HttpContext` is absent and no trusted execution scope is active, the service denies. This protects against accidental invocation from background services, tests, or custom middleware that bypasses the normal request pipeline. Scheduler and remote-worker paths explicitly mark themselves as trusted via `ITrustedExecutionScope.BeginTrusted(...)` so pre-authorized queued work still runs.
+When an `HttpContext` is absent and no trusted execution scope is active, the service denies. This protects against accidental invocation from background services, tests, or custom middleware that bypasses the normal request pipeline. Scheduler and remote-worker paths explicitly mark themselves as trusted via `ITrustedExecutionScope.BeginTrusted(...)` so pre-authorized queued work still runs. A trusted scope lasts exactly as long as its handle: scopes nest, and disposing one while an inner scope is still open closes it without ending the inner one. When the inner one is disposed, the flow returns to the nearest scope still open, or to untrusted, never to a scope already disposed.
 
 ### Opting Out for Scheduler-Only Hosts
 
