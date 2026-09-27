@@ -225,7 +225,7 @@ No scheduled jobs - all work is triggered by GraphQL mutations. The API dispatch
 
 The split:
 - **API:** `AddScheduler()` + `UseRemoteWorkers()` + `UseRemoteRun()` + `AddTraxGraphQL()` + `AddTraxDashboard()`
-- **Runner:** `AddTraxJobRunner()` + `UseTraxRunEndpoint()` + `UseBroadcaster()` - no scheduler, no polling, no dashboard
+- **Runner:** a `TraxLambdaFunction` run locally with `RunLocalAsync()`, which maps `/trax/execute` and `/trax/run`, plus `UseBroadcaster()` - no scheduler, no polling, no dashboard. The Runner needs an [authorization posture](/docs/scheduler/remote-execution#authorization-posture): a `SigningKey` in `ConfigureRunner` matching the API's `SigningKey` on `UseRemoteWorkers()` and `UseRemoteRun()`
 
 Query trains (e.g. `LookupModerationResult`) run synchronously on the API process. Queued trains (e.g. `ReviewContent`, `SendViolationNotice`) are POSTed to the Runner via `HttpJobSubmitter`. No `background_job` table is involved - jobs go directly over HTTP.
 

@@ -192,12 +192,16 @@ Trax supports two remote execution models:
 // Scheduler side:
 .AddScheduler(scheduler => scheduler
     .UseRemoteWorkers(
-        remote => remote.BaseUrl = "https://my-workers.example.com/trax/execute",
+        remote =>
+        {
+            remote.BaseUrl = "https://my-workers.example.com/trax/execute";
+            remote.SigningKey = runnerKey;
+        },
         routing => routing.ForTrain<IMyTrain>())
 )
 
-// Remote side:
-builder.Services.AddTraxJobRunner();
+// Remote side: the same key (see Authorization Posture in Remote Execution)
+builder.Services.AddTraxJobRunner(runner => runner.SigningKey = runnerKey);
 app.UseTraxJobRunner("/trax/execute");
 ```
 
