@@ -296,6 +296,9 @@ start when:
 - an `IChain` step names a class rather than an interface, or names a junction interface that
   neither Memory nor the container holds
 - `AddServices<T>` names a class rather than an interface
+- `AddServices` receives null. The service has to exist when `Junctions()` runs, so a field
+  assigned after the train is built, in a lifecycle hook such as `OnStarted`, is null when the
+  check reads the chain; assigning a service later is not supported
 - `Chain<T>` or `ShortCircuit<T>` names a type that is not a junction
 - a `ShortCircuit` junction's output cannot be the train's return type (its value is returned as
   the result by a cast, which would fail on every run)
