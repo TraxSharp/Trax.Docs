@@ -194,7 +194,7 @@ Trax authenticates that payload with one HotChocolate `ISocketSessionInterceptor
 | Auth registered | Strategy | Payload keys |
 |---|---|---|
 | `AddTraxApiKeyAuth` | `TraxApiKeySocketInterceptor` | `authToken` or `apiKey` |
-| `AddTraxJwtAuth` | `TraxJwtSocketInterceptor` | `authToken` or `bearer` |
+| `AddTraxJwtAuth` (default or named schemes) | each registered scheme in turn; the first that validates the token resolves the principal | `authToken` or `bearer` |
 | `AddTraxJwtDispatcher` | `TraxJwtDispatcherSocketInterceptor`, in place of the single-scheme JWT one | `authToken` or `bearer` |
 | none of these | none: every connection is accepted | |
 
@@ -239,6 +239,10 @@ services.AddTraxGraphQL(graphql => graphql
 ```
 
 This registration replaces `TraxCompositeSocketInterceptor` and is independent of when auth was registered in the service collection. The interceptor's own dependencies resolve per connection, so it only needs them in DI by app start. Derive from `DefaultSocketSessionInterceptor`, read the credential from the `connection_init` payload in `OnConnectAsync`, and return `ConnectionStatus.Reject(...)` to refuse the connection or attach the principal to `session.Connection.HttpContext.User` and call `base.OnConnectAsync(...)` to accept.
+
+### The endpoint policy
+
+When the GraphQL builder calls `RequireAuthorization(policy)`, the policy applies to the socket as it does to HTTP: the connection's principal must satisfy it at `connection_init`, and every query, mutation and subscription the socket carries is checked again before it runs. A connection with no authenticated principal is refused.
 
 ### Registration order
 
