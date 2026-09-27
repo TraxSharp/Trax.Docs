@@ -72,7 +72,7 @@ Task<QueueTrainResult> QueueAsync(
 - `TrainNotFoundException` (an `InvalidOperationException`) if no train is registered with the given name. Use `ITrainDiscoveryService.DiscoverTrains()` to list available trains.
 - `AmbiguousTrainNameException` if the name matches more than one train's friendly name.
 - `TrainInputValidationException` if `inputJson` exceeds the configured size cap (`WithMaxInputJsonBytes`, 256 KiB by default).
-- `JsonException` if `inputJson` does not deserialize to the train's input type. That includes a null or blank `inputJson` for an input type that needs values: a constructor parameter with no default (a positional record such as `record RenamePlayer(string Id, string NewName)`) or a `required` member. It fails here, at enqueue, rather than queueing a run whose input is full of nulls. `Unit`, an input with only settable properties, and parameters with defaults are built from `{}` as before, and an explicit `"{}"` is read like any other input.
+- `JsonException` if `inputJson` does not deserialize to the train's input type, or names a property twice (`{"amount":1,"Amount":999}`). That includes a null or blank `inputJson` for an input type that needs values: a constructor parameter with no default (a positional record such as `record RenamePlayer(string Id, string NewName)`) or a `required` member. It fails here, at enqueue, rather than queueing a run whose input is full of nulls. `Unit`, an input with only settable properties, and parameters with defaults are built from `{}` as before, and an explicit `"{}"` is read like any other input.
 - `JsonException` if `inputJson` is the JSON literal `null`, which is well-formed but is not an input, or is blank and the input type needs values, as for `QueueAsync`.
 - `TrainAuthorizationException` if the train has `[TraxAuthorize]` requirements the caller does not meet. Authorization runs before the input is read, and applies to every caller-built enqueue, including the operations surface (`queueTrain`, `requeueExecution`). The dashboard's queue dialog and re-queue button also route through this method, but inside a trusted execution scope, so per-train requirements are skipped there; the dashboard is gated by its host. `Trax.Docs/adr/0017` records why.
 - `InvalidOperationException` if the train declares `[TraxAuthorize]` and no `ITrainAuthorizationService` is registered, unless the call runs inside a trusted execution scope. In a hosted app this rarely fires, because `AuthorizationRegistrationValidator` already refuses to start such a host; the runtime check covers hosts where hosted services do not run, such as the Lambda runner. The check fails closed; a host that serves no API submissions opts out with `AddMediator(m => m.AllowMissingAuthorizationService())`, after which the missing service is a no-op.
@@ -85,7 +85,7 @@ Task<QueueTrainResult> QueueAsync(
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
 2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
-3. Deserializes `inputJson` to the train's `InputType`, reading null or blank as `{}`, so `OnQueue` and `QueueSubjectKey` always receive a real input.
+3. Deserializes `inputJson` to the train's `InputType`, reading null or blank as `{}`, so `OnQueue` and `QueueSubjectKey` always receive a real input. Property names are matched whatever their case, so `{"Amount":5}` and `{"amount":5}` are the same input, and a property given twice, in the same or another casing, is refused with `JsonException` (`Trax.Docs/adr/0023`).
 4. Re-serializes the input using manifest serialization options (normalizes the JSON).
 5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, priority, and `scheduledAt` converted to UTC.
 6. Stamps the entry's subject key from the train's [`QueueSubjectKey`](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) override, if it has one. An exception from `QueueSubjectKey`, or an empty or over-long key, aborts the enqueue, so no entry is written.
@@ -135,7 +135,7 @@ Task<RunTrainResult> RunAsync(
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
 2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
-3. Deserializes `inputJson` to the train's `InputType`, reading blank as `QueueAsync` does.
+3. Deserializes `inputJson` to the train's `InputType`, reading blank, casing and repeated properties as `QueueAsync` does.
 4. Creates a `Metadata` record with a generated external ID.
 5. Persists the metadata via the data context.
 6. Calls the typed `ITrainBus.RunAsync<TOut>(input, ct, metadata)` via reflection, using the train's `OutputType` from its registration.
