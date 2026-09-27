@@ -65,9 +65,11 @@ If you prefer not to use NUnit, the same checks are available as framework-agnos
 An entity holds per-user data when the model gives it an owner key (a foreign key to your owner type, a property you name in `OwnerIdProperties`, or it is the owner type itself), or when it has a query filter that reads your principal accessor. For each one the census requires:
 
 - a query filter whose expression references the accessor's type. A soft-delete or visibility filter reads no principal and does not count, so it neither satisfies the check nor pulls a shared entity into it. EF declares filters on a hierarchy's root, so a derived type is judged by its root's filter;
-- if it is a `[TraxQueryModel]`, a bare `[TraxAuthorize]`. `[TraxAllowAnonymous]` exposes owners' rows to anonymous callers, and a role or policy gate can lock owners out of their own rows. The filter is the access control.
+- if it is a `[TraxQueryModel]`, a bare `[TraxAuthorize]`. `[TraxAllowAnonymous]` exposes owners' rows to anonymous callers, and a role or policy gate can lock owners out of their own rows. The filter is the access control. When a gate is deliberate (a per-user entity only premium users may read, say), list the entity in `Gated` with a reason. The gate is added to the filter, never used in place of it: a gated entity still needs its principal-reading filter, still cannot be `[TraxAllowAnonymous]` or undeclared, and cannot also be exempted.
 
-An entity reaching its owner only through a navigation, such as an answer whose poll holds the owner, has no owner key, so its filter is the only thing marking it as per-user. Declare it in `NavigationScoped` with the navigation it goes through: the census then fails if the filter disappears, and fails if a filtered entity with no owner key is not declared. `Exemptions` leaves an entity out and needs a written reason; an exemption naming an entity the census would not flag is reported too.
+An entity reaching its owner only through a navigation, such as an answer whose poll holds the owner, has no owner key, so its filter is the only thing marking it as per-user. Declare it in `NavigationScoped` with the navigation it goes through: the census then fails if the filter disappears, and fails if a filtered entity with no owner key is not declared. `Exemptions` leaves an entity out and needs a written reason; an exemption naming an entity the census would not flag is reported too. A `Gated` entry without a reason, or one naming an entity that is not a per-user `[TraxQueryModel]` with a role or policy on its `[TraxAuthorize]`, is reported the same way.
+
+A second entity type mapped to the same table or view as a per-user entity, such as a reporting view over the same rows, reads those rows too. The census treats it as per-user and requires its filter, whatever gate it carries.
 
 The census takes the model rather than a context type, because an owner-scoped context usually takes its principal accessor through its constructor. Building the model needs no database:
 
@@ -101,7 +103,7 @@ public sealed class MyDataLayerGuards : DomainDataLayerGuardFixture
 }
 ```
 
-The census proves a principal-reading filter exists, not that it compares the right column. A test where one user tries to read another's rows is what catches a filter that is present and wrong.
+The census proves a principal-reading filter exists, not that it compares the right column, and not what a bypass branch inside it allows: a filter reading `principal.IsAdmin || e.OwnerId == principal.Id` under an admin gate shows admins every owner's rows. It reads the model, not the code that queries it, so `IgnoreQueryFilters()` in your own resolvers or trains, and entities mapped with `ToSqlQuery` or to a function, are outside what it can see. A test where one user tries to read another's rows is what catches those.
 
 ## The patterns the guards enforce
 
