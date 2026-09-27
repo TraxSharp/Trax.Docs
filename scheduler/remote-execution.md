@@ -635,6 +635,8 @@ RemoteRunResponse / RemoteJobResponse
 
 If the HTTP call itself fails (network error, infrastructure 5xx before reaching the endpoint), the error body is read and included in the exception message for debugging, you'll see the HTTP status code and the response body rather than a generic "500 Internal Server Error".
 
+That detail is for the metadata row and the logs, not for GraphQL clients. When a remote run's failure reaches the GraphQL error filter, only a `TrainException`'s own message passes through: a worker that threw `TrainException("Order 42 is already closed")` shows the client that sentence, while a worker that failed with any other exception type, or an endpoint that answered with a non-success status, shows `"The train failed."` with code `TRAX_TRAIN_ERROR`.
+
 ### Debugging Remote Failures
 
 When a remote job fails, check these in order:
