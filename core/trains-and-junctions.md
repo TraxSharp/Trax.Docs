@@ -434,7 +434,16 @@ protected override async Task OnQueue(Metadata metadata, CancellationToken ct)
 
 `Current` is non-null only while `OnQueue` is running for a train that does not defer promotion, and the hook must not call `SaveChanges` or commit on it: the enqueue owns the lifetime. This only covers entities in Trax's own model. The context is entered only for trains that override `OnQueue`.
 
-`Current` flows with the async call, not with the service instance or its scope: every accessor instance on the same async flow sees it, including a singleton train's or one resolved from another scope. See [IEnqueueContextAccessor](/docs/sdk-reference/mediator-api/i-enqueue-context-accessor). Two enqueues running at once on one scope each see their own context, and an enqueue started from inside an `OnQueue` hook gets its own context and transaction for as long as it runs, then hands the outer one back. Nesting an enqueue inside a hook does not corrupt the outer one, but it is not part of it either: the inner enqueue commits on its own context and connection before the outer enqueue's `SaveChanges`, so if the outer hook later throws or the outer commit fails, the inner entry survives the rollback and will run.
+`Current` flows with the async call, not with the service instance or its scope: every accessor instance on the same async flow sees it, including a singleton train's or one resolved from another scope. See [IEnqueueContextAccessor](/docs/sdk-reference/mediator-api/i-enqueue-context-accessor). Two enqueues running at once on one scope each see their own context.
+
+An enqueue started from inside an `OnQueue` hook **joins the enqueue it runs inside**: its entry is written in the outer enqueue's context and transaction, so it commits with the outer entry or not at all. If the outer hook later throws or the outer commit fails, the nested entry is rolled back with it and never runs. The nested enqueue returns its entry's id as usual, because it flushes the entry inside the open transaction, and it needs no second pooled connection. A few rules follow from sharing one transaction:
+
+- **A nested failure fails the outer enqueue**, even if the hook catches it, because the failed attempt may have left writes on the shared context. The outer enqueue throws an `InvalidOperationException` with the nested failure as its inner exception.
+- **Await the enqueues a hook starts.** One still running when the hook returns fails the outer enqueue. Several can run at once (`Task.WhenAll`); their writes on the shared context are serialized.
+- **A deferring train enqueued from a hook is not staged.** Its entry is written confirmed, since nothing can see it before the outer commit anyway.
+- **A deferring hook has nothing to join.** Its own entry is already committed when it runs, so an enqueue it starts commits on its own. The same holds on a provider without transactions. On the in-memory provider the join happens, but it has no real transaction to roll back.
+
+`Trax.Mediator/docs/adr/0003` records the reasoning.
 
 The enqueue holds its data context, and with it a pooled database connection with an open transaction, for the whole time the hook runs. A slow hook (one calling a remote API, say) therefore keeps a connection and a transaction open on Trax's database for that long. A deferring train (below) does not: its entry is committed on a context that is released before the hook runs, so for a slow hook that writes nothing through `IEnqueueContextAccessor.Current`, `DeferQueuePromotion` also keeps the connection free.
 

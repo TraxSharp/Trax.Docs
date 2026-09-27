@@ -39,7 +39,7 @@ The enqueue path enters a context only for trains that override `OnQueue`.
 
 ## Flow and nesting
 
-The value lives in a static `AsyncLocal`, so it follows the async call rather than the accessor instance or its DI scope. Every instance on the same async flow sees the same value, whichever scope or lifetime resolved it, including a singleton train's accessor or one resolved from another scope. Two enqueues running at once on one scope each see their own. An enqueue started from inside an `OnQueue` hook gets its own context and transaction for as long as it runs, and disposing its scope restores the outer one.
+The value lives in a static `AsyncLocal`, so it follows the async call rather than the accessor instance or its DI scope. Every instance on the same async flow sees the same value, whichever scope or lifetime resolved it, including a singleton train's accessor or one resolved from another scope. Two enqueues running at once on one scope each see their own. An enqueue started from inside an `OnQueue` hook joins the outer enqueue's transaction (see [OnQueue](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook)), so a nested train that does not defer promotion sees the outer enqueue's context in its own hook, and what it tracks there commits or rolls back with the outer entry. Disposing each scope restores what was current before it.
 
 ## Rules for the hook
 
