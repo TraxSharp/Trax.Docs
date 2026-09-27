@@ -11,10 +11,12 @@ A test that cannot run in the current environment calls `Assert.Ignore("...")` a
 explicit reachability check, so the skip and its reason appear in the run output. The
 `[Ignore]` attribute is not used for that, and the guard rejects new ones.
 
-Three remain, each carrying a justification the guard's exceptions list records: the
-Trax.Api and Trax.Scheduler stress fixtures, which gate suites meant to be run by hand, and
-one Trax.Samples E2E test waiting on an unreleased scheduler feature. The first two are a
-legitimate shape this rule does not cover.
+Two remain, each carrying a justification the guard's exceptions list records: the
+Trax.Scheduler stress fixture, which gates a suite meant to be run by hand, and one
+Trax.Samples E2E test waiting on an unreleased scheduler feature. A suite meant to be run by
+hand is a legitimate shape this rule does not cover, and `[Explicit]` on its concrete fixture
+is the form that works: NUnit does not inherit `[Ignore]` or `[Explicit]` from a base class,
+so either attribute on an abstract fixture skips nothing.
 
 ## Status
 
@@ -57,4 +59,7 @@ Not covered:
 
 ## Changelog
 
+- **2026-09-27**: Trax.Api's stress suite moved from `[Ignore]` on its abstract base, which
+  NUnit does not inherit and so skipped nothing, to `[Explicit]` on the concrete fixture.
+  Two exceptions remain, not three.
 - **2026-09-11**: Recorded.

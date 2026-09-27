@@ -100,6 +100,11 @@ A test that cannot run in the current environment calls `Assert.Ignore("...")` a
 explicit reachability check, so the skip and its reason appear in the run output instead of
 hiding at declaration time. `NoIgnoreAttributeTests` rejects new `[Ignore]` attributes.
 
-Three survive, each on its exceptions list: the Trax.Api and Trax.Scheduler stress fixtures,
-which gate suites meant to be run by hand, and one Trax.Samples E2E test waiting on an
-unreleased scheduler feature. Do not read them as precedent for a fourth.
+Two survive, each on its exceptions list: the Trax.Scheduler stress fixture, which gates a
+suite meant to be run by hand, and one Trax.Samples E2E test waiting on an unreleased
+scheduler feature. Do not read them as precedent for a third.
+
+A suite meant to be run by hand carries `[Explicit]` on each concrete fixture, as Trax.Api's
+stress suite does: a normal `dotnet test` skips it and `--filter TestCategory=Stress` runs
+it. Put the attribute on the concrete class, because NUnit does not inherit `[Explicit]` or
+`[Ignore]` from a base class.
