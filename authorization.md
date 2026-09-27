@@ -218,7 +218,7 @@ Trax handles this automatically. When any registered `[TraxQueryModel]` entity c
 2. Otherwise, walks every registered authentication scheme and attempts `AuthenticateAsync` against each. The first successful scheme wins; the resulting principal is assigned to `HttpContext.User` for the duration of the request.
 3. If no scheme matches the request's credentials, the principal stays anonymous - gated queries will then reject with `TRAX_AUTHORIZATION`.
 
-The interceptor runs only for GraphQL HTTP execution requests, so the Banana Cake Pop tool page and WebSocket subscription upgrades are not affected. Subscriptions authenticate separately via the per-scheme socket interceptors (`TraxApiKeySocketInterceptor`, `TraxJwtSocketInterceptor`).
+The interceptor runs only for GraphQL HTTP execution requests, so the Banana Cake Pop tool page and WebSocket subscription upgrades are not affected. Subscriptions authenticate separately, through `TraxCompositeSocketInterceptor` and the per-scheme strategies it delegates to (`TraxApiKeySocketInterceptor`, `TraxJwtSocketInterceptor`, `TraxJwtDispatcherSocketInterceptor`).
 
 No consumer configuration is required.
 
