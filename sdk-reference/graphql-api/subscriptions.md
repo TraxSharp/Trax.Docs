@@ -19,6 +19,17 @@ Subscriptions are powered by HotChocolate's built-in subscription infrastructure
 
 Data-change signals (`onDataChanged`) are unrelated to `[TraxBroadcast]` and fire for the scheduler/admin domains regardless.
 
+## Who receives what
+
+Each subscription carries the authorization of the data it streams, decided for each subscriber when it subscribes:
+
+- **Operations view.** When the operations surface is exposed, a subscriber that satisfies the operations authorization receives every train, with the same detail `operations.executions` shows. That is the `GateOperations(...)` gate, or no further check when the host chose `AllowAnonymousOperations()` or gated the whole endpoint with `RequireAuthorization(...)`.
+- **Broadcast view.** Any other subscriber receives only `[TraxBroadcast]` trains whose own posture admits them: `[TraxAllowAnonymous]` admits everyone, and `[TraxAuthorize]` an authenticated caller meeting its policies and roles. For these subscribers `failureReason` is shown only when the train failed with a `TrainException` (whose message is written for clients); otherwise it reads `Unexpected Execution Error`. `hostName` and `hostEnvironment` are withheld.
+- A subscriber who could receive nothing is refused with `TRAX_AUTHORIZATION` when it subscribes.
+- `onDataChanged` needs the operations authorization when the operations surface is exposed, and an authenticated caller when it is not.
+
+On an open endpoint a `[TraxBroadcast]` train must declare `[TraxAuthorize]` or `[TraxAllowAnonymous]`, or the host does not start. The `output` field carries the train's output as JSON, objects and arrays included.
+
 ## Lifecycle Subscription Fields
 
 The lifecycle subscriptions return a `TrainLifecycleEvent` payload.
@@ -42,6 +53,9 @@ type TrainLifecycleEvent {
   timestamp: DateTime!
   failureJunction: String
   failureReason: String
+  hostName: String
+  hostEnvironment: String
+  output: Any
 }
 ```
 
@@ -53,7 +67,9 @@ type TrainLifecycleEvent {
 | `trainState` | The current state of the train (`InProgress`, `Completed`, `Failed`, `Cancelled`) |
 | `timestamp` | When the event occurred (end time if available, otherwise current UTC time) |
 | `failureJunction` | The junction that failed (only present on failed trains) |
-| `failureReason` | The failure message (only present on failed trains) |
+| `failureReason` | The failure message (only present on failed trains; masked outside the operations view unless the train raised a `TrainException`) |
+| `hostName` / `hostEnvironment` | The host that ran the train (operations view only) |
+| `output` | The train's output as JSON |
 
 ## Examples
 
