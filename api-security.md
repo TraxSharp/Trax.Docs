@@ -193,6 +193,7 @@ No `IHttpContextAccessor` plumbing. Every Trax auth scheme registers a scoped `T
 services.AddTraxGraphQL(graphql => graphql
     .MaxExecutionDepth(8)                   // default: 15
     .MaxOperationsPerRequest(25)            // default: 50
+    .MaxOperationsPerConnection(20)         // default: 100
     .AllowIntrospection(ctx => IsInternalIp(ctx))   // default: Development only
     .ConfigureCost(opts => opts.MaxFieldCost = 2000)); // default: 1000
 ```
@@ -204,6 +205,7 @@ services.AddTraxGraphQL(graphql => graphql
 | `DefaultResolverCost` | 10 | Base cost applied to each resolver in the cost analyzer. |
 | Introspection | On in Development, off elsewhere | Prevents anonymous schema enumeration in production. |
 | `MaxOperationsPerRequest` | 50 | Caps aliased + batched top-level selections per request. Rejects with `TRAX_TOO_MANY_OPERATIONS`. |
+| `MaxOperationsPerConnection` | 100 | Caps the operations one WebSocket connection runs at once. An operation started past it gets `TRAX_SOCKET_OPERATION_LIMIT` and takes no place; the connection stays open, and a place frees when one of its operations completes. It is per connection, so it does not bound how many connections a client opens. |
 | `operations` namespace | Off (queries and mutations) | The predefined `operations.*` queries (manifests, executions, dead letters, health, hosts, config) and mutations (trigger, cancel, requeue) are not exposed unless the consumer opts in via `ExposeOperationQueries()` / `ExposeOperationMutations()`. The mutation surface drives `ITraxScheduler` directly, so leaving it open lets any caller disrupt scheduled work, and the read surface discloses internal hostnames and per-instance execution counts. Exposing either without a gate fails at startup: answer with `GateOperations(policy, roles)` to gate the namespace alone, `RequireAuthorization()` to gate the whole endpoint, or `AllowAnonymousOperations()` to acknowledge a deliberately public control plane. The gate is the only check on manifest triggers and dead-letter requeues; `queueTrain` and `requeueExecution` also apply the train's `[TraxAuthorize]` requirements (see [The Operations Surface](/docs/authorization#the-operations-surface)). |
 
 ### Gating GraphQL Execution Without Locking the IDE
