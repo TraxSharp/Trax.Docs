@@ -244,6 +244,8 @@ Host signals shutdown (stoppingToken fires)
 
 This gives trains performing critical operations (database transactions, external API calls) time to complete cleanly rather than being aborted mid-operation.
 
+Once a train finishes, whether inside the grace period or after being cancelled, the worker deletes its `background_job` row without the stopping token. That token has already fired by then, and the delete is bookkeeping for finished work, so it is not cancellable. If it were, every job that finished during shutdown would leave its row behind for another worker to re-claim after `VisibilityTimeout`, only to refuse it as no longer `Pending`.
+
 Configure the grace period:
 
 ```csharp
