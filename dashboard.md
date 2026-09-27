@@ -221,7 +221,7 @@ app.UseTraxDashboard();  // served at /trax
 
 ## Layout
 
-The dashboard uses [Radzen Blazor](https://blazor.radzen.com/) v6 components with a sidebar navigation layout. A theme toggle in the header switches between light and dark mode, with the preference persisted in `localStorage`.
+The dashboard uses [Radzen Blazor](https://blazor.radzen.com/) v11 components with a sidebar navigation layout. A theme toggle in the header switches between light and dark mode, with the preference persisted in `localStorage`.
 
 ### User Settings
 
