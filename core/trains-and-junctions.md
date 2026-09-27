@@ -414,7 +414,7 @@ public class ProcessMatchResultTrain
 `OnQueue` differs from the other four hooks in three ways:
 
 - **Exceptions propagate.** A throw is not swallowed: it aborts the enqueue and leaves no work queue row behind. Use it only for work that must succeed for the mutation to be accepted.
-- **The train is not initialized.** `this.Metadata` and `TrainInput` are unavailable. Read everything from the passed `metadata`: the input via `metadata.GetInput<T>()`, and `metadata.ExternalId` to correlate with the eventual run, which executes under the same ExternalId. `Id`, `ManifestId`, and `ScheduledTime` are unset because no run exists yet.
+- **The train is not initialized.** `this.Metadata` is null. The input is on the passed `metadata` (`metadata.GetInput<T>()`), and `TrainInput` returns it as well once the enqueue hands it over through `ServiceTrain.EnterQueueHooks`. A Trax.Mediator that does not yet call that method leaves `TrainInput` returning `default` in `OnQueue` and `QueueSubjectKey`, silently, so `metadata.GetInput<T>()` is the form that works on every version. Use `metadata.ExternalId` to correlate with the eventual run, which executes under the same ExternalId. `Id`, `ManifestId`, and `ScheduledTime` are unset because no run exists yet.
 - **It must be idempotent.** The deferred run re-executes the full `Junctions()` chain, so any effect the chain also performs will happen again. Write `OnQueue` so running it plus the chain is safe.
 
 Property dependencies marked `[Inject]` (like `GameDbFactory` above) are populated before `OnQueue` is called, the same as during a normal run. Trains that do not override `OnQueue` skip resolution entirely, so the enqueue path is unaffected.
@@ -513,7 +513,7 @@ protected override string? QueueSubjectKey(Metadata metadata) =>
     $"customer-{metadata.GetInput<PatchCustomerInput>()!.CustomerId}";
 ```
 
-The key is an opaque string. Trax compares it and nothing else, so its shape is yours to choose. A record identity is the usual pick. It is read at enqueue time from a metadata carrying the input, so it varies per mutation rather than being fixed per train.
+The key is an opaque string. Trax compares it and nothing else, so its shape is yours to choose. A record identity is the usual pick. It is read at enqueue time from a metadata carrying the input, so it varies per mutation rather than being fixed per train. Read the input from `metadata`, as the example does: whether `TrainInput` works here depends on the Trax.Mediator version, as [`OnQueue`](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook) explains.
 
 **Keys are compared exactly, case-sensitively, across all trains.** They are not namespaced by train: two trains returning `"42"` serialize against each other. Prefix the key with something the train owns (`customer-`, above) unless serializing across trains is what you want.
 
