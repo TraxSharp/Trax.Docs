@@ -271,7 +271,7 @@ services.AddTraxGraphQL(graphql =>
 | `BatchSize` | 50 | Max entries per sink invocation. |
 | `FlushInterval` | 500ms | Max wait before flushing a partial batch. |
 | `MaxDocumentLength` | 65,536 | Documents longer than this get a `...[truncated]` marker. |
-| `SkipIntrospection` | true | Drop `IntrospectionQuery` from the log. |
+| `SkipIntrospection` | true | Drop introspection operations (every top-level selection is `__schema`, `__type` or `__typename`) from the log. |
 | `SkipSubscriptions` | true | Subscriptions don't fit the request/response model. |
 | `DefaultPrincipalId` | `<anonymous>` | Used when the request has no Trax principal. |
 | `MaxRetries` | 3 | Sink retry attempts before dropping a batch. |
