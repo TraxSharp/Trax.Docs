@@ -50,6 +50,8 @@ When a junction throws, Trax captures structured context without modifying the o
 | `StackTrace` | Stack trace from the original throw site | Points to the junction's `Run` method |
 | `FailureClass` | The registered `IFailureClassifier`'s answer, set before the failure is recorded. Cancelled runs are not classified | `Conflict` |
 
+`FailureClass` is also read back from a failure that already carries one: from `TrainExceptionData`, or from the message of a `TrainException`, which is how a remote failure arrives. Another exception type's message is never read for a class, even when it is JSON. A carried value outside the `FailureClass` vocabulary is recorded as `Unclassified`, so the row stays writable on Postgres and readable on SQLite.
+
 The original exception is rethrown to callers with its type, message, and stack trace intact. `TrainExceptionData` rides along in `Exception.Data` for any code that wants structured context (e.g., logging, monitoring).
 
 ## Host Tracking
