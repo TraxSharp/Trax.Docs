@@ -46,7 +46,8 @@ train, so a consumer for whom that matters authorizes the record in `OnQueue` or
 tenant. `authorization.md` and `core/trains-and-junctions.md` say so where a consumer will meet it. It is refused when empty or longer than 512 characters, both at
 enqueue and by `WorkQueue.Create`, so an entry built directly cannot carry a key the index cannot
 claim. The enqueue also refuses a key that is only whitespace, which is as surely an unset identity
-as an empty one. The
+as an empty one, and one with an unpaired surrogate. It passes the key to `WorkQueue.Create` rather
+than assigning it afterwards, so `Create`'s checks apply to every entry the Mediator writes. The
 guarantee holds only until something writes a terminal state for a run that has not finished,
 and the subject is released even if that run is still working. Three things do: the two reapers
 in the ManifestManager (pending longer than `StalePendingTimeout`, or in progress longer than
@@ -80,7 +81,7 @@ above, and both proceed.
 **Enforced elsewhere:** `SubjectKeySerializationTests` in Trax.Scheduler (one run per subject,
 release on completion and on reaping, the two-transaction claim race, and capacity on both load
 paths) and `SubjectKeyTests` in Trax.Mediator (where the key comes from, and the empty and length
-limits).
+limits), and `SubjectKeyGoesThroughCreateTests` in Trax.Mediator (the key reaches `Create`).
 
 Not covered: ordering with more than one dispatcher, and a reaper or the startup recovery
 releasing a subject whose run is still working, which is the documented limit rather than
@@ -89,6 +90,8 @@ overrides `LockSubject()`.
 
 ## Changelog
 
+- **2026-09-27**: The enqueue passes the key through `WorkQueue.Create` and refuses an unpaired
+  surrogate; `SubjectKeyGoesThroughCreateTests` in Trax.Mediator keeps the key out of later assignment.
 - **2026-09-27**: The enqueue refuses a key that is only whitespace, as it refuses an empty one.
 - **2026-09-24**: Recorded that the key and the priority both come from the caller, and that
   authorizing the record in `OnQueue` or scoping keys per tenant is what a consumer does about it.
