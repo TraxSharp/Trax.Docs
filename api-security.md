@@ -203,20 +203,20 @@ services.AddTraxGraphQL(graphql => graphql
 | `MaxExecutionDepth` | 15 | Rejects nested queries deeper than this (introspection fields excluded). |
 | `MaxFieldCost` | 1000 | HotChocolate cost-analyzer ceiling. Prevents expensive field combinations. |
 | `DefaultResolverCost` | 10 | Base cost applied to each resolver in the cost analyzer. |
-| Introspection | On in Development, off elsewhere | Prevents anonymous schema enumeration in production. |
+| Introspection | On in Development, off elsewhere | Prevents anonymous schema enumeration in production. Decided per request on every transport (HTTP POST, GET, multipart, WebSocket). A predicate passed to `AllowIntrospection` replaces the default in every environment, Development included, and receives the request's `HttpContext`, so it can check the caller. The schema download (`?sdl`, `/schema`, `/schema.graphql`) and the GraphQL IDE follow the same answer and return 404 when it is no; an allowed download is sent `Cache-Control: private`. |
 | `MaxOperationsPerRequest` | 50 | Caps aliased + batched top-level selections per request. Rejects with `TRAX_TOO_MANY_OPERATIONS`. |
 | `MaxOperationsPerConnection` | 100 | Caps the operations one WebSocket connection runs at once. An operation started past it gets `TRAX_SOCKET_OPERATION_LIMIT` and takes no place; the connection stays open, and a place frees when one of its operations completes. It is per connection, so it does not bound how many connections a client opens. |
 | `operations` namespace | Off (queries and mutations) | The predefined `operations.*` queries (manifests, executions, dead letters, health, hosts, config) and mutations (trigger, cancel, requeue) are not exposed unless the consumer opts in via `ExposeOperationQueries()` / `ExposeOperationMutations()`. The mutation surface drives `ITraxScheduler` directly, so leaving it open lets any caller disrupt scheduled work, and the read surface discloses internal hostnames and per-instance execution counts. Exposing either without a gate fails at startup: answer with `GateOperations(policy, roles)` to gate the namespace alone, `RequireAuthorization()` to gate the whole endpoint, or `AllowAnonymousOperations()` to acknowledge a deliberately public control plane. The gate is the only check on manifest triggers and dead-letter requeues; `queueTrain` and `requeueExecution` also apply the train's `[TraxAuthorize]` requirements (see [The Operations Surface](/docs/authorization#the-operations-surface)). Train inputs (an execution's `input`, a manifest's `properties`, a work queue entry's `input`) and effect settings, any of which can hold credentials, answer to the same gate and are served one row at a time by the detail reads, never by a list (see [Train inputs and the operations gate](/docs/sdk-reference/graphql-api/queries#train-inputs-and-the-operations-gate)). |
 
 ### Gating GraphQL Execution Without Locking the IDE
 
-Endpoint-level `RequireAuthorization` blanket-gates the route, including the GET that serves the Banana Cake Pop tool page. Developers can't even load the IDE to paste a key. The builder method splits these concerns:
+Endpoint-level `RequireAuthorization` blanket-gates the route, including the GET that serves the GraphQL IDE. Developers can't even load the IDE to paste a key. The builder method splits these concerns:
 
 ```csharp
 services.AddTraxGraphQL(graphql => graphql.RequireAuthorization());
 ```
 
-This installs a HotChocolate `IHttpRequestInterceptor` that runs only when the request is an actual GraphQL operation. The BCP HTML shell, schema introspection (when allowed by `AllowIntrospection`), and CORS preflights are not affected. POST queries and mutations are checked against the policy and rejected with a GraphQL error:
+This installs a HotChocolate `IHttpRequestInterceptor` that runs only when the request is an actual GraphQL operation. The IDE's HTML shell, the schema download and CORS preflights are not affected by it; the IDE and the schema download follow `AllowIntrospection` instead, so outside Development they are served only when your predicate allows the request. POST queries and mutations are checked against the policy and rejected with a GraphQL error:
 
 ```json
 { "errors": [{ "message": "Not authorized.", "extensions": { "code": "TRAX_AUTHORIZATION" } }] }
@@ -293,7 +293,7 @@ Trax does none of these for you:
 - **Key storage:** read API keys, JWT secrets, and DB credentials from a secret manager. Never commit them.
 - **Rotation:** rotate keys on a schedule and on any suspected exposure. Invalidate in the resolver.
 - **Rate limiting:** use ASP.NET Core's rate-limit middleware keyed on `trax:principal-id`.
-- **Introspection:** disable in production to prevent unauthenticated schema enumeration.
+- **Introspection:** off outside Development by default. If you open it with `AllowIntrospection`, make the predicate check the caller rather than returning `true`.
 - **Audit dashboards:** alert on non-zero `trax.audit.dropped`. A dropped entry is an invisible operation.
 - **Redaction:** implement `ITraxAuditRedactor` for every payload that could contain tokens, PII, or secrets.
 
