@@ -345,8 +345,8 @@ query {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `skip` | `Int` | `0` | Number of records to skip (offset pagination) |
-| `take` | `Int` | `25` | Number of records to return |
+| `skip` | `Int` | `0` | Number of records to skip (offset pagination). A negative value reads as `0` |
+| `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `isEnabled` | `Boolean` | `null` | Filter by enabled/disabled |
 | `scheduleType` | `ScheduleType` | `null` | Filter by schedule type (`NONE`, `CRON`, `INTERVAL`, `ON_DEMAND`, `DEPENDENT`, `DORMANT_DEPENDENT`, `ONCE`) |
 | `nameContains` | `String` | `null` | Case-sensitive substring match on the train name |
@@ -572,8 +572,8 @@ query {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `skip` | `Int` | `0` | Number of records to skip (offset pagination) |
-| `take` | `Int` | `25` | Number of records to return |
+| `skip` | `Int` | `0` | Number of records to skip (offset pagination). A negative value reads as `0` |
+| `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `trainState` | `TrainState` | `null` | Filter by state (`PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED`, `CANCELLED`) |
 | `trainName` | `String` | `null` | Exact-match filter on the train interface FullName |
 | `startedAfter` | `DateTime` | `null` | Only executions with `startTime >= startedAfter` |
@@ -718,7 +718,7 @@ query {
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `parentId` | `Long!` | none | The parent execution's metadata id |
-| `take` | `Int` | `25` | Page size |
+| `take` | `Int` | `25` | Page size, from 1 to 500. See [Page size](#page-size) |
 | `afterId` | `Long` | `null` | Keyset cursor (`id < afterId`) |
 
 **Returns**: `PagedResult<ExecutionSummary>` (count is always exact).
@@ -747,8 +747,8 @@ All paginated queries return the same wrapper type:
 |-------|------|-------------|
 | `items` | `[T!]!` | The page of results |
 | `totalCount` | `Int!` | Total number of records matching the query |
-| `skip` | `Int!` | The `skip` value that was applied |
-| `take` | `Int!` | The `take` value that was applied |
+| `skip` | `Int!` | The `skip` value that was applied, after a negative value was read as `0` |
+| `take` | `Int!` | The `take` value that was applied, after clamping to 1 through 500 |
 | `isEstimatedCount` | `Boolean!` | `true` when `totalCount` is a fast estimate rather than an exact count. See [Pagination](#estimated-counts) |
 | `nextCursor` | `Long` | ID of the last item in the page. Pass as `afterId` to fetch the next page via keyset pagination. `null` when no items are returned |
 
@@ -757,6 +757,10 @@ All paginated queries return the same wrapper type:
 ## Pagination
 
 Paginated queries support two strategies. Both can be used interchangeably. The dashboard uses offset pagination internally, while API consumers can opt into keyset cursors for better deep-page performance.
+
+### Page size
+
+Every paged read in the `operations` namespace clamps `take` to 1 through 500 and reads a negative `skip` as `0`, rather than refusing the request. A `take` above 500 returns 500 rows, and `take: 0` or a negative `take` returns one row. The `skip` and `take` on the returned page are the values that were applied, so a client can see that its request was clamped. To read more than 500 rows, page with `afterId`.
 
 ### Offset pagination (default)
 
@@ -1045,8 +1049,8 @@ query {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `skip` | `Int` | `0` | Number of records to skip (offset pagination). Ignored when `afterId` is provided. |
-| `take` | `Int` | `25` | Number of records to return |
+| `skip` | `Int` | `0` | Number of records to skip (offset pagination). A negative value reads as `0`. Ignored when `afterId` is provided. |
+| `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `metadataId` | `Long` | `null` | Filter to logs for a single execution |
 | `minimumLevel` | `LogLevel` | `null` | Includes the supplied level and anything more severe. `LogLevel` follows `Microsoft.Extensions.Logging`: `TRACE`, `DEBUG`, `INFORMATION`, `WARNING`, `ERROR`, `CRITICAL`, `NONE` |
 | `category` | `String` | `null` | Exact-match filter on the logger category (e.g. `Trax.Samples.GameServer.Trains.Combat.ResolveCombatTrain`) |
@@ -1106,8 +1110,8 @@ query {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `skip` | `Int` | `0` | Number of records to skip (offset pagination) |
-| `take` | `Int` | `25` | Number of records to return |
+| `skip` | `Int` | `0` | Number of records to skip (offset pagination). A negative value reads as `0` |
+| `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `nameContains` | `String` | `null` | Case-sensitive substring match on the group name |
 | `afterId` | `Long` | `null` | Keyset cursor. Returns records with `id < afterId`. See [Pagination](#pagination) |
 
@@ -1294,8 +1298,8 @@ query {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `skip` | `Int` | `0` | Number of records to skip (offset pagination). Ignored when `afterId` is provided. |
-| `take` | `Int` | `25` | Number of records to return |
+| `skip` | `Int` | `0` | Number of records to skip (offset pagination). A negative value reads as `0`. Ignored when `afterId` is provided. |
+| `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `status` | `WorkQueueStatus` | `null` | Filter by lifecycle state (`QUEUED`, `DISPATCHED`, `CANCELLED`) |
 | `trainName` | `String` | `null` | Exact-match filter on the interface FullName (e.g. `Trax.Samples.GameServer.Trains.Combat.IResolveCombatTrain`) |
 | `afterId` | `Long` | `null` | Keyset cursor. Returns records with `id < afterId`. See [Pagination](#pagination) |
