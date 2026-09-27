@@ -417,7 +417,7 @@ public class ProcessMatchResultTrain
 - **The train is not initialized.** `this.Metadata` and `TrainInput` are unavailable. Read everything from the passed `metadata`: the input via `metadata.GetInput<T>()`, and `metadata.ExternalId` to correlate with the eventual run, which executes under the same ExternalId. `Id`, `ManifestId`, and `ScheduledTime` are unset because no run exists yet.
 - **It must be idempotent.** The deferred run re-executes the full `Junctions()` chain, so any effect the chain also performs will happen again. Write `OnQueue` so running it plus the chain is safe.
 
-Property dependencies marked `[Inject]` (like `GameDbFactory` above) are populated before `OnQueue` is called, the same as during a normal run. Trains that do not override `OnQueue` skip resolution entirely, so the enqueue path is unaffected.
+Property dependencies marked `[Inject]` (like `GameDbFactory` above) are populated before `OnQueue` is called, the same as during a normal run. The enqueue resolves the train once, in a DI scope it creates for itself and disposes before it returns, and calls `QueueSubjectKey`, `DeferQueuePromotion` and `OnQueue` on that one instance. So the scoped services a train takes belong to that enqueue, not to the caller's scope: a hook cannot write into the caller's request `DbContext` and have the caller save it, and a write a failed hook left on a scoped context does not reach the next enqueue. Trains that override neither `OnQueue` nor `QueueSubjectKey` are never resolved, so the enqueue path is unaffected.
 
 #### Making the side-effect durable
 
