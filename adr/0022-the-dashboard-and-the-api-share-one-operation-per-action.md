@@ -54,11 +54,23 @@ as a whole by its host (0017); the API calls as the request's user. The operatio
 a refusal is and what is thrown (scheduler/0004), so both surfaces report the same failure the
 same way.
 
-**Some actions do not comply yet.** When this was recorded, re-queue still had one
-implementation per surface, and run had its shared method (`IOperationsService.RunTrainAsync`)
-but neither surface calling it: the dashboard switches once a Scheduler release carries it, and
-the API's run mutation follows the same release. Those are defects against this decision, not
-exceptions to it.
+**Where each action stands.** The rule is met when the shared method exists and both surfaces
+call it. As of this ADR's last changelog entry:
+
+- *Met:* queue a train, cancel one work queue entry, edit a group's settings, edit the scheduler
+  settings, dead-letter re-queue and acknowledge, manifest and group trigger, cancel a manifest's
+  or a group's runs through `ITraxScheduler`, the dashboard metrics and the group dependency
+  graphs.
+- *Shared method exists, surfaces not switched yet* (both wait on the Scheduler release that
+  carries it): run a train (`RunTrainAsync`); cancel a list of runs (`CancelExecutionsAsync`, the
+  rule `ITraxScheduler.CancelAsync` and `CancelGroupAsync` now share); cancel a list of work
+  queue entries; enable or disable a list of manifests, a list of groups, or every group; manifest
+  stats, group stats and paged logs.
+- *No shared method yet:* re-queue an execution, editing a manifest (`updateManifest` writes the
+  row in the API), the executions, work queue and dead-letter list reads, and the persisted
+  operations reads.
+
+Anything in the last two groups is a defect against this decision, not an exception to it.
 
 **`RunTrainAsync` copies two mediator rules.** The published mediator keeps its authorization
 check and its input reading private, so the run path repeats both, and they can drift until the
@@ -80,4 +92,6 @@ field. Parity is held by review and by the audit list, not by a guard.
 
 ## Changelog
 
+- **2026-09-27**: Listed which actions comply, which have a shared method the surfaces do not
+  call yet, and which have none.
 - **2026-09-27**: Recorded.

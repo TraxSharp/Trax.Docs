@@ -35,7 +35,7 @@ public record OperationResult(bool Success, long? Id = null, int? Count = null, 
 | `QueueTrainAsync(QueueTrainInput(TrainName, InputJson, Priority, ScheduledAt), ct)` | Enqueues through `ITrainExecutionService.QueueAsync`, so the train's `[TraxAuthorize]` requirements, its `OnQueue` hook and its subject key apply. The entry waits for dispatch like any other. | the work queue entry |
 | `RunTrainAsync(RunTrainInput(TrainName, InputJson), ct)` | Writes a `Pending` run and submits it at once to the job submitter the train is routed to, the same routing the job dispatcher uses (`ForTrain<T>()`, then `[TraxRemote]`, then the default submitter). Nothing goes through the work queue. | the run's metadata row |
 
-Both look the train up by its interface `FullName` and read `InputJson` the same way: the system serializer options, the mediator's input size cap, and a blank input read as `{}`, which the input type must be buildable from.
+Both look the train up by its interface `FullName` and read `InputJson` the way the mediator reads a caller's input: the system serializer options with property names matched whatever their case (`customerId`, `CustomerId` and `CUSTOMERID` all fill the same property), a property given twice in any casing refused as invalid input rather than resolved to its last value, the mediator's input size cap, and a blank input read as `{}`, which the input type must be buildable from. `QueueTrainAsync` reads this way once it runs against a Trax.Mediator release that carries the change; until then a queued input's property names are case-sensitive.
 
 A run is a deliberate bypass of the work queue. It skips dispatch priority, group `MaxActiveJobs`, and the subject lock, so it can run while another run for the same subject is in progress (see [QueueSubjectKey](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing)). Use `QueueTrainAsync` when that matters.
 
@@ -46,7 +46,7 @@ Both methods return a failed `OperationResult` with a `Message` for an answer th
 | Outcome | `QueueTrainAsync` | `RunTrainAsync` |
 |---------|-------------------|-----------------|
 | Blank `TrainName`, unknown train | failed result | failed result |
-| Invalid, oversized or `null` `InputJson` | failed result (`Invalid InputJson: ...`) | failed result, same message; no run is written |
+| Invalid, oversized or `null` `InputJson`, or a property given twice | failed result (`Invalid InputJson: ...`) | failed result, same message; no run is written |
 | The train's `OnQueue` or `QueueSubjectKey` refused | failed result (`The enqueue was refused: ...`) | not applicable: a run has neither |
 | The caller may not run the train | throws `UnauthorizedAccessException` | throws `UnauthorizedAccessException`, before the input is read |
 | `[TraxAuthorize]` train, no enforcer, not trusted | failed result (`The enqueue was refused: ...`) | throws `InvalidOperationException` |
