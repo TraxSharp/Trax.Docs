@@ -51,13 +51,21 @@ A failure raised outside any junction has its class attached to the exception to
 classifier answers and the exception carries no `TrainExceptionData`, it is created, so a remote
 worker reports that class instead of none.
 
+A class is carried in an exception's message only on a `TrainException`, the type Trax rebuilds a
+serialized failure as. Any other exception's message is its own text and is never read as a
+record. A carried value outside the vocabulary is carried as Unclassified, the same answer the
+remote wire gives.
+
 ## Exemplars
 
 **Enforced elsewhere:** `FailureClassificationTests` in Trax.Effect (recording, failures outside a
-junction, a carried class winning, a throwing classifier, and a rebuilt remote failure with no
-class staying Unclassified), `JunctionFailureClassTests` in
-Trax.Core (a junction keeps a class the failure carried), and `RemoteFailureClassificationTests`
-and `LambdaRunExecutorTests` in Trax.Scheduler (the class crossing HTTP and Lambda, and an older
+junction, a carried class winning, a throwing classifier, a rebuilt remote failure with no
+class staying Unclassified, a class in another exception type's message not being recorded, and
+an undefined carried value recording Unclassified), `ModelCoverageGapTests` in Trax.Effect
+(`Metadata.AddException` on each of those shapes), `JunctionFailureClassTests` in
+Trax.Core (a junction keeps a class the failure carried, reads one from a message only on a
+`TrainException`, and carries an undefined value as Unclassified), and
+`RemoteFailureClassificationTests` and `LambdaRunExecutorTests` in Trax.Scheduler (the class crossing HTTP and Lambda, and an older
 worker that sends none).
 
 Not covered: nothing checks that a host registers its classifier in the worker process, which is
@@ -65,4 +73,6 @@ where remote runs are classified.
 
 ## Changelog
 
+- **2026-09-27**: A class in a message is carried, and recorded, only on a `TrainException`, and
+  an undefined value as Unclassified.
 - **2026-09-23**: Recorded.
