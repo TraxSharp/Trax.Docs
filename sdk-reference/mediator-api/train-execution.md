@@ -14,6 +14,8 @@ It supports two execution paths:
 - **Queue**: creates a WorkQueue entry for asynchronous dispatch by the scheduler.
 - **Run**: executes the train synchronously via `ITrainBus` on the current machine.
 
+A third method, `PrepareAsync`, does only the steps both paths start with (lookup, authorization, input reading), for a surface that submits the work some other way.
+
 Registered automatically by `AddMediator()` as a scoped service.
 
 ## ITrainExecutionService
@@ -32,6 +34,12 @@ public interface ITrainExecutionService
     Task<RunTrainResult> RunAsync(
         string trainName,
         string inputJson,
+        CancellationToken ct = default
+    );
+
+    Task<PreparedTrain> PrepareAsync(
+        string trainName,
+        string? inputJson,
         CancellationToken ct = default
     );
 }
@@ -144,6 +152,32 @@ Task<RunTrainResult> RunAsync(
 5. Persists the metadata via the data context.
 6. Calls the typed `ITrainBus.RunAsync<TOut>(input, ct, metadata)` via reflection, using the train's `OutputType` from its registration.
 7. Returns the metadata ID and the train's output (or `null` for `Unit` trains).
+
+## PrepareAsync
+
+Resolves a train by name, authorizes the current caller for it, and reads the caller's input into the train's input type. These are steps 1 to 3 of `QueueAsync` and `RunAsync`, which call the same code, so a surface that submits work itself (the scheduler's run operation, say) accepts and refuses exactly what a queue or a run does. Nothing is written.
+
+```csharp
+Task<PreparedTrain> PrepareAsync(
+    string trainName,
+    string? inputJson,
+    CancellationToken ct = default
+)
+
+public sealed class PreparedTrain
+{
+    public TrainRegistration Registration { get; }
+    public object Input { get; }   // an instance of Registration.InputType, never null
+}
+```
+
+Authorization runs before the input is read, so a caller who may not use the train learns nothing about its input from a parse error. The input is read as `QueueAsync` reads it: null or blank as `{}`, property names in any case, a repeated property refused, and the `MaxInputJsonBytes` cap applied.
+
+`PreparedTrain` has no public constructor: the only way to get one is from `PrepareAsync`, so code holding one knows the authorization check ran. An implementation of `ITrainExecutionService` written before this method existed inherits a default that throws `NotSupportedException` rather than skipping the check.
+
+### Throws
+
+The same as `RunAsync`: `TrainNotFoundException`, `AmbiguousTrainNameException`, `UnauthorizedAccessException`, `TrainInputValidationException`, `JsonException`, and `InvalidOperationException` for a `[TraxAuthorize]` train on a host with no `ITrainAuthorizationService` outside a trusted scope.
 
 ## Examples
 

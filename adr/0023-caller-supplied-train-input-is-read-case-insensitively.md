@@ -47,9 +47,13 @@ The same key given twice exactly is still refused.
 **Enforced elsewhere:** `TrainInputCasingTests` in Trax.Mediator (any casing is matched, and a
 property given twice, in the same or a different case, is refused by `QueueAsync` and `RunAsync`).
 
+A surface that reads caller input without queueing or running through the mediator gets these
+settings from `ITrainExecutionService.PrepareAsync` instead of repeating them.
+
 Not covered: the dashboard's Run dialog reads case-insensitively but does not refuse duplicates
 yet, and nothing checks that a new surface reading caller input uses the same settings.
 
 ## Changelog
 
+- **2026-09-27**: `PrepareAsync` is how another surface reads caller input the same way.
 - **2026-09-27**: Recorded.
