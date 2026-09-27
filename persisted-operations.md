@@ -149,6 +149,8 @@ Predicate form for patterns:
 opts.AllowOperationsMatching(id => id.StartsWith("dev_"))
 ```
 
+> **The allowlist is a convenience for trusted networks, not a security control.** It matches the `operationName` the caller puts in the request body (or, for an unnamed request, the `documentId` or `id`), and it never looks at the document. `AllowOperations("playground_smoke_test")` admits any inline document with an operation of that name, whatever the operation selects, and the `dev_` predicate above admits any caller who starts a name with `dev_`. Use it for smoke tests and developer tools on a network you already trust. To admit a fixed document from a client you do not control, persist the document and have the client send its id: that is the control. Per-type `[TraxAuthorize]` still applies to allowlisted requests, as it does to every request, because enforcement shapes which documents run and is not the authorization boundary.
+
 Introspection requests bypass enforcement automatically. A request is introspection when its document parses and every top-level selection is `__schema`, `__type` or `__typename`. Disable with `DisableIntrospection()` for tight prod.
 
 ## Managing operations
