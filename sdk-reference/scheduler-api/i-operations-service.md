@@ -24,6 +24,10 @@ public interface IOperationsService
     Task<OperationResult> SetManifestsEnabledAsync(IReadOnlyCollection<long> ids, bool enabled, CancellationToken ct);
     Task<OperationResult> SetManifestGroupsEnabledAsync(IReadOnlyCollection<long> ids, bool enabled, CancellationToken ct);
     Task<OperationResult> SetAllManifestGroupsEnabledAsync(bool enabled, CancellationToken ct);
+    Task<ManifestExecutionStats> GetManifestExecutionStatsAsync(long manifestId, CancellationToken ct);
+    Task<IReadOnlyList<ManifestGroupExecutionStats>> GetManifestGroupExecutionStatsAsync(IReadOnlyCollection<long> groupIds, CancellationToken ct);
+    Task<LogPage> GetLogsAsync(LogQuery query, CancellationToken ct);
+    Task<int> CountLogsAsync(LogQuery query, CancellationToken ct);
     Task<OperationResult> CancelWorkQueueEntryAsync(long id, CancellationToken ct);
     Task<OperationResult> UpdateManifestGroupAsync(long id, UpdateManifestGroupInput input, CancellationToken ct);
     Task<OperationResult> UpdateSchedulerConfigAsync(UpdateSchedulerConfigInput input, CancellationToken ct);
@@ -74,6 +78,19 @@ The actions a list page applies to its selected rows. Each takes up to `Operatio
 | `SetAllManifestGroupsEnabledAsync(enabled, ct)` | Every group whose `IsEnabled` differs; a separate method so that "all" is never what an empty list means | `ManifestGroup` |
 
 `ITraxScheduler.CancelAsync` and `CancelGroupAsync` cancel a manifest's or a group's runs by the same rule as `CancelExecutionsAsync`.
+
+## Read models
+
+The numbers behind a manifest's detail cards, the manifest groups list and the logs page.
+
+| Method | Returns |
+|--------|---------|
+| `GetManifestExecutionStatsAsync(manifestId, ct)` | `ManifestExecutionStats`: run counts by state, the latest start of any run and the latest end of a completed run. Zeros and nulls for a manifest with no runs. |
+| `GetManifestGroupExecutionStatsAsync(groupIds, ct)` | One `ManifestGroupExecutionStats` per distinct id, in the order given: manifest count, run counts and the latest run. Zeros for a group with no manifests or runs; an empty list for no ids; more than 1000 ids throws `ArgumentOutOfRangeException`. |
+| `GetLogsAsync(LogQuery, ct)` | A `LogPage`, newest first, filtered by `MetadataId`, `MinimumLevel` and exact `Category`. `AfterId` pages by keyset and ignores `Skip`; prefer it, since an offset's cost grows with its size. `Take` is clamped to 1 through `OperationsService.MaxPageSize` (500). `NextCursor` is the last entry's id. |
+| `CountLogsAsync(LogQuery, ct)` | The exact number of entries matching the filter; the cursor and paging fields are ignored. |
+
+An exact count of a large, unfiltered log table is a full scan, and the scheduler has no provider-neutral way to estimate one, so a pager that only needs an approximate size should estimate it itself.
 
 ## Authorization
 
