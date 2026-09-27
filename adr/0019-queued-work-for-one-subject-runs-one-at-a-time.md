@@ -43,11 +43,18 @@ priority is a caller-supplied argument, so a caller authorized to queue a keyed 
 subject their entry serializes against and where it sits in that subject's order.
 `[TraxAuthorize]` gates the train, not the record, and keys are one global space rather than one per
 train, so a consumer for whom that matters authorizes the record in `OnQueue` or scopes the key per
-tenant. `authorization.md` and `core/trains-and-junctions.md` say so where a consumer will meet it. It is refused when empty or longer than 512 characters, both at
+tenant. `authorization.md` and `core/trains-and-junctions.md` say so where a consumer will meet it. It is refused when empty or whitespace-only, or longer than 512 characters, both at
 enqueue and by `WorkQueue.Create`, so an entry built directly cannot carry a key the index cannot
-claim. The enqueue also refuses a key that is only whitespace, which is as surely an unset identity
-as an empty one, and one with an unpaired surrogate. It passes the key to `WorkQueue.Create` rather
-than assigning it afterwards, so `Create`'s checks apply to every entry the Mediator writes. The
+claim. A whitespace-only key is an unset identity as surely as an empty one, and would serialize
+every entry carrying it against every other. The limit counts Unicode characters, not UTF-16
+units: a caller counting what they wrote would otherwise see a key of 300 emoji refused as 600.
+A character is at most four bytes in UTF-8, so the longest key is 2048 bytes, inside the
+2704-byte Postgres btree entry limit that the subject index is bound by. Counting characters
+rather than units raised that worst case from 1536 bytes, so the limit has little room left to
+grow. A key holding an unpaired surrogate is refused by `WorkQueue.Create`: it is half a
+character, UTF-8 cannot encode it, and the insert would otherwise fail far from the caller. The
+enqueue passes the key to `WorkQueue.Create` rather than assigning it afterwards, so `Create`'s checks
+apply to every entry the Mediator writes. The
 guarantee holds only until something writes a terminal state for a run that has not finished,
 and the subject is released even if that run is still working. Three things do: the two reapers
 in the ManifestManager (pending longer than `StalePendingTimeout`, or in progress longer than
@@ -80,8 +87,10 @@ above, and both proceed.
 
 **Enforced elsewhere:** `SubjectKeySerializationTests` in Trax.Scheduler (one run per subject,
 release on completion and on reaping, the two-transaction claim race, and capacity on both load
-paths) and `SubjectKeyTests` in Trax.Mediator (where the key comes from, and the empty and length
-limits), and `SubjectKeyGoesThroughCreateTests` in Trax.Mediator (the key reaches `Create`).
+paths), `SubjectKeyTests` in Trax.Mediator (where the key comes from, and the empty and length
+limits), `SubjectKeyGoesThroughCreateTests` in Trax.Mediator (the key reaches `Create`), and
+`WorkQueueCreateTests` and `SubjectKeyStorageTests` in Trax.Effect (the same limits on an entry
+built directly, and a key of 512 four-byte characters fitting the subject index).
 
 Not covered: ordering with more than one dispatcher, and a reaper or the startup recovery
 releasing a subject whose run is still working, which is the documented limit rather than
@@ -93,6 +102,10 @@ overrides `LockSubject()`.
 - **2026-09-27**: The enqueue passes the key through `WorkQueue.Create` and refuses an unpaired
   surrogate; `SubjectKeyGoesThroughCreateTests` in Trax.Mediator keeps the key out of later assignment.
 - **2026-09-27**: The enqueue refuses a key that is only whitespace, as it refuses an empty one.
+- **2026-09-27**: Recorded that a whitespace-only key is refused like an empty one, and that the
+  512 limit counts Unicode characters rather than UTF-16 units. `WorkQueue.Create` in Trax.Effect
+  applies both first, and also refuses a key holding an unpaired surrogate; the enqueue counting
+  Unicode characters follows in Trax.Mediator once that ships.
 - **2026-09-24**: Recorded that the key and the priority both come from the caller, and that
   authorizing the record in `OnQueue` or scoping keys per tenant is what a consumer does about it.
 - **2026-09-24**: Recorded that `WorkQueue.Create` refuses the same keys the enqueue does.
