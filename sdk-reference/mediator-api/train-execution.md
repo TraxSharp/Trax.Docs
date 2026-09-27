@@ -100,7 +100,7 @@ When the train sets [`DeferQueuePromotion`](/docs/core/trains-and-junctions#maki
 
 An enqueue started from inside another train's `OnQueue` hook, while that enqueue's transaction is open, takes a different path: it tracks its entry on the outer enqueue's context, runs its own hook, and flushes the entry inside the outer transaction, so it commits or rolls back with the outer entry and uses no connection of its own. A deferring train on this path is written confirmed rather than staged. If the nested enqueue fails, the outer one fails too, even when the hook catches the exception; if the hook returns while a nested enqueue it started is still running, the outer enqueue throws `InvalidOperationException`. See [OnQueue](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook).
 
-Providers without transaction support (the in-memory provider) degrade to a single `SaveChanges` with no explicit transaction.
+On the in-memory provider, beginning the transaction succeeds but returns one whose commit and rollback do nothing: the provider ignores EF's `TransactionIgnoredWarning`. The queue row and anything the hook tracked on `IEnqueueContextAccessor.Current` still land together in one `SaveChanges`, and because a transaction object exists, an enqueue nested in a hook finds one to join as it would on a relational provider. A provider whose `BeginTransaction` throws `InvalidOperationException` or `NotSupportedException` gets no transaction at all, with the same single `SaveChanges`.
 
 ## RunAsync
 
