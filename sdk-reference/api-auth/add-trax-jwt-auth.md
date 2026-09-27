@@ -245,7 +245,7 @@ The default-scheme overloads (`AddTraxJwtAuth(authority, audience)`, `AddTraxJwt
 
 ## Subscriptions
 
-When `Trax.Api.GraphQL` is also present and one JWT scheme is registered under `JwtDefaults.SchemeName`, `AddTraxJwtAuth` auto-registers `TraxJwtSocketInterceptor`. Subscriptions receive the token through the `connection_init` payload:
+When `Trax.Api.GraphQL` is also present and one JWT scheme is registered under `JwtDefaults.SchemeName`, the subscription interceptor `AddTraxGraphQL` registers hands JWT connections to `TraxJwtSocketInterceptor`, alongside API-key auth if that is registered too. Subscriptions receive the token through the `connection_init` payload:
 
 ```js
 ws.send(JSON.stringify({
@@ -256,4 +256,4 @@ ws.send(JSON.stringify({
 
 The interceptor validates against the same `JwtBearerOptions` as the HTTP handler (signature, issuer, audience, lifetime, clock skew), including Authority/JWKS schemes: it fetches signing keys from the scheme's OIDC discovery document when the options carry no static key. It then runs the principal resolver and attaches the result to `HttpContext.User` for the socket lifetime. Rejected connections close before any subscription operation runs.
 
-For subscriptions across more than one issuer, register [`AddTraxJwtDispatcher`](/docs/sdk-reference/api-auth/add-trax-jwt-dispatcher): Trax then wires `TraxJwtDispatcherSocketInterceptor`, which routes each connection to the right scheme by the token's `iss` claim. Hosts with needs beyond that can supply a custom `ISocketSessionInterceptor` via `ConfigureSchema`. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#authentication).
+For subscriptions across more than one issuer, register [`AddTraxJwtDispatcher`](/docs/sdk-reference/api-auth/add-trax-jwt-dispatcher): JWT connections then go to `TraxJwtDispatcherSocketInterceptor`, which routes each connection to the right scheme by the token's `iss` claim. Hosts with needs beyond that can supply a custom `ISocketSessionInterceptor` via `ConfigureSchema`. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#authentication).

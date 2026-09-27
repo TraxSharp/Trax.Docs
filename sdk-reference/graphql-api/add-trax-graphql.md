@@ -121,7 +121,7 @@ If you call `AddTraxGraphQL` with no `[TraxQuery]` trains, no `[TraxQueryModel]`
 - **In-memory subscription transport**: HotChocolate's built-in pub/sub for delivering events to WebSocket clients
 - **Error filter**: `TraxErrorFilter`, which curates exception messages for train-related errors. Exposed types: `TrainException` passes through (`TRAX_TRAIN_ERROR`); `TrainAuthorizationException` always returns the generic `"Not authorized."` (`TRAX_AUTHORIZATION`); `TrainNotFoundException` returns `"The requested train was not found."` (`TRAX_TRAIN_NOT_FOUND`); `AmbiguousTrainNameException` surfaces candidate FullNames (`TRAX_AMBIGUOUS_TRAIN`); `TrainInputValidationException` returns `"The train input failed validation."` (`TRAX_INVALID_INPUT`). All other exception types (including `InvalidOperationException`) retain HotChocolate's default masked message.
 - **Hardening defaults**: max execution depth of 15, cost-analyzer budget `MaxFieldCost = 1000`, introspection allowed in Development only, and a 50-operation per-request cap. Override each via the builder methods above.
-- **Subscription auth interceptor**: Trax wires a socket interceptor so WebSocket subscriptions authenticate from the `connection_init` payload. `AddTraxApiKeyAuth` gets `TraxApiKeySocketInterceptor` (`authToken`/`apiKey`); `AddTraxJwtAuth` gets `TraxJwtSocketInterceptor` (`authToken`/`bearer`, including Authority/JWKS schemes); `AddTraxJwtDispatcher` gets `TraxJwtDispatcherSocketInterceptor`, which routes multiple JWT schemes by the token's issuer. Each is wired only when its matching auth is registered before `AddTraxGraphQL`. Supply your own via `ConfigureSchema(b => b.AddSocketSessionInterceptor<T>())` to override them. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#authentication).
+- **Subscription auth interceptor**: Trax registers `TraxCompositeSocketInterceptor` so WebSocket subscriptions authenticate from the `connection_init` payload. It serves API-key auth (`authToken`/`apiKey`), JWT auth (`authToken`/`bearer`, including Authority/JWKS schemes) and the JWT dispatcher, together or alone, and accepts every connection when none is registered. Supply your own via `ConfigureSchema(b => b.AddSocketSessionInterceptor<T>())` to replace it. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#authentication).
 - **Lifecycle hook**: `GraphQLSubscriptionHook`, automatically registered to publish train state transitions to the subscription transport
 
 ## Prerequisites
@@ -181,21 +181,20 @@ The two are independent. Use the builder method when you want developers to load
 
 ## Registration order
 
-`AddTraxGraphQL()` needs `AddTrax()` to have run first, and it chooses which subscription
-interceptor to wire from the authentication schemes registered by the time it runs. Register
-authentication before it:
+`AddTraxGraphQL()` needs `AddTrax()` to have run first:
 
 ```csharp
 builder.Services.AddTrax(trax => trax.AddEffects(...).AddMediator(...));
-builder.Services.AddTraxJwtAuth(...);        // or AddTraxApiKeyAuth / AddTraxJwtDispatcher
+builder.Services.AddTraxJwtAuth(...);        // either side of AddTraxGraphQL
 builder.Services.AddTraxGraphQL(graphql => graphql.AddDbContext<AppDbContext>());
 ```
 
-Get it wrong and the host refuses to start, naming the call to move. It does not start with
-subscriptions unauthenticated, which is what earlier versions did: no interceptor was wired, so
-HotChocolate accepted every `connection_init` while HTTP requests kept being gated normally.
+Authentication may come before or after it. The subscription interceptor reads the registered
+schemes once the container is complete, so earlier versions' failure, where an auth call after
+`AddTraxGraphQL()` left subscriptions accepting every `connection_init` while HTTP stayed gated,
+cannot happen.
 
-Everything else is order-independent. `@authorize` is attached to the schema, so query and
+Everything else is order-independent too. `@authorize` is attached to the schema, so query and
 mutation gating works whichever way round the host is composed, and services the GraphQL
 components depend on are resolved on first use rather than when `AddTraxGraphQL()` runs.
 

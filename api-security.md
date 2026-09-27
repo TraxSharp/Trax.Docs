@@ -112,7 +112,7 @@ Unauthenticated API requests against the cookie scheme return `401` (not a redir
 
 Browsers cannot attach custom headers to a WebSocket upgrade, so header-bound schemes (API key, JWT bearer) carry credentials in the `connection_init` payload instead. Cookie-bound schemes (OIDC) need no special handling: the browser attaches cookies to the upgrade request, so the cookie middleware authenticates the upgrade like any HTTP request.
 
-**Register authentication before `AddTraxGraphQL`.** `AddTraxGraphQL` picks the socket interceptor from what the service collection holds at the moment it runs, so a scheme registered after it is invisible and no interceptor is wired. The host refuses to start in that case, with a message naming the call that ran too late; the check runs once the container is complete, so it sees the scheme whichever order you used. Supplying your own interceptor through `ConfigureSchema` opts out of both the wiring and the check.
+`AddTraxGraphQL` registers one socket interceptor, `TraxCompositeSocketInterceptor`, for every host. It reads which schemes are registered from the finished container on the first connection, so authentication may be registered before or after `AddTraxGraphQL`, and it hands each connection to the API-key or JWT strategy by the credential the payload carries. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#authentication) for the routing rules. Supplying your own interceptor through `ConfigureSchema` replaces it.
 
 ```csharp
 services.AddTraxApiKeyAuth(...);   // or AddTraxJwtAuth / AddTraxJwtDispatcher
@@ -129,7 +129,7 @@ ws.onopen = () => ws.send(JSON.stringify({
 }));
 ```
 
-`AddTraxGraphQL` wires `TraxApiKeySocketInterceptor` when `AddTraxApiKeyAuth` has already registered its principal resolver. The direction matters: it is `AddTraxGraphQL` that reads the collection, so calling `AddTraxApiKeyAuth` afterwards wires nothing. The interceptor resolves the token via the same `ITraxPrincipalResolver<string>` used by the REST handler, attaches the resulting principal to `HttpContext.User` for the socket lifetime, and rejects the connection when the token is missing or invalid.
+When `AddTraxApiKeyAuth` is registered, API-key connections go to `TraxApiKeySocketInterceptor`. It resolves the token via the same `ITraxPrincipalResolver<string>` used by the REST handler, attaches the resulting principal to `HttpContext.User` for the socket lifetime, and rejects the connection when the token is missing or invalid.
 
 ### JWT bearer
 
@@ -141,7 +141,7 @@ ws.onopen = () => ws.send(JSON.stringify({
 }));
 ```
 
-`AddTraxGraphQL` wires `TraxJwtSocketInterceptor` when `AddTraxJwtAuth` has already registered its principal resolver, the same way round as the API-key case above. The interceptor validates the token against the same `JwtBearerOptions` (signature, issuer, audience, lifetime, clock skew) the HTTP handler uses - the WS and HTTP paths cannot diverge. This includes Authority/JWKS schemes (Cognito, Google, any OIDC provider): the interceptor fetches signing keys from the scheme's discovery document when the options carry no static key. It then runs `ITraxPrincipalResolver<JwtTokenInput>` and attaches the resulting principal.
+When `AddTraxJwtAuth` is registered, JWT connections go to `TraxJwtSocketInterceptor`. It validates the token against the same `JwtBearerOptions` (signature, issuer, audience, lifetime, clock skew) the HTTP handler uses - the WS and HTTP paths cannot diverge. This includes Authority/JWKS schemes (Cognito, Google, any OIDC provider): the interceptor fetches signing keys from the scheme's discovery document when the options carry no static key. It then runs `ITraxPrincipalResolver<JwtTokenInput>` and attaches the resulting principal.
 
 ### OIDC cookie
 
@@ -149,7 +149,7 @@ No extra code required. The browser attaches the session cookie (`trax.oidc`) to
 
 ### Multiple JWT issuers
 
-`AddTraxJwtDispatcher` routes subscription tokens by their `iss` claim, the same way it routes HTTP requests. When a dispatcher is registered, Trax wires `TraxJwtDispatcherSocketInterceptor` in place of the single-scheme JWT interceptor, so each connection validates against the scheme its issuer maps to. Unmapped issuers are rejected.
+`AddTraxJwtDispatcher` routes subscription tokens by their `iss` claim, the same way it routes HTTP requests. When a dispatcher is registered, JWT connections go to `TraxJwtDispatcherSocketInterceptor` instead of the single-scheme JWT strategy, so each connection validates against the scheme its issuer maps to. Unmapped issuers are rejected.
 
 ### Custom interceptor
 
@@ -161,7 +161,7 @@ services.AddTraxGraphQL(graphql => graphql
     .ConfigureSchema(b => b.AddSocketSessionInterceptor<MySocketInterceptor>()));
 ```
 
-This overrides the stock interceptors and is independent of auth-registration order. Derive from `DefaultSocketSessionInterceptor` and read the credential from the `connection_init` payload in `OnConnectAsync`.
+This replaces Trax's interceptor and is independent of auth-registration order. Derive from `DefaultSocketSessionInterceptor` and read the credential from the `connection_init` payload in `OnConnectAsync`.
 
 ## Per-Train Authorization
 
@@ -228,7 +228,7 @@ The default policy is the combined `TraxAuthClaimTypes.TraxAuthPolicy`, which ev
 services.AddTraxGraphQL(graphql => graphql.RequireAuthorization(ApiKeyDefaults.PolicyName));
 ```
 
-Subscription auth is a separate path: the `connection_init` payload is checked by `TraxApiKeySocketInterceptor` (wired automatically by `AddTraxApiKeyAuth`). `RequireAuthorization` only governs HTTP execution. If the policy isn't actually registered at startup, the host fails fast with a message naming the policy and pointing to `AddTraxApiKeyAuth`.
+Subscription auth is a separate path: the `connection_init` payload is checked by `TraxCompositeSocketInterceptor`, which `AddTraxGraphQL` registers. `RequireAuthorization` only governs HTTP execution. If the policy isn't actually registered at startup, the host fails fast with a message naming the policy and pointing to `AddTraxApiKeyAuth`.
 
 ### Per-Principal Concurrency
 
