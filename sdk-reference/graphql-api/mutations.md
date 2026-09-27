@@ -498,25 +498,25 @@ Every field defaults to `null` and means "no change". To clear `maxActiveJobs` (
 |-------|------|-------------|
 | `manifestManagerEnabled` | `Boolean` | |
 | `jobDispatcherEnabled` | `Boolean` | |
-| `manifestManagerPollingInterval` | `TimeSpan` | Greater than zero |
-| `jobDispatcherPollingInterval` | `TimeSpan` | Greater than zero |
+| `manifestManagerPollingInterval` | `TimeSpan` | 1 second to 30 days |
+| `jobDispatcherPollingInterval` | `TimeSpan` | 1 second to 30 days |
 | `maxActiveJobs` | `Int` | At least 1 |
 | `clearMaxActiveJobs` | `Boolean` | When `true`, sets `maxActiveJobs` to null |
 | `defaultMaxRetries` | `Int` | Zero or more |
-| `defaultRetryDelay` | `TimeSpan` | Zero or more |
+| `defaultRetryDelay` | `TimeSpan` | Zero to ten years |
 | `retryBackoffMultiplier` | `Float` | At least 1 |
-| `maxRetryDelay` | `TimeSpan` | Zero or more |
-| `defaultJobTimeout` | `TimeSpan` | Greater than zero |
-| `stalePendingTimeout` | `TimeSpan` | Greater than zero |
+| `maxRetryDelay` | `TimeSpan` | Zero to ten years |
+| `defaultJobTimeout` | `TimeSpan` | 1 second to ten years |
+| `stalePendingTimeout` | `TimeSpan` | 1 second to ten years |
 | `recoverStuckJobsOnStartup` | `Boolean` | |
-| `deadLetterRetentionPeriod` | `TimeSpan` | Zero or more |
+| `deadLetterRetentionPeriod` | `TimeSpan` | Zero to ten years |
 | `autoPurgeDeadLetters` | `Boolean` | |
-| `localWorkerCount` | `Int` | At least 1. Ignored when `UseLocalWorkers()` is not configured |
+| `localWorkerCount` | `Int` | 1 to 256. Ignored when `UseLocalWorkers()` is not configured |
 | `clearLocalWorkerCount` | `Boolean` | Resets `localWorkerCount` to `Environment.ProcessorCount` |
-| `metadataCleanupInterval` | `TimeSpan` | Greater than zero. Ignored when metadata cleanup is not configured |
-| `metadataCleanupRetention` | `TimeSpan` | Greater than zero. Ignored when metadata cleanup is not configured |
+| `metadataCleanupInterval` | `TimeSpan` | 1 second to 30 days. Ignored when metadata cleanup is not configured |
+| `metadataCleanupRetention` | `TimeSpan` | 1 second to ten years. Ignored when metadata cleanup is not configured |
 
-**Returns**: `OperationResponse`. `count` is the number of fields actually changed (zero if every supplied value already matched). A value outside its range makes `success` `false`, with a `message` naming each offending field, and nothing in the patch is applied or persisted.
+**Returns**: `OperationResponse`. `count` is the number of fields actually changed (zero if every supplied value already matched). A value outside its range makes `success` `false`, with a `message` naming each offending field, and nothing in the patch is applied or persisted. The ranges are what the scheduler can run with: an interval becomes a timer that rejects values under a millisecond or over about 49 days, and polling the database more often than once a second is load rather than responsiveness. At startup, a persisted value outside its range (from a row written before these checks, or edited by hand) is skipped with a warning, and the configured value stays in effect.
 
 ---
 
