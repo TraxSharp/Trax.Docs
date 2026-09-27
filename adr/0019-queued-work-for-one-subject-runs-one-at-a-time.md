@@ -51,7 +51,8 @@ units: a caller counting what they wrote would otherwise see a key of 300 emoji 
 A character is at most four bytes in UTF-8, so the longest key is 2048 bytes, inside the
 2704-byte Postgres btree entry limit that the subject index is bound by. Counting characters
 rather than units raised that worst case from 1536 bytes, so the limit has little room left to
-grow. The
+grow. A key holding an unpaired surrogate is refused by `WorkQueue.Create`: it is half a
+character, UTF-8 cannot encode it, and the insert would otherwise fail far from the caller. The
 guarantee holds only until something writes a terminal state for a run that has not finished,
 and the subject is released even if that run is still working. Three things do: the two reapers
 in the ManifestManager (pending longer than `StalePendingTimeout`, or in progress longer than
@@ -97,7 +98,8 @@ overrides `LockSubject()`.
 
 - **2026-09-27**: Recorded that a whitespace-only key is refused like an empty one, and that the
   512 limit counts Unicode characters rather than UTF-16 units. `WorkQueue.Create` in Trax.Effect
-  applies both first; the enqueue follows in Trax.Mediator once that ships.
+  applies both first, and also refuses a key holding an unpaired surrogate; the enqueue follows
+  in Trax.Mediator once that ships.
 - **2026-09-24**: Recorded that the key and the priority both come from the caller, and that
   authorizing the record in `OnQueue` or scoping keys per tenant is what a consumer does about it.
 - **2026-09-24**: Recorded that `WorkQueue.Create` refuses the same keys the enqueue does.
