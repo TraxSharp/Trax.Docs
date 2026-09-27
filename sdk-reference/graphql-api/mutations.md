@@ -498,25 +498,25 @@ Every field defaults to `null` and means "no change". To clear `maxActiveJobs` (
 |-------|------|-------------|
 | `manifestManagerEnabled` | `Boolean` | |
 | `jobDispatcherEnabled` | `Boolean` | |
-| `manifestManagerPollingInterval` | `TimeSpan` | |
-| `jobDispatcherPollingInterval` | `TimeSpan` | |
-| `maxActiveJobs` | `Int` | |
+| `manifestManagerPollingInterval` | `TimeSpan` | Greater than zero |
+| `jobDispatcherPollingInterval` | `TimeSpan` | Greater than zero |
+| `maxActiveJobs` | `Int` | At least 1 |
 | `clearMaxActiveJobs` | `Boolean` | When `true`, sets `maxActiveJobs` to null |
-| `defaultMaxRetries` | `Int` | |
-| `defaultRetryDelay` | `TimeSpan` | |
-| `retryBackoffMultiplier` | `Float` | |
-| `maxRetryDelay` | `TimeSpan` | |
-| `defaultJobTimeout` | `TimeSpan` | |
-| `stalePendingTimeout` | `TimeSpan` | |
+| `defaultMaxRetries` | `Int` | Zero or more |
+| `defaultRetryDelay` | `TimeSpan` | Zero or more |
+| `retryBackoffMultiplier` | `Float` | At least 1 |
+| `maxRetryDelay` | `TimeSpan` | Zero or more |
+| `defaultJobTimeout` | `TimeSpan` | Greater than zero |
+| `stalePendingTimeout` | `TimeSpan` | Greater than zero |
 | `recoverStuckJobsOnStartup` | `Boolean` | |
-| `deadLetterRetentionPeriod` | `TimeSpan` | |
+| `deadLetterRetentionPeriod` | `TimeSpan` | Zero or more |
 | `autoPurgeDeadLetters` | `Boolean` | |
-| `localWorkerCount` | `Int` | Ignored when `UseLocalWorkers()` is not configured |
+| `localWorkerCount` | `Int` | At least 1. Ignored when `UseLocalWorkers()` is not configured |
 | `clearLocalWorkerCount` | `Boolean` | Resets `localWorkerCount` to `Environment.ProcessorCount` |
-| `metadataCleanupInterval` | `TimeSpan` | Ignored when metadata cleanup is not configured |
-| `metadataCleanupRetention` | `TimeSpan` | Ignored when metadata cleanup is not configured |
+| `metadataCleanupInterval` | `TimeSpan` | Greater than zero. Ignored when metadata cleanup is not configured |
+| `metadataCleanupRetention` | `TimeSpan` | Greater than zero. Ignored when metadata cleanup is not configured |
 
-**Returns**: `OperationResponse`. `count` is the number of fields actually changed (zero if every supplied value already matched).
+**Returns**: `OperationResponse`. `count` is the number of fields actually changed (zero if every supplied value already matched). A value outside its range makes `success` `false`, with a `message` naming each offending field, and nothing in the patch is applied or persisted.
 
 ---
 
@@ -550,12 +550,12 @@ mutation {
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `maxActiveJobs` | `Int` | `null` | New per-group concurrency limit. `null` means "no change". To clear the limit, use `clearMaxActiveJobs` instead |
+| `maxActiveJobs` | `Int` | `null` | New per-group concurrency limit, at least 1. `null` means "no change". To clear the limit, use `clearMaxActiveJobs` instead |
 | `clearMaxActiveJobs` | `Boolean` | `false` | When `true`, sets `maxActiveJobs` to `null` (removes the per-group limit). Takes precedence if both this and `maxActiveJobs` are set |
-| `priority` | `Int` | `null` | New priority. `null` = no change |
+| `priority` | `Int` | `null` | New priority, 0 to 31. `null` = no change |
 | `isEnabled` | `Boolean` | `null` | Whether the group is active. `null` = no change |
 
-**Returns**: `OperationResponse`. On success, `count` is the number of fields actually changed (zero if every supplied value already matched the persisted row). On failure (group not found), `success` is `false` and `message` explains.
+**Returns**: `OperationResponse`. On success, `count` is the number of fields actually changed (zero if every supplied value already matched the persisted row). On failure (the group is not found, or a value is out of range), `success` is `false`, `message` explains, and no field is written.
 
 ---
 
