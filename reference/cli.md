@@ -57,6 +57,27 @@ trax generate --schema ./spec.yaml --output ./MyProject --name MyProject --type 
 trax generate --schema ./schema.graphql --output ./MyProject --name MyProject --force
 ```
 
+### Names and descriptions
+
+Every name in the schema becomes C#: types, properties, enums and their values, operations,
+the group each operation is filed under (its first OpenAPI tag, or the noun of a GraphQL field)
+and the `--name` project name. Names become identifiers, namespaces and file paths, so after
+the PascalCase conversion below each one must match `[A-Za-z_][A-Za-z0-9_]*`; `--name` may be
+several of those joined by dots. A schema with any name that does not is refused before
+anything is written (and before `--force` deletes anything), and the command exits 1 with every
+offending name listed. Rename them in the schema and run it again.
+
+The conversion already handles separators: `first-name`, `first_name` and `first.name` all
+become `FirstName`. What it refuses is a name that is still not an identifier afterwards, such
+as `2fa`, `application/json` as an enum value, a non-ASCII letter, or OData's `@odata.type`.
+
+Descriptions and OpenAPI paths are copied as text, never refused. Each one is collapsed onto a
+single line, and escaped for where it lands: XML markup is escaped in `///` comments, and
+backslashes and quotes are escaped in the `Description = "..."` string of the train attribute.
+
+`trax machine new` holds its arguments to the same rule: the machine name must make a
+PascalCase identifier and `--namespace` must be a dotted one.
+
 ## Schema-to-Train Mapping
 
 ### GraphQL
