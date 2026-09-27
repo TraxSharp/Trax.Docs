@@ -37,7 +37,7 @@ For each `POST` to a JSON or GraphQL content-type endpoint:
 
 1. If the body has only `id` / `documentId` (no inline `query`): pass through. HotChocolate looks up the document via `IOperationDocumentStorage`.
 2. If the body has an inline `query`:
-   - **Allowlist match** (operation name in `AllowOperations` or matching a predicate): pass through.
+   - **Allowlist match** (the request's `operationName`, or its `documentId`/`id` when unnamed, is in `AllowOperations` or matches a predicate): pass through. Both keys are chosen by the caller and the document is not inspected, so the allowlist is a convenience for trusted networks, not a control. See [Allowlist and dev carve-outs](/docs/persisted-operations#allowlist-and-dev-carve-outs).
    - **Introspection** (operation name `IntrospectionQuery`, or AST is purely `__schema` / `__type`): pass through unless `DisableIntrospection()` was called.
    - **Shadow mode** (`LogNonPersistedRequests(true)`): log structured event at Information.
    - **Enforcement off** (`RequirePersisted(false)`): pass through.
