@@ -90,7 +90,7 @@ public static WebApplication UseTraxGraphQL(
 
 `AddTraxGraphQL` registers an `IStartupFilter` that prepends `app.UseWebSockets()` to the pipeline, so the WebSocket transport required for [GraphQL subscriptions](/docs/sdk-reference/graphql-api/subscriptions) is always in place before endpoint execution. You do not need to call `app.UseWebSockets()` yourself, and the ordering of `UseTraxGraphQL()` relative to other endpoint middleware (such as `UseTraxDashboard()`) does not affect the upgrade.
 
-`UseTraxGraphQL()` accepts a WebSocket upgrade only from origins the host serves: no `Origin` header, the endpoint's own host, or an origin allowed by `AllowSocketOrigins(...)` (default: the CORS default policy). Others get `403`. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#allowed-origins).
+The Trax schema accepts a WebSocket upgrade only from origins the host serves, whether `UseTraxGraphQL()` maps it or the host maps it with `MapGraphQL(path, "trax")`: no `Origin` header, the endpoint's own host, or an origin allowed by `AllowSocketOrigins(...)` (default: the CORS default policy). Others get `403`. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#allowed-origins).
 
 ## What It Registers
 

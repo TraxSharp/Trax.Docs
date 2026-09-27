@@ -157,7 +157,7 @@ services.AddTraxGraphQL(graphql => graphql
     .AllowSocketOrigins("https://app.example.com", "https://admin.example.com"));
 ```
 
-The endpoint's own host is compared without its scheme, so an https page served through a TLS-terminating proxy is recognised. The check is applied by `UseTraxGraphQL()`; a schema mapped directly with `MapGraphQL(path, "trax")` does not get it. A host whose browser clients are on another origin and whose CORS policy is a named one, not the default, needs `AllowSocketOrigins(...)`.
+The endpoint's own host is compared without its scheme, so an https page served through a TLS-terminating proxy is recognised. The check applies wherever the Trax schema serves a socket, whether `UseTraxGraphQL()` maps it or you map it yourself with `MapGraphQL(path, "trax")`, and it does not apply to another HotChocolate schema on the same host. A host whose browser clients are on another origin and whose CORS policy is a named one, not the default, needs `AllowSocketOrigins(...)`.
 
 ### Multiple JWT issuers
 
