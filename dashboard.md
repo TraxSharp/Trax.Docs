@@ -51,7 +51,7 @@ If you see a 404, your csproj is missing the property. Set it and rebuild.
 
 ### Configuration
 
-Two lines in `Program.cs`:
+Two lines in `Program.cs`, and a decision about who may use it:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -62,14 +62,19 @@ builder.Services.AddTrax(trax => trax
     )
     .AddMediator(typeof(Program).Assembly)
 );
-builder.Services.AddTraxDashboard();
+builder.Services.AddTraxDashboard(o => o.RequireRoles("Admin"));
 
 var app = builder.Build();
 
-app.UseTraxDashboard("/trax");
+app.UseTraxDashboard();
 
 app.Run();
 ```
+
+`UseTraxDashboard()` refuses to start until the options name a policy (`RequirePolicy`),
+roles (`RequireRoles`), or call `AllowAnonymousDashboard()`, because the dashboard can queue,
+run and cancel trains and change scheduler settings. See
+[UseTraxDashboard](/docs/sdk-reference/dashboard-api/use-trax-dashboard) for what each does.
 
 `AddTraxDashboard()` requires `AddTrax()` to be called first. If it is missing, `AddTraxDashboard()` throws `InvalidOperationException` with a clear message directing you to add `AddTrax()`.
 
@@ -207,6 +212,7 @@ If you register trains with `AddMediator` (which calls `AddScopedTraxRoute` unde
 builder.Services.AddTraxDashboard(options =>
 {
     options.Title = "My App";  // Header text (default: "Trax")
+    options.RequirePolicy("TraxAdmin");
 });
 ```
 
@@ -248,10 +254,16 @@ If your application is a minimal API or MVC app that doesn't use Blazor, the das
 ```csharp
 var app = builder.Build();
 
-app.UseTraxDashboard("/trax");  // After Build(), before Run()
+app.UseTraxDashboard();  // After Build(), before Run()
 
 app.Run();
 ```
+
+### "UseTraxDashboard() needs to know who may use the dashboard"
+
+No authorization posture was chosen. Add one to the `AddTraxDashboard` options:
+`RequirePolicy("<name>")`, `RequireRoles("<role>")`, or `AllowAnonymousDashboard()` when a
+fallback policy or an ingress rule in front of `/trax` is the gate.
 
 ### "No trains listed"
 

@@ -162,7 +162,14 @@ builder.Services.AddTrax(trax => trax
     .AddMediator(typeof(Program).Assembly)
 );
 
-builder.Services.AddTraxDashboard();
+// Who may use the dashboard. AllowAnonymousDashboard() is for local development only.
+builder.Services.AddTraxDashboard(o =>
+{
+    if (builder.Environment.IsDevelopment())
+        o.AllowAnonymousDashboard();
+    else
+        o.RequirePolicy("TraxAdmin");
+});
 
 var app = builder.Build();
 
