@@ -19,6 +19,7 @@ public interface IEnqueueContextAccessor
 {
     IDataContext? Current { get; }
     IDisposable Enter(IDataContext context);
+    IDisposable Suppress();
 }
 ```
 
@@ -26,6 +27,7 @@ public interface IEnqueueContextAccessor
 |--------|-------------|
 | `Current` | The context the enqueue is committing on, or null when no enqueue is in progress on this async flow |
 | `Enter(context)` | Makes `context` current for this async flow until the returned scope is disposed, which restores whatever was current before. Called by the enqueue path; consumers read `Current` |
+| `Suppress()` | Makes `Current` null for this async flow until the returned scope is disposed, which restores whatever was current before. For the enqueue path, which has to hide an outer enqueue's context from a hook that must not join it |
 
 ## When `Current` is set
 
@@ -39,7 +41,7 @@ The enqueue path enters a context only for trains that override `OnQueue`.
 
 ## Flow and nesting
 
-The value lives in a static `AsyncLocal`, so it follows the async call rather than the accessor instance or its DI scope. Every instance on the same async flow sees the same value, whichever scope or lifetime resolved it, including a singleton train's accessor or one resolved from another scope. Two enqueues running at once on one scope each see their own. An enqueue started from inside an `OnQueue` hook joins the outer enqueue's transaction (see [OnQueue](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook)), so a nested train that does not defer promotion sees the outer enqueue's context in its own hook, and what it tracks there commits or rolls back with the outer entry. Disposing each scope restores what was current before it.
+The value lives in a static `AsyncLocal`, so it follows the async call rather than the accessor instance or its DI scope. Every instance on the same async flow sees the same value, whichever scope or lifetime resolved it, including a singleton train's accessor or one resolved from another scope. Two enqueues running at once on one scope each see their own. An enqueue started from inside an `OnQueue` hook joins the outer enqueue's transaction (see [OnQueue](/docs/core/trains-and-junctions#onqueue-enqueue-time-hook)), so a nested train that does not defer promotion sees the outer enqueue's context in its own hook, and what it tracks there commits or rolls back with the outer entry. Disposing each scope restores what was current before it. `Suppress()` follows the same rules: it hides the context from the flow that calls it and the work that flow starts, never from a concurrent enqueue, and disposing it hands back what was there before.
 
 ## Rules for the hook
 
