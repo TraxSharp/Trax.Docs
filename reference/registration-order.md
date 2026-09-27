@@ -16,6 +16,7 @@ naming the call to move. Nothing about registration is allowed to fail silently.
 | Requirement | What happens if you get it wrong |
 |---|---|
 | `AddTrax()` before `AddTraxGraphQL()` / `AddTraxDashboard()` | Throws immediately, naming the missing call. |
+| An authorization posture in `AddTraxDashboard()` options before `UseTraxDashboard()` | `UseTraxDashboard()` throws, naming `RequirePolicy`, `RequireRoles` and `AllowAnonymousDashboard`. |
 | Trains registered before `AddTraxGraphQL()` | Trains registered afterwards are not in the schema. |
 
 ```csharp

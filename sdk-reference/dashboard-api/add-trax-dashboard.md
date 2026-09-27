@@ -54,6 +54,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddTraxDashboard(options =>
 {
     options.Title = "My App Dashboard";
+    options.RequirePolicy("TraxAdmin"); // required: who may use the dashboard
 });
 
 var app = builder.Build();
