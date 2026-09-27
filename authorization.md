@@ -396,6 +396,8 @@ Later execution paths are trusted:
 
 This means you can safely decorate a train with `[TraxAuthorize("Admin")]` and still schedule it via `AddScheduler()`, run it from a remote worker, or both. The authorization gate is the API boundary.
 
+Because a remote worker trusts what it is sent, the worker's own endpoints are where that trust is guarded. Every runner entry point refuses to start without an [authorization posture](/docs/scheduler/remote-execution#authorization-posture): a signing key shared with the scheduler, an authorization policy that admits only the scheduler, or an explicit, logged `AllowUnsignedRequests()`. Inside a remote run, `TraxCaller.IsTrusted` is true, so anything keyed on it (row-level filters included) treats the request as the scheduler's.
+
 ## The Operations Surface
 
 The admin and operations surface (the GraphQL `operations` namespace and the dashboard) enqueues work in two ways, and they are authorized differently. `Trax.Docs/adr/0017` records the decision.
