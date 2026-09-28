@@ -9,7 +9,7 @@ status: accepted
 
 A higher-level feature package does not carry its own migrations. Its table DDL goes into
 the core `Trax.Effect.Data.<Provider>` migration set, alongside every other Trax table.
-`035_persisted_operations.sql`, `040_state_machine_snapshots.sql` and `046_runner_nonce.sql` are
+`035_persisted_operations.sql`, `040_state_machine_snapshots.sql` and `047_runner_nonce.sql` are
 all in the core Postgres provider, and `Trax.Effect.StateMachine.Persistence` has no `Migrations` folder at
 all.
 
@@ -45,7 +45,7 @@ its own: [0036](./0036-a-feature-table-ships-with-its-model-in-effect.md).
 
 **A host that does not enable these features carries empty tables.** Five of them:
 `snapshot_draft` and `effect_claim` from `040`, `persisted_operation` and
-`persisted_operation_history` from `035`, and `runner_nonce` from `046` (scheduler/0009). That is the accepted price, and it is small against
+`persisted_operation_history` from `035`, and `runner_nonce` from `047` (scheduler/0009). That is the accepted price, and it is small against
 a table that is silently missing when the feature is on.
 
 ## Exemplars
@@ -64,6 +64,6 @@ two provider assemblies would close it, and does not exist.
 - **2026-09-28**: Points to [0036](./0036-a-feature-table-ships-with-its-model-in-effect.md), which
   ships the table's model with its DDL.
 - **2026-09-27**: Binds the Scheduler too: its runner nonce store's `runner_nonce` table ships
-  as Postgres `046` and Sqlite `011`.
+  as Postgres `047` and Sqlite `012`.
 - **2026-09-11**: Recorded. Moved from the Trax.Effect corpus: the persisted-operations
   feature package lives in Trax.Api, so the decision binds both repos.
