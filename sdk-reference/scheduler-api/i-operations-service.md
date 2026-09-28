@@ -79,6 +79,8 @@ The actions a list page applies to its selected rows. Each takes up to `Operatio
 
 `ITraxScheduler.CancelAsync` and `CancelGroupAsync` cancel a manifest's or a group's runs by the same rule as `CancelExecutionsAsync`, and signal `Execution` the same way.
 
+On a relational provider each batch is one `UPDATE` with its state test in it, so a row another writer changes meanwhile keeps its new state. The InMemory provider has no set-based update, so there the rows are loaded, changed and saved, with the same result and count ([scheduler ADR 0007](https://github.com/TraxSharp/Trax.Scheduler/blob/main/docs/adr/0007-the-operations-surface-runs-on-inmemory.md)).
+
 ## Read models
 
 The numbers behind a manifest's detail cards, the manifest groups list and the logs page.
