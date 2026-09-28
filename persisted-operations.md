@@ -146,7 +146,8 @@ opts.AllowOperations("playground_smoke_test", "DevExplore")
 Predicate form for patterns:
 
 ```csharp
-opts.AllowOperationsMatching(id => id.StartsWith("dev_"))
+if (builder.Environment.IsDevelopment())
+    opts.AllowOperationsMatching(id => id.StartsWith("dev_"));
 ```
 
 > **The allowlist is a convenience for trusted networks, not a security control.** It matches the `operationName` the caller puts in the request body (or, for an unnamed request, the `documentId` or `id`), and it never looks at the document. `AllowOperations("playground_smoke_test")` admits any inline document with an operation of that name, whatever the operation selects, and the `dev_` predicate above admits any caller who starts a name with `dev_`. Use it for smoke tests and developer tools on a network you already trust. To admit a fixed document from a client you do not control, persist the document and have the client send its id: that is the control. Per-type `[TraxAuthorize]` still applies to allowlisted requests, as it does to every request, because enforcement shapes which documents run and is not the authorization boundary.
