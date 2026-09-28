@@ -39,7 +39,12 @@ trax generate --schema <path> --output <dir> --name <project-name> [--type graph
 | `--output` | Yes | Output directory for the generated project |
 | `--name` | Yes | Project name (used for namespace and `.csproj`) |
 | `--type` | No | Force schema type: `graphql` or `openapi`. Auto-detected from file extension if omitted. |
-| `--force` | No | Overwrite the output directory if it already exists |
+| `--force` | No | Replace the output directory if it already exists, once generation has succeeded |
+
+`generate` builds the project in a hidden directory beside `--output` and moves it into place only
+when every step has succeeded, so a failed run (most often a missing `trax-hub` template) leaves an
+existing directory exactly as it was. `--force` is refused for the current directory, any of its
+parents, and a directory holding a git repository (`.git`); generate into a new directory instead.
 
 ### Examples
 
