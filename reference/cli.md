@@ -289,7 +289,8 @@ path as `generate`, the two cannot disagree. Wire it into CI to fail a build who
 
 Reserved for scaffolding a forward migration by diffing the context schema. Migrations are not yet carried in
 the IR (a stored snapshot whose version does not match is rejected and the client starts fresh), so the command
-currently prints that notice; it exists so the surface is complete.
+prints that notice to stderr and exits 1, which fails a CI step that runs it rather than reporting a migration
+that never happened.
 
 ## SDK Reference
 
