@@ -7,14 +7,15 @@ nav_order: 5
 
 # Trax CLI
 
-The Trax CLI generates Trax API projects from existing API schemas. Point it at a GraphQL SDL file or an OpenAPI spec and it scaffolds an API project (via `dotnet new trax-api`) alongside a shared trains library with trains, junctions, input/output records, and wiring, following the same structure as the DistributedWorkers sample.
+The Trax CLI generates Trax projects from existing API schemas. Point it at a GraphQL SDL file or an OpenAPI spec and it scaffolds a hub project (via `dotnet new trax-hub`: the GraphQL API, the scheduler and the dashboard in one process) alongside a shared trains library with trains, junctions, input/output records, and wiring, following the same structure as the DistributedWorkers sample.
 
 ## Prerequisites
 
-- The `trax-api` template must be installed:
+- The `trax-hub` template must be installed. It ships in the `Trax.Samples.Templates` package
+  (see [Project Templates](/docs/reference/templates)):
 
 ```bash
-dotnet new install Trax.Samples
+dotnet new install Trax.Samples.Templates
 ```
 
 ## Installation
@@ -94,21 +95,23 @@ Path parameters, query parameters, and request body fields are merged into a sin
 
 ## Generated Project Structure
 
-The CLI produces two projects: an API project (from the `trax-api` template) and a shared trains library (generated from the schema). This follows the same pattern as the DistributedWorkers sample.
+The CLI produces two projects: a hub project (from the `trax-hub` template) and a shared trains library (generated from the schema). This follows the same pattern as the DistributedWorkers sample.
 
 Given a schema with a `createPlayer` mutation and `getPlayer` query:
 
 ```
 MyProject/
-├── MyProject.Api/                    # From dotnet new trax-api
-│   ├── MyProject.Api.csproj          # + ProjectReference to trains library
+├── MyProject.Hub/                    # From dotnet new trax-hub
+│   ├── MyProject.Hub.csproj          # + ProjectReference to trains library
 │   ├── Program.cs                    # Patched: AddMediator scans trains assembly
 │   ├── appsettings.json
+│   ├── Auth/, Data/                  # Template demo key and application DbContext
 │   └── Trains/                       # Template sample trains (HelloWorld, Lookup)
 │       └── ...
 ├── MyProject.Trains/                 # Generated from schema
 │   ├── MyProject.Trains.csproj       # Class library (not web SDK)
 │   ├── ManifestNames.cs              # Centralized manifest external IDs
+│   ├── GraphQLNamespaces.cs          # One constant per operation group
 │   ├── Models/
 │   │   └── Player.cs
 │   └── Trains/
@@ -129,7 +132,7 @@ MyProject/
 
 ### What gets generated
 
-- **API project**: a fully wired Trax API from the `trax-api` template, with its `Program.cs` patched to scan the trains library assembly and a `ProjectReference` to the trains library.
+- **Hub project**: the `trax-hub` template (GraphQL API, scheduler and dashboard in one process), with its `Program.cs` patched to scan the trains library assembly and a `ProjectReference` to the trains library.
 - **Trains library**: a class library containing all the domain code:
   - **ManifestNames.cs**: centralized `const string` identifiers for each operation (kebab-case), matching the pattern used in the DistributedWorkers sample.
   - **Trains** are grouped into folders by noun (e.g., `createPlayer` and `getPlayer` both go under `Players/`).
@@ -183,13 +186,14 @@ This structure separates infrastructure from domain logic. The trains library ca
 
 ## After Generating
 
-1. `cd` into the API project directory (`MyProject/MyProject.Api`)
+1. `cd` into the hub project directory (`MyProject/MyProject.Hub`)
 2. Run `dotnet restore`
 3. Search for `TODO` in the junction files under `MyProject.Trains/` and implement your business logic
-4. Start PostgreSQL (`docker compose up -d` or similar)
-5. Update the connection string in `appsettings.json` if needed
-6. Run `dotnet run` to start the API
-7. Open `http://localhost:5002/trax/graphql` in a browser for the GraphQL playground
+4. Run `dotnet run`. The hub uses the in-memory data provider, so no database is needed; switch
+   it to Postgres or SQLite as described in [Project Templates](/docs/reference/templates#running)
+   when you need data to outlive the process
+5. Open `http://localhost:5000/trax/graphql` for the GraphQL IDE, and `http://localhost:5000/trax`
+   for the dashboard (Development only)
 
 ## State machines (`trax machine`)
 
