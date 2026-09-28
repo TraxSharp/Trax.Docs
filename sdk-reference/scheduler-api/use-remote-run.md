@@ -132,7 +132,7 @@ When a GraphQL `run*` mutation is called, the `HttpRunExecutor`:
 2. POSTs the JSON payload to `BaseUrl`
 3. Blocks until the remote endpoint returns a `RemoteRunResponse`
 4. On success: deserializes the train output from the response and returns it to GraphQL
-5. On error: throws a `TrainException` with the remote error message
+5. On error: throws a `RemoteRunException` (a `TrainException`) with the remote error details. Its `PublicMessage` is the runner's message for a client, and null for a transport failure or any failure other than a train author's `TrainException`
 
 The remote endpoint (`UseTraxRunEndpoint`) calls `ITrainExecutionService.RunAsync()` locally, which creates metadata, runs the train, and returns the output. Since both processes share the same Postgres database, the metadata is visible to the dashboard.
 
