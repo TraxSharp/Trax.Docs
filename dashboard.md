@@ -223,6 +223,8 @@ app.UseTraxDashboard();  // served at /trax
 
 The dashboard uses [Radzen Blazor](https://blazor.radzen.com/) v6 components with a sidebar navigation layout. A theme toggle in the header switches between light and dark mode, with the preference persisted in `localStorage`.
 
+When a page's refresh fails, the header shows **Last refresh failed** (the error as its tooltip) until a refresh succeeds; the rows on screen are then from the last refresh that worked. A grid that loads its rows page by page from the server clears them and shows the error when a load fails, rather than keeping the previous filter's or page's rows. A custom `IDashboardSettingsService` receives failures through `NotifyPollFailed` and exposes the latest as `LastPollError`; both have default implementations.
+
 ### User Settings
 
 The **User Settings** page (`/trax/settings/user`) lets each user customize their dashboard experience. Settings are stored in browser `localStorage` and only affect the current session.
