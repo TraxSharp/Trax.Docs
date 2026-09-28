@@ -185,7 +185,7 @@ Registers the minimum set of services to run `JobRunnerTrain`:
 | `IJobRunnerTrain` → `JobRunnerTrain` | Scoped | The train execution pipeline |
 | `ITraxRequestHandler` → `TraxRequestHandler` | Scoped | Hosting-agnostic request handler for execute/run paths |
 | `TraxJobRunnerOptions` | Singleton | The posture passed to `configure` |
-| `INonceStore` | Singleton | Where a signing runner records accepted nonces: the `runner_nonce` table, shared by every instance on the database, or memory after `UseInMemoryNonceStore()`. Registered with `TryAdd`, so a host's own store replaces it. With a `SigningKey` and neither a relational data provider nor `UseInMemoryNonceStore()`, resolving it fails at startup |
+| `INonceStore` | Singleton | Where a signing runner records accepted nonces: the `runner_nonce` table through `IDataContext.RunnerNonces`, shared by every instance on the database, or memory after `UseInMemoryNonceStore()`. Registered with `TryAdd`, so a host's own store replaces it. With a `SigningKey` and neither a relational data provider nor `UseInMemoryNonceStore()`, resolving it fails at startup |
 | `RunnerRequestVerifier` | Singleton | Checks the posture at startup and each request's signature and freshness |
 
 **Not registered:** ManifestManager, JobDispatcher, polling services, startup service, `LocalWorkerService`. This process only runs trains; it doesn't schedule or dispatch them.
