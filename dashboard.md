@@ -191,7 +191,7 @@ Per-group `MaxActiveJobs` prevents starvation: when a high-priority group hits i
 
 ### Persisted Operations (optional)
 
-When the host wires [UsePersistedOperations](/docs/sdk-reference/persisted-operations/use-persisted-operations) into the Trax GraphQL builder, the dashboard exposes a **Persisted Operations** entry under **Data**. The page lists every row in `trax.persisted_operation` and supports Upload, Edit, Deactivate, and Restore. The editor renders parse, schema-validation, and shape-diff errors inline. The sidebar entry is hidden when `UsePersistedOperations` was not called; direct navigation renders a "not enabled on this server" panel.
+When the host wires [UsePersistedOperations](/docs/sdk-reference/persisted-operations/use-persisted-operations) into the Trax GraphQL builder, the dashboard exposes a **Persisted Operations** entry under **Data**. The page lists every row in `trax.persisted_operation` and supports Upload, Edit, Deactivate, and Restore. The editor renders parse, schema-validation, and shape-diff errors inline. The sidebar entry is hidden when `UsePersistedOperations` was not called; direct navigation to the list or to an operation's detail page renders a "not enabled on this server" panel.
 
 ## How Discovery Works
 
