@@ -309,6 +309,11 @@ All samples require PostgreSQL. From the `Trax.Samples/` directory:
 docker compose up -d
 ```
 
+The compose file publishes Postgres and RabbitMQ on `127.0.0.1` only, because their passwords
+(`trax123`) are written in the file. Set `TRAX_PG_PORT` to move Postgres to another host port
+when something else holds 5432. If you copy the file to a server, keep the `127.0.0.1:` prefix
+and replace the passwords.
+
 ### DataPipeline (Standalone)
 
 ```bash
