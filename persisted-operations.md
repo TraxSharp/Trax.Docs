@@ -240,7 +240,7 @@ Every upsert runs the candidate document through HotChocolate's standard validat
 
 All three inherit `PersistedOperationException`. The GraphQL mutations and the dashboard editor project them into structured error payloads with the codes documented above.
 
-Hosts using `AddPersistedOperationStore(...)` (admin tooling without a HotChocolate schema in process) get a no-op validator instead. The shape-diff guardrail still runs.
+Hosts using `AddPersistedOperationStore(...)` (admin tooling without a HotChocolate schema in process) get a no-op validator instead. The shape-diff guardrail still runs. `AddPersistedOperationStore` is complete on its own: the store resolves from a container with nothing else from this package, and with no request executor there is no HotChocolate cache to empty after a write.
 
 ### Coexistence with `@authorize`
 
