@@ -32,7 +32,7 @@ public sealed record TraxAuditEntry(
 
 | Field | Notes |
 |---|---|
-| `PrincipalId` | From `trax:principal-id` claim, or `TraxAuditOptions.DefaultPrincipalId` when absent. |
+| `PrincipalId` | From `trax:principal-id` claim (qualified by scheme, `{scheme}:{id}`), or `TraxAuditOptions.DefaultPrincipalId` when absent. |
 | `PrincipalType` | From `trax:principal-type` claim. `apikey`, `jwt`, or similar. `null` for anonymous. |
 | `OperationName` | The GraphQL operation name, if any. |
 | `Document` | The GraphQL query text. Truncated at `TraxAuditOptions.MaxDocumentLength` with a trailing `...[truncated]` marker. |

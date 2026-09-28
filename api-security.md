@@ -165,7 +165,7 @@ This replaces Trax's interceptor and is independent of auth-registration order. 
 
 ## Per-Train Authorization
 
-`TraxPrincipalExtensions.ToClaimsPrincipal` populates both `trax:principal-id` and `ClaimTypes.Name`, so the existing `[TraxAuthorize]` machinery from [Authorization](/docs/authorization) works unchanged. Policies and roles behave exactly as ASP.NET Core documents them. Role comparison is case-insensitive.
+`TraxPrincipalExtensions.ToClaimsPrincipal` populates both `trax:principal-id` (the resolver's id qualified by the scheme, `{scheme}:{id}`, so two issuers' subjects never collide; see [Qualified Principal Ids](/docs/migration-guides/qualified-principal-ids)) and `ClaimTypes.Name`, so the existing `[TraxAuthorize]` machinery from [Authorization](/docs/authorization) works unchanged. Policies and roles behave exactly as ASP.NET Core documents them. Role comparison is case-insensitive.
 
 ### Error Messages are Generic
 

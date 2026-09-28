@@ -225,7 +225,7 @@ No consumer configuration is required.
 ### Limitations
 
 - **Field-level gating inside an entity is not supported.** `[TraxAuthorize]` on a property is ignored. If `User.email` must be admin-only but `User.displayName` must be public, use a custom train rather than `[TraxQueryModel]`, or split the entity into two types via `ExposeAs`.
-- **Row-level filtering is not supported.** `[TraxAuthorize]` answers "can this user read *this type*", not "which rows of this type." For per-row scoping (tenancy, ownership, subscription tier), use EF Core global query filters that read the current `ClaimsPrincipal` from a scoped service.
+- **Row-level filtering is not supported.** `[TraxAuthorize]` answers "can this user read *this type*", not "which rows of this type." For per-row scoping (tenancy, ownership, subscription tier), use EF Core global query filters that read the current `ClaimsPrincipal` from a scoped service. Key ownership on the `trax:principal-id` claim as it is, `{scheme}:{id}`: the scheme is part of the id, so one issuer's `sub` cannot match another's. See [Qualified Principal Ids](/docs/migration-guides/qualified-principal-ids).
 
 ## Anonymous Access via [TraxAllowAnonymous]
 
