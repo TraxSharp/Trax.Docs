@@ -35,7 +35,7 @@ public sealed record TraxAuditEntry(
 | `PrincipalId` | From `trax:principal-id` claim, or `TraxAuditOptions.DefaultPrincipalId` when absent. |
 | `PrincipalType` | From `trax:principal-type` claim. `apikey`, `jwt`, or similar. `null` for anonymous. |
 | `OperationName` | The GraphQL operation name, if any. |
-| `Document` | The GraphQL query text. Truncated at `TraxAuditOptions.MaxDocumentLength` with a trailing `...[truncated]` marker. |
+| `Document` | The GraphQL query text. Past `TraxAuditOptions.MaxDocumentLength` it is cut to that length, marked `...[truncated]`, and followed by `[selected fields: Type.field, ...]`: every field the compiled operation selects, after fragment expansion, each schema coordinate listed once. |
 | `Variables` | Post-redaction. `null` when there were no variables or the redactor returned `null`. |
 | `DurationMs` | Elapsed request time in milliseconds. |
 | `Timestamp` | UTC when the request started, NOT when the entry was persisted. |
