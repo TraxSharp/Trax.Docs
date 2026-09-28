@@ -483,7 +483,9 @@ The signature is an HMAC-SHA256 over the request's purpose (`execute` or `run`),
 | Lambda `Run` (synchronous) | signature, timestamp, nonce |
 | Lambda `Execute` (asynchronous) and SQS | signature only: both redeliver the same message, and the job's `Pending` metadata row stops a second run |
 
-A refused HTTP request gets `401` and never reaches the train. A refused Lambda invocation or SQS message throws, so Lambda's retry and dead-letter settings apply. The scheduler signs each retry afresh, so a retry is never refused as a replay. The nonce memory is per runner process: a runner scaled to several instances refuses a replay only on the instance that saw the original.
+A refused HTTP request gets `401` and never reaches the train. A refused Lambda invocation or SQS message throws, so Lambda's retry and dead-letter settings apply. The scheduler signs each retry afresh, so a retry is never refused as a replay.
+
+**Where nonces are kept.** A signing runner records each accepted nonce in the Trax database, in the `runner_nonce` table the standard migrations create, so every instance of a runner that shares the database accepts a request once between them. The table's primary key decides: a nonce already recorded, and not yet expired, is a repeat. Any other database failure while recording one is an error, never read as a repeat. Expired rows are taken over or removed as it goes. A runner that runs as a single instance can keep them in memory instead with `runner.UseInMemoryNonceStore()`, and a host can register its own `INonceStore` singleton to share them some other way. A signing runner whose host has no relational data provider (`UsePostgres` or `UseSqlite`) must pick one of those two, or it refuses to start.
 
 **Policy-based authorization.** Name the policy in the runner options rather than chaining `.RequireAuthorization()` onto the endpoint, so the runner can check it at startup. The scheduler side adds the credentials the policy expects through `ConfigureHttpClient`:
 
