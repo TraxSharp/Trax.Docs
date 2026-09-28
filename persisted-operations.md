@@ -135,7 +135,8 @@ opts.AllowOperations("playground_smoke_test", "DevExplore")
 Predicate form for patterns:
 
 ```csharp
-opts.AllowOperationsMatching(id => id.StartsWith("dev_"))
+if (builder.Environment.IsDevelopment())
+    opts.AllowOperationsMatching(id => id.StartsWith("dev_"));
 ```
 
 Introspection requests (`IntrospectionQuery`, or any query whose top-level selection set is purely `__schema` / `__type`) bypass enforcement automatically. Disable with `DisableIntrospection()` for tight prod.
