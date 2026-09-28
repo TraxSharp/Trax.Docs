@@ -55,6 +55,7 @@ The overload without `configure` registers the execution pipeline with no postur
 | `AuthorizationPolicy` | `string?` | `null` | An ASP.NET authorization policy applied to `UseTraxJobRunner` and `UseTraxRunEndpoint`. Must admit only the scheduler. Not applicable to SQS or Lambda |
 | `MaxClockSkew` | `TimeSpan` | 5 minutes | How far a signed request's timestamp may be from the runner's clock, and how long a nonce is remembered |
 | `AllowUnsignedRequests()` | method | | Accepts requests with no signature. Each entry point logs a warning when it starts |
+| `UseInMemoryNonceStore()` | method | | Keeps accepted nonces in this process instead of the database. Only for a runner that runs as one instance: each instance keeps its own |
 
 See [Authorization Posture](/docs/scheduler/remote-execution#authorization-posture) for how the three combine and what each transport checks.
 
@@ -184,7 +185,8 @@ Registers the minimum set of services to run `JobRunnerTrain`:
 | `IJobRunnerTrain` → `JobRunnerTrain` | Scoped | The train execution pipeline |
 | `ITraxRequestHandler` → `TraxRequestHandler` | Scoped | Hosting-agnostic request handler for execute/run paths |
 | `TraxJobRunnerOptions` | Singleton | The posture passed to `configure` |
-| `RunnerRequestVerifier` | Singleton | Checks the posture at startup and each request's signature, and remembers accepted nonces |
+| `INonceStore` | Singleton | Where a signing runner records accepted nonces: the `runner_nonce` table, shared by every instance on the database, or memory after `UseInMemoryNonceStore()`. Registered with `TryAdd`, so a host's own store replaces it. With a `SigningKey` and neither a relational data provider nor `UseInMemoryNonceStore()`, resolving it fails at startup |
+| `RunnerRequestVerifier` | Singleton | Checks the posture at startup and each request's signature and freshness |
 
 **Not registered:** ManifestManager, JobDispatcher, polling services, startup service, `LocalWorkerService`. This process only runs trains; it doesn't schedule or dispatch them.
 

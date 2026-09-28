@@ -66,7 +66,7 @@ public record LambdaEnvelope(LambdaRequestType Type, string PayloadJson)
 public enum LambdaRequestType { Execute, Run }
 ```
 
-Before dispatching, the function checks its posture and, with a `SigningKey`, the envelope's `Signature` over the UTF-8 bytes of `PayloadJson`. A `Run` must also be fresh and not repeated. An `Execute` is checked for its signature only, because Lambda retries an asynchronous invocation with the same payload; the job's `Pending` metadata row stops a second run. A refused envelope throws, so the invocation fails and Lambda's retry and dead-letter settings apply.
+Before dispatching, the function checks its posture and, with a `SigningKey`, the envelope's `Signature` over the UTF-8 bytes of `PayloadJson`. A `Run` must also be fresh and not repeated; its nonce goes to the runner's nonce store, the Trax database by default, so concurrent instances of the function refuse a repeat too. A function with a `SigningKey` and no `UsePostgres` or `UseSqlite` calls `runner.UseInMemoryNonceStore()` in `ConfigureRunner`, or registers an `INonceStore`, or it refuses to start. An `Execute` is checked for its signature only, because Lambda retries an asynchronous invocation with the same payload; the job's `Pending` metadata row stops a second run. A refused envelope throws, so the invocation fails and Lambda's retry and dead-letter settings apply.
 
 ## Examples
 
