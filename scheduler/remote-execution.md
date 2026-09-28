@@ -508,7 +508,7 @@ app.UseTraxJobRunner("/trax/execute");
 
 A signing key and a policy can be combined; the runner then requires both.
 
-**Only registered trains run.** A queued job names its input type, and the runner accepts only a name that is the input type of one of its registered trains. The job's metadata row must belong to the train registered for that input; otherwise the runner refuses it and the row stays `Pending`.
+**Only registered trains run.** A queued job names its input type, and the runner accepts only a name that is the input type of one of its registered trains. The job's metadata row must belong to the train registered for that input; otherwise the runner refuses it and the row stays `Pending`. Registered does not include the scheduler's own trains (the ManifestManager, the JobDispatcher, the JobRunner and the two cleanup trains): the scheduler starts those itself, so `/trax/run` and a Lambda `Run` refuse a name that is one of them, and a queued job whose input belongs to one is refused with its row left `Pending`. A host train that shares one of their short names still runs by that name.
 
 ## Host Tracking
 

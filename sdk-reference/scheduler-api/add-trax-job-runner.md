@@ -206,10 +206,11 @@ With an `AuthorizationPolicy`, the endpoint requires it.
 Enforces the same posture as `UseTraxJobRunner`, and throws while mapping without one. Maps a `POST` endpoint at the specified route that handles synchronous run requests from [`UseRemoteRun()`](/docs/sdk-reference/scheduler-api/use-remote-run):
 
 1. Reads a `RemoteRunRequest` from the request body (contains train name and input JSON), after the same `415` and `401` checks, and with the same `400` refusals
-2. Resolves `ITrainExecutionService` and calls `RunAsync(trainName, inputJson)`
-3. Serializes the train output as JSON
-4. Returns `200 OK` with a `RemoteRunResponse` containing the metadata ID, output JSON, and output type
-5. On error: returns `200 OK` with `RemoteRunResponse.IsError = true` and structured error fields (`ErrorMessage`, `ExceptionType`, `FailureJunction`, `FailureClass`). `StackTrace` is always null, and `ErrorMessage` is fixed text unless the failure is a `TrainException`. `FailureClass` is the classification this process's `IFailureClassifier` assigned, or null when none is registered or it did not recognise the failure. `PublicMessage` is the message of a plain `TrainException` and null for anything else, including a type derived from `TrainException`. The response is written with Trax's own JSON options (enums as integers), not the host's, so a host configured to write enums as strings does not change the wire. The reading side also accepts names, and reads a class it does not know as `Unclassified`. Uses in-band errors to distinguish from infrastructure failures
+2. Refuses a train name that is one of the scheduler's own trains (ManifestManager, JobDispatcher, JobRunner, MetadataCleanup, DeadLetterCleanup), by full name, or by short name unless a host train shares it
+3. Resolves `ITrainExecutionService` and calls `RunAsync(trainName, inputJson)`
+4. Serializes the train output as JSON
+5. Returns `200 OK` with a `RemoteRunResponse` containing the metadata ID, output JSON, and output type
+6. On error: returns `200 OK` with `RemoteRunResponse.IsError = true` and structured error fields (`ErrorMessage`, `ExceptionType`, `FailureJunction`, `FailureClass`). `StackTrace` is always null, and `ErrorMessage` is fixed text unless the failure is a `TrainException`. `FailureClass` is the classification this process's `IFailureClassifier` assigned, or null when none is registered or it did not recognise the failure. `PublicMessage` is the message of a plain `TrainException` and null for anything else, including a type derived from `TrainException`. The response is written with Trax's own JSON options (enums as integers), not the host's, so a host configured to write enums as strings does not change the wire. The reading side also accepts names, and reads a class it does not know as `Unclassified`. Uses in-band errors to distinguish from infrastructure failures
 
 ## Shared Requirements
 
