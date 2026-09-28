@@ -118,6 +118,7 @@ enum ChangeDomain {
   MANIFEST
   MANIFEST_GROUP
   SCHEDULER_CONFIG
+  EXECUTION
 }
 ```
 
@@ -128,6 +129,7 @@ enum ChangeDomain {
 | `MANIFEST` | A manifest is edited, enabled, or disabled (not on routine schedule recompute) |
 | `MANIFEST_GROUP` | A manifest group's configuration changes |
 | `SCHEDULER_CONFIG` | The scheduler configuration changes |
+| `EXECUTION` | Cancellation is requested for one or more runs, so a runs view should refetch. Added in Trax.Effect 1.56.0 |
 
 ```graphql
 subscription {
