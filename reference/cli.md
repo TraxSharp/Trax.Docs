@@ -14,7 +14,7 @@ The Trax CLI generates Trax API projects from existing API schemas. Point it at 
 - The `trax-api` template must be installed:
 
 ```bash
-dotnet new install Trax.Samples
+dotnet new install Trax.Samples.Templates
 ```
 
 ## Installation
