@@ -80,7 +80,9 @@ MyCompany.Api/
 - **GraphQL API**: HotChocolate schema at `/trax/graphql` with Banana Cake Pop IDE
 - **Health check**: ASP.NET Core health endpoint at `/trax/health`
 
-**Sample trains:**
+**Sample trains:** both carry `[TraxAuthorize(Roles = "User")]`, the role the demo key holds,
+so every request needs `X-Api-Key: demo-key-do-not-use-in-production` (see
+[Before deploying](#before-deploying)).
 
 - **LookupTrain**: a `[TraxQuery]` train that returns typed output. Generates a query field: `query { discover { lookup(input: { id: "42" }) { id name createdAt } } }`
 - **HelloWorldTrain**: a `[TraxMutation]` train that logs a greeting. Generates a mutation field: `mutation { dispatch { helloWorld(input: { name: "Trax" }) { externalId metadataId } } }`
@@ -142,14 +144,16 @@ from `Properties/launchSettings.json`. Two things exist only there.
 | What | Where | Outside Development |
 |------|-------|---------------------|
 | The Trax Dashboard at `/trax` | `trax-scheduler`, `trax-hub` | Not mapped; `/trax` is a 404. |
-| The demo API key (`X-Api-Key: demo-key-do-not-use-in-production`) | `trax-api`, `trax-hub` | Not registered, so every `[TraxAuthorize]` operation is refused. |
+| The demo API key (`X-Api-Key: demo-key-do-not-use-in-production`) | `trax-api`, `trax-hub` | Not registered. Every template train and the `Note` query model carry `[TraxAuthorize]`, so every operation is refused. |
 
 The dashboard can queue, run and cancel trains and change scheduler settings, and the
 templates put no authorization in front of it. To serve it anywhere else, choose who may use
 it (see [UseTraxDashboard](/docs/sdk-reference/dashboard-api/use-trax-dashboard)) and remove
 the `IsDevelopment()` check around `AddTraxDashboard` and `UseTraxDashboard` in `Program.cs`.
 Replace the demo key with real credentials, such as `AddHashed` keys loaded from a secret
-store, before removing the check around `AddTraxApiKeyAuth`.
+store, before removing the check around `AddTraxApiKeyAuth`. Keep `[TraxAuthorize]` on the
+trains you add; mark one `[TraxAllowAnonymous]` only when anyone who can reach the host may
+call it.
 
 A published build started with `dotnet MyCompany.Scheduler.dll`, or in a container, runs in
 Production unless the environment variable says otherwise, so it gets neither.
@@ -189,6 +193,7 @@ The API can queue trains for the scheduler via `{trainName}(mode: QUEUE)` mutati
 ### Query train (read-only, runs on the API)
 
 ```csharp
+[TraxAuthorize(Roles = "User")]
 [TraxQuery(Description = "Fetches a customer by ID")]
 public class GetCustomerTrain
     : ServiceTrain<GetCustomerInput, CustomerOutput>, IGetCustomerTrain
