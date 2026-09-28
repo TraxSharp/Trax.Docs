@@ -160,7 +160,7 @@ There are three surfaces, all backed by the same `IPersistedOperationStore` and 
 
 ### From the dashboard
 
-When `UsePersistedOperations(...)` is wired into the API host, the Trax dashboard exposes a **Persisted Operations** entry under **Data**. The page lists every row in `trax.persisted_operation`, supports filtering, and offers Upload / Edit / Deactivate / Restore actions. The editor renders parse, schema-validation, and shape-diff errors inline so the operator never has to read a stack trace.
+When `UsePersistedOperations(...)` is wired into the API host, the Trax dashboard exposes a **Persisted Operations** entry under **Data**. The page lists `trax.persisted_operation` a page at a time, filters by tenant, status and id prefix, and offers Upload / Edit / Deactivate / Restore actions against the row's own tenant. It calls the same resolvers as the `operations.persistedOperations` fields, so an upload or deactivation the API refuses is refused with the same message. The editor renders parse, schema-validation, and shape-diff errors inline so the operator never has to read a stack trace.
 
 If `UsePersistedOperations(...)` was not called, the sidebar entry is hidden and direct navigation to `/trax/data/persisted-operations`, or to an operation's detail page under it, renders a "not enabled on this server" panel. The dashboard probes the runtime via `IServiceProvider.GetService<IPersistedOperationsCapability>()`.
 
