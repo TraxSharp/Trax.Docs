@@ -270,7 +270,7 @@ services.AddTraxGraphQL(graphql =>
 | `ChannelCapacity` | 10,000 | Bounded channel size. Drops increment `trax.audit.dropped`. |
 | `BatchSize` | 50 | Max entries per sink invocation. |
 | `FlushInterval` | 500ms | Max wait before flushing a partial batch. |
-| `MaxDocumentLength` | 65,536 | Documents longer than this get a `...[truncated]` marker. |
+| `MaxDocumentLength` | 65,536 | Documents longer than this are cut, marked `...[truncated]`, and followed by `[selected fields: ...]`, every `Type.field` the operation selects. Padding ahead of the fields that matter cannot push them out of the record. |
 | `SkipIntrospection` | true | Drop `IntrospectionQuery` from the log. |
 | `SkipSubscriptions` | true | Subscriptions don't fit the request/response model. |
 | `DefaultPrincipalId` | `<anonymous>` | Used when the request has no Trax principal. |
