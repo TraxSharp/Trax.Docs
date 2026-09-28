@@ -430,7 +430,11 @@ npm install && npm run dev
 
 GraphQL IDE at `http://localhost:5220/trax/graphql`. React client at `http://localhost:5173`.
 
-No authentication required - this is a developer tool.
+No authentication - this is a local developer tool, and it builds and runs code on your
+machine. The hub starts only in Development (which `dotnet run` sets through its
+`launchSettings.json`), listens on localhost, and answers only requests addressed to
+`localhost`. `runTests` takes a project name from `discoverTestProjects` and refuses any other,
+so it runs only the test projects already under the configured root.
 
 **Quick walkthrough (TestRunner):**
 
@@ -442,7 +446,7 @@ No authentication required - this is a developer tool.
 subscription { onTrainCompleted { externalId trainName output } }
 
 # 3. Queue a test run - returns immediately with an externalId
-mutation { dispatch { runTests(input: { projectName: "Trax.Core.Tests.Unit", projectPath: "/home/user/Repos/Trax/Trax.Core/tests/Trax.Core.Tests.Unit/Trax.Core.Tests.Unit.csproj" }) { externalId workQueueId } } }
+mutation { dispatch { runTests(input: { projectName: "Trax.Core.Tests.Unit" }) { externalId workQueueId } } }
 
 # The subscription tab receives the result when the train completes,
 # with test results in the output field (Total, Passed, Failed, FailedTests, etc.)
