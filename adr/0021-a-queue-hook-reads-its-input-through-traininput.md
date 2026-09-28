@@ -60,13 +60,14 @@ cannot change what a run records.
 
 **Enforced elsewhere:** `QueueHookInputTests` in Trax.Effect (the hooks read the input, the scope
 restores and nests, concurrent enqueues on one instance each see their own, another instance sees
-nothing, and both refusals), and
+nothing, and both refusals),
 `Run_WhileAnEnqueueHasHandedTheInstanceItsInput_ReadsItsOwnInput` in Trax.Effect's
-`TrainLifecycleOverrideTests` (a run on the instance an enqueue handed its input to records its own).
-
-Not covered: nothing in Trax.Effect can check that the mediator calls the method around both hooks.
-That half belongs to Trax.Mediator's own tests.
+`TrainLifecycleOverrideTests` (a run on the instance an enqueue handed its input to records its
+own), and `QueueHookTrainInputTests` in Trax.Mediator (a key built from `TrainInput` differs per
+input, and `OnQueue` reads it at the top level, on a deferring train, and in a train enqueued
+from another train's hook, whose outer hook still reads its own input afterwards).
 
 ## Changelog
 
 - **2026-09-27**: Recorded.
+- **2026-09-27**: The mediator half landed; its guard is named under Exemplars.
