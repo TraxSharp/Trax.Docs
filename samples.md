@@ -309,6 +309,12 @@ All samples require PostgreSQL. From the `Trax.Samples/` directory:
 docker compose up -d
 ```
 
+The samples' demo API keys and JWT signing keys are published in this repository, so each
+sample registers them only in Development. `dotnet run` starts in Development through the
+project's `Properties/launchSettings.json`; started any other way, a sample accepts none of
+them. Every demo API key contains `do-not-use-in-production`, which Trax.Api refuses to start
+with outside Development.
+
 ### DataPipeline (Standalone)
 
 ```bash
@@ -386,7 +392,7 @@ npm install && npm run dev
 
 GraphQL IDE at `http://localhost:5210/trax/graphql`. React client at `http://localhost:5173`.
 
-Authentication uses `X-Api-Key` header with three users: `alice-key`, `bob-key`, `charlie-key`.
+Authentication uses `X-Api-Key` header with three users: `alice-key-do-not-use-in-production`, `bob-key-do-not-use-in-production`, `charlie-key-do-not-use-in-production`.
 The React client provides a user switcher dropdown - open multiple browser tabs to simulate different users chatting in real time.
 
 **Quick walkthrough (ChatService):**
