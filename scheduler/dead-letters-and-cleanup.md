@@ -240,7 +240,7 @@ A metadata row is deleted when **all** of these conditions are true:
 
 Any work queue entries and log entries associated with deleted metadata are also removed.
 
-Cancelled trains are treated as terminal, they are eligible for cleanup but are **not retried** and **do not create dead letters**. Cancellation is an explicit operator action, not a transient failure.
+Cancelled trains are treated as terminal, they are eligible for cleanup but are **not retried** and **do not create dead letters**. Cancellation is an explicit operator action, not a transient failure. A run that stopped because something inside it gave up, such as an `HttpClient` timeout, was not cancelled: it is recorded `Failed` and classified `Transient`, so it counts toward `MaxRetries` like any other failure.
 
 ## Dead Letter Auto-Purge
 
