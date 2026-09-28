@@ -39,6 +39,10 @@ at query time in a way that points at the wrong place.
 **This does not invert the dependency.** The `.sql` is text, and the provider references
 nothing from the feature package.
 
+**The DDL is not all that ships.** The table's model, mapping and `DbSet` on `IDataContext` ship
+in Trax.Effect with it, and the feature reaches the table through them rather than through SQL of
+its own: [0036](./0036-a-feature-table-ships-with-its-model-in-effect.md).
+
 **A host that does not enable these features carries empty tables.** Five of them:
 `snapshot_draft` and `effect_claim` from `040`, `persisted_operation` and
 `persisted_operation_history` from `035`, and `runner_nonce` from `046` (scheduler/0009). That is the accepted price, and it is small against
@@ -57,6 +61,8 @@ two provider assemblies would close it, and does not exist.
 
 ## Changelog
 
+- **2026-09-28**: Points to [0036](./0036-a-feature-table-ships-with-its-model-in-effect.md), which
+  ships the table's model with its DDL.
 - **2026-09-27**: Binds the Scheduler too: its runner nonce store's `runner_nonce` table ships
   as Postgres `046` and Sqlite `011`.
 - **2026-09-11**: Recorded. Moved from the Trax.Effect corpus: the persisted-operations
