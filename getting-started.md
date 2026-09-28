@@ -143,11 +143,12 @@ dotnet new trax-scheduler -n MyApp
 ```
 
 This scaffolds a project with:
-- PostgreSQL persistence
+- The in-memory data provider, so it runs with no database (swap in `UsePostgres` when you need one)
 - `TrainBus` for decoupled dispatch
-- Scheduler with cron-based manifests
-- Dashboard at `/trax`
-- A sample HelloWorld train
+- A scheduler running a sample HelloWorld train every 20 seconds
+- The dashboard at `/trax`, in Development only
+
+`trax-hub` adds the GraphQL API to the same process. See [Project Templates](/docs/reference/templates).
 
 Or configure manually:
 
