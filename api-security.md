@@ -219,6 +219,19 @@ services.AddTraxGraphQL(graphql => graphql
 | `MaxOperationsPerRequest` | 50 | Caps aliased + batched top-level selections per request. Rejects with `TRAX_TOO_MANY_OPERATIONS`. |
 | `MaxOperationsPerConnection` | 100 | Caps the operations one WebSocket connection runs at once. An operation started past it gets `TRAX_SOCKET_OPERATION_LIMIT` and takes no place; the connection stays open, and a place frees when one of its operations completes. It is per connection, so it does not bound how many connections a client opens. |
 | `operations` namespace | Off (queries and mutations) | The predefined `operations.*` queries (manifests, executions, dead letters, health, hosts, config) and mutations (trigger, cancel, requeue) are not exposed unless the consumer opts in via `ExposeOperationQueries()` / `ExposeOperationMutations()`. The mutation surface drives `ITraxScheduler` directly, so leaving it open lets any caller disrupt scheduled work, and the read surface discloses internal hostnames and per-instance execution counts. Exposing either without a gate fails at startup: answer with `GateOperations(policy, roles)` to gate the namespace alone, `RequireAuthorization()` to gate the whole endpoint, or `AllowAnonymousOperations()` to acknowledge a deliberately public control plane. The gate is the only check on manifest triggers and dead-letter requeues; `queueTrain` and `requeueExecution` also apply the train's `[TraxAuthorize]` requirements (see [The Operations Surface](/docs/authorization#the-operations-surface)). Train inputs (an execution's `input`, a manifest's `properties`, a work queue entry's `input`) and effect settings, any of which can hold credentials, answer to the same gate and are served one row at a time by the detail reads, never by a list (see [Train inputs and the operations gate](/docs/sdk-reference/graphql-api/queries#train-inputs-and-the-operations-gate)). |
+| HTTP GET | Off | GraphQL runs over POST only. A cross-site top-level navigation carries a `SameSite=Lax` cookie, so a GET-executable query could run a `[TraxQuery]` train as the signed-in user. `AllowGetRequests()` opts in; an opted-in GET still needs the `GraphQL-preflight` header and runs queries only. See [Serving GraphQL over GET](#serving-graphql-over-get). |
+
+### Serving GraphQL over GET
+
+GraphQL over HTTP GET is off. A browser attaches a `SameSite=Lax` cookie to a cross-site top-level navigation, so with GET on, a link on another site could run a `[TraxQuery]` train as the signed-in user. The response is not readable cross-site, but the train still runs.
+
+A host with a client that needs GET, such as a CDN caching persisted queries by id, opts in:
+
+```csharp
+services.AddTraxGraphQL(graphql => graphql.AllowGetRequests());
+```
+
+Two guards stay on. A GET must carry the `GraphQL-preflight: 1` header, which a navigation cannot add, and only queries run over GET; a mutation is refused. The setting belongs to the `trax` schema, so it holds for `UseTraxGraphQL()` and for a directly mapped `MapGraphQL(path, "trax")` alike. The IDE page and the SDL download are separate HotChocolate options and are unaffected.
 
 ### Gating GraphQL Execution Without Locking the IDE
 
