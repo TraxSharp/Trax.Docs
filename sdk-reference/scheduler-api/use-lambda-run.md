@@ -111,10 +111,10 @@ When a GraphQL `run*` mutation is called, the `LambdaRunExecutor`:
 2. Wraps it in a `LambdaEnvelope` with `Type = Run`
 3. Calls `IAmazonLambda.InvokeAsync()` with `InvocationType.RequestResponse`
 4. Blocks until the Lambda completes
-5. Reads `response.FunctionError` and throws `TrainException` if the Lambda failed at the infrastructure level
+5. Reads `response.FunctionError` and throws `RemoteRunException` (a `TrainException`) with no public message if the Lambda failed at the infrastructure level
 6. Deserializes the response payload as `RemoteRunResponse`
 7. On success: returns the train output to GraphQL
-8. On error (`RemoteRunResponse.IsError`): throws `TrainException` with the remote error details
+8. On error (`RemoteRunResponse.IsError`): throws `RemoteRunException` with the remote error details and the runner's `PublicMessage`
 
 ## Differences from UseRemoteRun
 
