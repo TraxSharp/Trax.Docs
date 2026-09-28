@@ -261,6 +261,11 @@ output root, because a consumer typically splits them across trees (the IR and c
 directory, the twin next to the frontend). Pass at least one `--*-out`; the run is atomic (a failed step
 leaves every output root untouched) and idempotent.
 
+The machine's id (what its `Id(...)` sets) names every artifact, so it must be kebab-case: lowercase
+letters and digits in words joined by single hyphens, starting with a letter (`checkout`,
+`write-to-congress`), the form `trax machine new` produces. `generate` and `check` refuse any other id
+before writing anything.
+
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--assembly` | Yes | Compiled assembly (`.dll`) containing the machine. |
