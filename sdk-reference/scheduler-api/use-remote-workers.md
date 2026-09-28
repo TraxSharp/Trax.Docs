@@ -192,7 +192,8 @@ When the JobDispatcher processes a work queue entry, it checks the `JobSubmitter
 
 1. Serializes a `RemoteJobRequest` containing the metadata ID and optional input
 2. POSTs the JSON payload to `BaseUrl`
-3. Returns a synthetic job ID (`"http-{guid}"`)
+3. Reads the runner's `RemoteJobResponse` for that metadata ID. A non-success status, an `IsError` response, or a success status whose body is not a `RemoteJobResponse` naming the same metadata ID (a proxy's page, an empty body, a misrouted `BaseUrl`) fails the dispatch with a `TrainException`
+4. Returns a synthetic job ID (`"http-{guid}"`)
 
 The remote endpoint is responsible for running `JobRunnerTrain`, which loads the metadata from the shared Postgres database, validates the job state, executes the train, and updates the manifest.
 
