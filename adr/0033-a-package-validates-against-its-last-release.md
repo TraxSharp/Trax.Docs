@@ -59,14 +59,15 @@ consumer to bind to, and Trax.Samples ships only templates.
 **Enforced elsewhere:** `EnablePackageValidation` and `PackageValidationBaselineVersion` in each
 adopting repo's `Directory.Build.props`, with a "Pack (package validation)" step in its
 `.github/workflows/pull_request.yml`. Trax.Core has both on `main` (baseline 1.7.3); Trax.Dashboard
-adds them on `build/package-validation` (baseline 1.15.1).
+adds them on `build/package-validation` (baseline 1.15.1), and Trax.Mediator on
+`build/package-validation-mediator` (baseline 1.22.1, for Trax.Mediator and Trax.Mediator.Testing).
 
-Not covered: Trax.Effect, Trax.Mediator, Trax.Scheduler and Trax.Api have no validation at the time
-of recording, so the decision binds them before anything holds them to it. Nothing checks that a
-baseline was bumped after a release, or that a new packable project falls under the condition that
+Not covered: Trax.Effect, Trax.Scheduler and Trax.Api have no validation at the time of recording,
+so the decision binds them before anything holds them to it. Nothing checks that a baseline was bumped after a release, or that a new packable project falls under the condition that
 enables validation. Validation compares only against one release, so a break introduced and shipped
 before the baseline moved is accepted as the new normal.
 
 ## Changelog
 
 - **2026-09-27**: Recorded, from CORE-7 and its Dashboard counterpart.
+- **2026-09-27**: Trax.Mediator adopts it.
