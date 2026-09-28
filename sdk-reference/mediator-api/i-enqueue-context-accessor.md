@@ -34,7 +34,7 @@ public interface IEnqueueContextAccessor
 | Situation | `Current` |
 |---|---|
 | Inside `OnQueue` for a train that does not defer promotion | The enqueue's context. Writes tracked on it are saved and committed with the work queue row, and rolled back with it if the hook or the insert fails |
-| Inside `OnQueue` for a train with `DeferQueuePromotion` | Null. The entry is already committed before the hook runs, so there is no enqueue transaction to join |
+| Inside `OnQueue` for a train with `DeferQueuePromotion` | Null. The entry is already committed before the hook runs, or, when the train is enqueued from inside another train's hook, is written in that enqueue's transaction, which the deferring hook is not meant to write into. Null in the nested case from Trax.Mediator 1.23.0; an older Trax.Mediator leaves the outer enqueue's context visible there |
 | Anywhere else | Null. Fall back to your own context |
 
 The enqueue path enters a context only for trains that override `OnQueue`.
