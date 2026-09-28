@@ -16,7 +16,7 @@ Each package lives in the repo that owns the concern it checks, and depends only
 | Package | Owns | Guards |
 |---|---|---|
 | `Trax.Core.Testing` | Infrastructure + hygiene | `RepoRoot` / `SourceFiles` / `SourceText`, `ArchitectureGuardOptions`, `GuardResult`; `HygieneGuards` (no `[Ignore]`, no legacy asserts, no fixed delays); `RepoConventionGuards` (`Directory.Build.props` version; cross-repo Trax refs centrally managed via `Directory.Packages.props` with no inline `Version`) |
-| `Trax.Effect.Data.Testing` | Data layer | `DomainContextsDeriveBase`, `CompanionInterfaces`, `OneSchemaPerContext`, `NoPendingModelChanges`, `OwnerScopeCompleteness` |
+| `Trax.Effect.Data.Testing` | Data layer | `DomainContextsDeriveBase`, `CompanionInterfaces`, `OneSchemaPerContext`, `NoPendingModelChanges`, `OwnerScopeCompleteness`, `OwnerScopeFilterBypasses` |
 | `Trax.Api.GraphQL.Testing` | GraphQL | `EdgeManifestIsValid`, `EdgeResolversUseLoader` |
 | `Trax.Mediator.Testing` | Trains | `EveryTrainHasInterface` |
 
@@ -103,7 +103,38 @@ public sealed class MyDataLayerGuards : DomainDataLayerGuardFixture
 }
 ```
 
-The census proves a principal-reading filter exists, not that it compares the right column, and not what a bypass branch inside it allows: a filter reading `principal.IsAdmin || e.OwnerId == principal.Id` under an admin gate shows admins every owner's rows. It reads the model, not the code that queries it, so `IgnoreQueryFilters()` in your own resolvers or trains, and entities mapped with `ToSqlQuery` or to a function, are outside what it can see. A test where one user tries to read another's rows is what catches those.
+### Filters switched off in query code
+
+The model says a filter exists; it cannot say that a resolver or a train switches it off. So the fixture also scans the source under your scan roots (`DataLayerGuards.OwnerScopeFilterBypasses`) and fails on:
+
+- `IgnoreQueryFilters()` on a per-user set. It switches every filter off, the owner scope included;
+- an EF10 named-filter disable, `IgnoreQueryFilters(["Owner"])`, that names an owner-scope filter (a named filter reading your principal accessor), or whose names are not string literals the scan can read. Disabling only a soft-delete or visibility filter by name is fine;
+- either call on a set the scan cannot name, such as a query passed into a helper, because it may be a per-user one.
+
+The set is read from the call's statement: a `DbSet<T>` or `IQueryable<T>` property declared under the scan roots, or `Set<T>()`. A call on a set of shared rows (a soft-deleted article archive, say) passes. When a file switches the owner scope off on purpose, list it with the reason:
+
+```csharp
+protected override OwnerScopeCensusOptions OwnerScope => new()
+{
+    OwnerType = typeof(UserProfile),
+    PrincipalAccessorType = typeof(IPrincipalAccessor),
+    FilterBypassAllowlist = new Dictionary<string, string>
+    {
+        ["apps/Worker/Trains/EraseAccount/EraseAccountTrain.cs"] =
+            "erasing an account deletes that owner's rows from a system context",
+    },
+};
+```
+
+An entry with a blank reason, or one whose file no longer switches an owner-scope filter off, is reported. Override `ScanForOwnerScopeFilterBypasses` to `false` only if your scan roots do not contain the code that queries those models.
+
+The scan reads text, not compiled code. It does not follow a query built in one statement and filtered in a later one, and it cannot tell two contexts' `Notes` sets apart.
+
+### What neither check can see
+
+The census proves a principal-reading filter exists, not that it compares the right column, and not what a bypass branch inside it allows: a filter reading `principal.IsAdmin || e.OwnerId == principal.Id` under an admin gate shows admins every owner's rows. Entities mapped with `ToSqlQuery` or to a function over per-user tables, and a per-user entity reached through a navigation from a type that is exposed, are outside both checks too.
+
+What catches those is a **cross-user behavioural test**: sign in as one user, create a row, sign in as a second user, and assert that every surface the row can be read through (each GraphQL query and model, each train that returns it) gives the second user nothing. Write one per per-user entity against the running API, not the model; it is the only check that exercises the filter as it actually runs.
 
 ## The patterns the guards enforce
 
