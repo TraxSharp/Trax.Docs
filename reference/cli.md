@@ -71,6 +71,9 @@ offending name listed. Rename them in the schema and run it again.
 The conversion already handles separators: `first-name`, `first_name` and `first.name` all
 become `FirstName`. What it refuses is a name that is still not an identifier afterwards, such
 as `2fa`, `application/json` as an enum value, a non-ASCII letter, or OData's `@odata.type`.
+It also refuses two names in one type or one enum that the conversion turns into the same one,
+such as `first-name` and `firstName` on one schema, or `in-progress` and `inProgress` in one
+enum: the generated record would declare the member twice. Neither is renamed or dropped.
 
 Descriptions and OpenAPI paths are copied as text, never refused. Each one is collapsed onto a
 single line, and escaped for where it lands: XML markup is escaped in `///` comments, and
