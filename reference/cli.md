@@ -187,6 +187,18 @@ This structure separates infrastructure from domain logic. The trains library ca
 | `$ref` | Named C# record |
 | `enum` (string) | C# `enum` |
 
+### Model names and framework types
+
+A model may share its name with a .NET type: a schema with `Task`, `File` or `Exception` types
+generates code that compiles. The trains, interfaces and junctions refer to framework types and
+to the models by their fully qualified `global::` names, not through a `using` directive for the
+models namespace, so neither can shadow the other.
+
+Five names are the exception, because the mappings above write them for the framework type:
+`Guid`, `DateTime`, `DateOnly`, `Uri`, and `Unit` (what an operation returning nothing produces).
+A schema type or enum with one of those names is refused with the other names the generator cannot
+emit; rename it in the schema.
+
 ## After Generating
 
 1. `cd` into the hub project directory (`MyProject/MyProject.Hub`)
