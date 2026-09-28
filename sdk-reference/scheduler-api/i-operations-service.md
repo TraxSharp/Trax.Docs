@@ -75,6 +75,8 @@ The actions a list page applies to its selected rows. Each takes up to `Operatio
 
 `ITraxScheduler.CancelAsync` and `CancelGroupAsync` cancel a manifest's or a group's runs by the same rule as `CancelExecutionsAsync`, and signal `Execution` the same way.
 
+On a relational provider each batch is one `UPDATE` with its state test in it, so a row another writer changes meanwhile keeps its new state. The InMemory provider has no set-based update, so there the rows are loaded, changed and saved, with the same result and count ([scheduler ADR 0007](https://github.com/TraxSharp/Trax.Scheduler/blob/main/docs/adr/0007-the-operations-surface-runs-on-inmemory.md)).
+
 ## Authorization
 
 Neither method decides authorization itself: `QueueTrainAsync` leaves it to the mediator, and `RunTrainAsync` applies the mediator's rule. An `ITrainAuthorizationService` decides when one is registered (Trax.Api registers one). Without one, a call inside a trusted scope passes, and a `[TraxAuthorize]` train is refused unless the host called `AllowMissingAuthorizationService()`. The dashboard calls both inside the `"dashboard"` trusted scope, because it is gated as a whole by its host (see [Authorization: The Operations Surface](/docs/authorization#the-operations-surface)).
