@@ -79,6 +79,23 @@ as `2fa`, `application/json` as an enum value, a non-ASCII letter, or OData's `@
 It also refuses two names in one type or one enum that the conversion turns into the same one,
 such as `first-name` and `firstName` on one schema, or `in-progress` and `inProgress` in one
 enum: the generated record would declare the member twice. Neither is renamed or dropped.
+An OpenAPI operation's parameters and body properties share one input record, so the same rule
+covers them: a path parameter `update_value` and a query parameter `updateValue` are refused. A
+path parameter the body repeats under the same name (`id` in the path and in the body) is one
+value and appears once.
+
+The same goes for separate definitions that end up with one name. Two OpenAPI component schemas
+whose last dotted segment is the same (`Billing.Dto` and `Shipping.Dto` both become `Dto`), a
+type and an enum of one name, two operations (`user_count` and `userCount`), or two groups are
+refused, and the message names each definition involved. Names that differ only in case
+(`PlayerStats` and `Playerstats`) are refused too, because each becomes a file or folder and
+those are the same path on macOS and Windows. Without the refusal one definition would silently
+take the other's fields or overwrite its files.
+
+Names the generator makes up itself are numbered instead of refused, since the schema never
+chose them: an inline object or enum is named after its property, and a second `status` enum
+with different values becomes `Status2` rather than reusing the first. An inline name never
+takes the name of a component schema.
 
 Descriptions and OpenAPI paths are copied as text, never refused. Each one is collapsed onto a
 single line, and escaped for where it lands: XML markup is escaped in `///` comments, and
