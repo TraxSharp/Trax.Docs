@@ -686,7 +686,7 @@ When a remote job fails, check these in order:
 ## Limitations
 
 - **Cancellation is process-local.** The `ICancellationRegistry` is in-memory. Dashboard "Cancel" only cancels trains running on the same process as the dashboard. Remote trains cannot be cancelled via the dashboard in v1.
-- **Type resolution requires shared assemblies.** The remote process must reference the same NuGet packages and assemblies that define your train types, and register them with `AddMediator`. A queued job's input type is matched by fully-qualified name against the registered trains' input types, and a remote run's output is read into the output type the caller expects.
+- **Type resolution requires shared assemblies.** The remote process must reference the same NuGet packages and assemblies that define your train types, and register them with `AddMediator`. A queued job's input type is matched by fully-qualified name against the registered trains' input types, and a remote run's output is read into the output type the caller expects. When that type is an interface or abstract, the output is read into the implementation the runner names, but only if that implementation is already loaded in the scheduler's process and implements the expected type; the scheduler never loads a type by the name the runner sends, and refuses the run otherwise. So the scheduler must reference the assembly that defines the concrete output too.
 
 ## See Also
 
