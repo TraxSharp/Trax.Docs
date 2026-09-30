@@ -611,7 +611,7 @@ Or at runtime via the Dashboard under **Server Settings > Job Settings > Stale P
 
 ### 4. Stale InProgress Reaper
 
-The ManifestManager also runs a `ReapStaleInProgressMetadataJunction` on every polling cycle. Any Metadata that has been in `InProgress` state longer than `StaleInProgressTimeout` (default: 60 minutes) is automatically marked as `Failed`. This catches hard crashes where the worker dies without reaching `FinishServiceTrain`: Lambda hard-kills, OOM events, or process crashes that bypass all .NET exception handling.
+The ManifestManager also runs a `ReapStaleInProgressMetadataJunction` on every polling cycle. Any Metadata that has been in `InProgress` state longer than `StaleInProgressTimeout` (default: 60 minutes) is automatically marked as `Failed`. A run whose manifest sets a longer `Timeout` is given its timeout plus the grace between `DefaultJobTimeout` and `StaleInProgressTimeout` instead, so a long job is never failed as stale while it is still inside its own timeout. This catches hard crashes where the worker dies without reaching `FinishServiceTrain`: Lambda hard-kills, OOM events, or process crashes that bypass all .NET exception handling.
 
 ```csharp
 .AddScheduler(scheduler => scheduler
@@ -620,11 +620,11 @@ The ManifestManager also runs a `ReapStaleInProgressMetadataJunction` on every p
 )
 ```
 
-This timeout should be longer than `DefaultJobTimeout` (default: 20 minutes) to give cooperative cancellation time to propagate before force-failing. The ordering in the ManifestManager pipeline is: `CancelTimedOutJobsJunction` (cooperative cancel) → `ReapStalePendingMetadataJunction` → `ReapStaleInProgressMetadataJunction` (force-fail) → `ResolveStaleStagedEntriesJunction` → `ReapFailedJobsJunction` (dead-letter).
+This timeout should be longer than `DefaultJobTimeout` (default: 20 minutes) to give cooperative cancellation time to propagate before force-failing. The ordering in the ManifestManager pipeline is: `CancelTimedOutJobsJunction` (cooperative cancel) → `ReapStalePendingMetadataJunction` → `ReapStaleInProgressMetadataJunction` (force-fail) → `LoadManifestsJunction` (counts failures, including the ones just recorded) → `ResolveStaleStagedEntriesJunction` → `ReapFailedJobsJunction` (dead-letter).
 
 ### 5. Dead-Lettering
 
-After `MaxRetries` failed **executions** (distinct from dispatch attempts), the ManifestManager creates a `DeadLetter` record and marks the manifest as `AwaitingIntervention`. Dead letters can be resolved via the Dashboard or programmatically.
+When a manifest's failed **executions** (distinct from dispatch attempts) within `FailureCountWindow` exceed `MaxRetries`, the retries allowed after the first run, the ManifestManager creates a `DeadLetter` record and marks the manifest as `AwaitingIntervention`. Dead letters can be resolved via the Dashboard or programmatically.
 
 Failed metadata feeds into the normal retry pipeline, if the manifest has retries remaining, the ManifestManager will create a new work queue entry on the next cycle.
 
