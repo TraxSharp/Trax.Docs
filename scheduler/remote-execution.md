@@ -66,7 +66,7 @@ services.AddTrax(trax => trax
     .AddMediator(assemblies)
     .AddScheduler(scheduler => scheduler
         .ConfigureLocalWorkers(opts => opts.WorkerCount = 8)
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -124,7 +124,7 @@ services.AddTrax(trax => trax
             remote.BaseUrl = "https://my-workers.example.com/trax/run";
             remote.SigningKey = runnerKey;
         })
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -212,7 +212,7 @@ services.AddTrax(trax => trax
             remote.BaseUrl = "https://my-runner.example.com/trax/run";
             remote.SigningKey = runnerKey;
         })
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -358,7 +358,7 @@ Two invocation modes:
 
 **IAM permissions:** The scheduler process needs `lambda:InvokeFunction` on the target function ARN. The Lambda execution role needs its normal permissions (database access, etc.).
 
-**Payload size limit:** Lambda invocation payloads are limited to 256 KB (synchronous) and 256 KB (async). If your serialized train input exceeds this, store the data externally and pass a reference.
+**Payload size limit:** `UseLambdaWorkers()` invokes asynchronously (`InvocationType.Event`), and an asynchronous invocation's payload is limited far below the 6 MB a synchronous `UseLambdaRun()` invocation (`InvocationType.RequestResponse`) may carry each way; see the [AWS Lambda quotas](https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html) for the current values. If your serialized train input exceeds the limit, store the data externally and pass a reference.
 
 **Sample:** See `Trax.Samples.ContentShield.Api` and `Trax.Samples.ContentShield.Runner` in the `samples/EphemeralWorkers/` directory of the Trax.Samples repository. The sample uses `UseRemoteWorkers()` for local development with commented-out `UseLambdaWorkers()` configuration for production deployment.
 
@@ -378,7 +378,7 @@ services.AddTrax(trax => trax
         // Register PostgresJobSubmitter without starting local workers.
         // Jobs are written to background_job and picked up by the worker process.
         .OverrideSubmitter(s => s.AddScoped<IJobSubmitter, PostgresJobSubmitter>())
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -648,12 +648,12 @@ When a train fails on a remote worker, Trax preserves the full exception context
 | `IsError` | Whether the execution failed |
 | `ErrorMessage` | The message of a `TrainException`. Any other exception is reported with a fixed message; the detail stays in the runner's log |
 | `ExceptionType` | The .NET exception type name (e.g., `"InvalidOperationException"`) |
-| `FailureJunction` | The train junction where the failure occurred (extracted from `TrainExceptionData`) |
+| `FailureJunction` | `/trax/run` only (`RemoteRunResponse`). The train junction where the failure occurred (extracted from `TrainExceptionData`) |
 | `StackTrace` | Always null. No stack trace leaves the runner; the runner's metadata row and log hold it |
 | `FailureClass` | `/trax/run` only (`RemoteRunResponse`). The [failure class](/docs/core/trains-and-junctions#classifying-failures) the worker's classifier assigned, or null when the worker sent none |
 | `PublicMessage` | `/trax/run` only (`RemoteRunResponse`). The message a client of the calling side may see: the message of a plain `TrainException`, which a train author wrote for the caller, and null for every other failure |
 
-On the API side, the HTTP job submitter and HTTP run executor read the response body and reconstruct a `TrainException` with the structured data intact. The HTTP submitter counts a job as submitted only when the body is a `RemoteJobResponse` for the job it sent; any other `200` fails the dispatch. On the run path it is a `RemoteRunException`, which carries the runner's `PublicMessage`; a transport failure (a non-success status, a Lambda function error, an empty reply) is a `RemoteRunException` with no public message. A surface that shows errors to clients reads `PublicMessage` and, when it is null, says only that the train failed. `Trax.Docs/adr/0028` records why. `Metadata.AddException()` populates `FailureException`, `FailureJunction`, `FailureReason` and (for `/trax/run`) `FailureClass` from the reconstructed exception. The class is carried rather than recomputed, because the original exception type is gone by the time the response arrives; a null `FailureClass` records as `Unclassified`, and the calling side's own classifier is never asked about a failure rebuilt from the response. The job-runner HTTP endpoint and the Lambda runner's local HTTP route write `RemoteRunResponse` with Trax's own JSON options (enums as integers) whatever the host's JSON configuration. A Lambda function's own invocation response is serialized by the function's Lambda serializer, which Trax does not control. Both the HTTP and Lambda run executors therefore read `FailureClass` as either an integer or a name, and a class they do not know (an unknown number or name from a newer worker) reads as `Unclassified` while the worker's error is kept. `/trax/execute` needs no such field: the worker writes to the same metadata row, so its classification is already recorded. Locally-executed trains attach this data via `Exception.Data["TrainExceptionData"]`; remote trains carry it as JSON in the exception message instead. On the worker, the error fields come from the attached data, or, for a `TrainException` rebuilt from an earlier boundary, from the JSON in its message. Any other exception is sent with a fixed message and no `FailureClass`; its detail stays in the runner's log. A class outside the `FailureClass` values is sent as `Unclassified`.
+On the API side, the HTTP run executor reads the response body and reconstructs a `TrainException` with the structured data intact. The HTTP job submitter does not: a `RemoteJobResponse` carries only `IsError`, `ErrorMessage`, `ExceptionType` and `StackTrace`, and an error response fails the dispatch with a plain `TrainException` whose message is `Remote worker reported error: {ErrorMessage} [{ExceptionType}]`. That is enough, because on the `/trax/execute` path the worker writes the failure to the metadata row itself. The HTTP submitter counts a job as submitted only when the body is a `RemoteJobResponse` for the job it sent; any other `200` fails the dispatch. On the run path it is a `RemoteRunException`, which carries the runner's `PublicMessage`; a transport failure (a non-success status, a Lambda function error, an empty reply) is a `RemoteRunException` with no public message. A surface that shows errors to clients reads `PublicMessage` and, when it is null, says only that the train failed. `Trax.Docs/adr/0028` records why. `Metadata.AddException()` populates `FailureException`, `FailureJunction`, `FailureReason` and (for `/trax/run`) `FailureClass` from the reconstructed exception. The class is carried rather than recomputed, because the original exception type is gone by the time the response arrives; a null `FailureClass` records as `Unclassified`, and the calling side's own classifier is never asked about a failure rebuilt from the response. The job-runner HTTP endpoint and the Lambda runner's local HTTP route write `RemoteRunResponse` with Trax's own JSON options (enums as integers) whatever the host's JSON configuration. A Lambda function's own invocation response is serialized by the function's Lambda serializer, which Trax does not control. Both the HTTP and Lambda run executors therefore read `FailureClass` as either an integer or a name, and a class they do not know (an unknown number or name from a newer worker) reads as `Unclassified` while the worker's error is kept. `/trax/execute` needs no such field: the worker writes to the same metadata row, so its classification is already recorded. Locally-executed trains attach this data via `Exception.Data["TrainExceptionData"]`; remote trains carry it as JSON in the exception message instead. On the worker, the error fields come from the attached data, or, for a `TrainException` rebuilt from an earlier boundary, from the JSON in its message. Any other exception is sent with a fixed message and no `FailureClass`; its detail stays in the runner's log. A class outside the `FailureClass` values is sent as `Unclassified`.
 
 ```
 Runner Process                         API Process
@@ -694,7 +694,7 @@ When a remote job fails, check these in order:
 
 ## Limitations
 
-- **Cancellation is process-local.** The `ICancellationRegistry` is in-memory. Dashboard "Cancel" only cancels trains running on the same process as the dashboard. Remote trains cannot be cancelled via the dashboard in v1.
+- **Cancelling a remote run goes through the database.** Dashboard "Cancel" (and `CancelAsync`) sets the run's persisted cancel flag and also cancels the token of a run on the same process through the in-memory `ICancellationRegistry`. A remote run sees only the flag, at its next junction boundary, and only if the worker registers `CancellationCheckProvider` (added by [`AddJunctionProgress()`](/docs/sdk-reference/configuration/add-junction-progress)). A junction already running on the worker is not interrupted. See [Cancellation Tokens](/docs/cross-cutting/cancellation-tokens).
 - **Type resolution requires shared assemblies.** The remote process must reference the same NuGet packages and assemblies that define your train types, and register them with `AddMediator`. A queued job's input type is matched by fully-qualified name against the registered trains' input types, and a remote run's output is read into the output type the caller expects. When that type is an interface or abstract, the output is read into the implementation the runner names, but only if that implementation is already loaded in the scheduler's process and implements the expected type; the scheduler never loads a type by the name the runner sends, and refuses the run otherwise. So the scheduler must reference the assembly that defines the concrete output too.
 
 ## See Also

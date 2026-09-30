@@ -82,7 +82,7 @@ services.AddTrax(trax => trax
             routing => routing
                 .ForTrain<IReviewContentTrain>()
                 .ForTrain<ISendViolationNoticeTrain>())
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -189,7 +189,7 @@ The scheduler process needs:
 ## Limitations
 
 - **Payload size limit:** Lambda invocation payloads are limited to 256 KB. If your serialized train input exceeds this, store the data externally and pass a reference.
-- **Cancellation is process-local:** Same limitation as other remote execution models. Dashboard "Cancel" only affects trains on the same process.
+- **Cancellation reaches the function through the database:** Dashboard "Cancel" sets the run's cancel flag, which the train sees at its next junction boundary when the function registers `CancellationCheckProvider` (via `AddJunctionProgress()`). A junction already running is not interrupted. See [Remote Execution](/docs/scheduler/remote-execution#limitations).
 
 ## See Also
 

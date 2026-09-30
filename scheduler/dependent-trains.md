@@ -198,7 +198,7 @@ public class QueueDeltaBronzeTasks(IDormantDependentContext dormants)
                 ExternalId: $"delta-bronze-{input.Table}-{b.Key}",
                 Input: ExtractRequest.Create(input.Table, b.Key, b.Value)));
 
-        await dormants.ActivateManyAsync<ICacheBronzeTrain, ExtractRequest>(activations);
+        await dormants.ActivateManyAsync<ICacheBronzeTrain, ExtractRequest, Unit>(activations);
         return Unit.Default;
     }
 }

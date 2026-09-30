@@ -184,15 +184,15 @@ Each entry is dispatched within its own DI scope, following the same pattern as 
 
 1. **Clean change tracker**: each entry gets a fresh `IDataContext` with no stale tracked entities from previous iterations.
 2. **Transaction isolation**: if one entry fails, its transaction is rolled back without affecting others.
-3. **Commit-then-enqueue**: the claim transaction (Metadata creation + WorkQueue status update) is committed before calling `EnqueueAsync` on the job submitter. This makes the Metadata record visible to the job submitter when it begins execution, necessary because the `InMemoryJobSubmitter` executes trains synchronously within `EnqueueAsync`. If the enqueue fails after commit, the WorkQueue entry is already `Dispatched` with a valid Metadata record; the next dispatch cycle won't re-process it, but the Metadata's `Pending` state can be detected for recovery.
+3. **Commit-then-enqueue**: the claim transaction (Metadata creation + WorkQueue status update) is committed before calling `EnqueueAsync` on the job submitter. This makes the Metadata record visible to the job submitter when it begins execution, necessary because the `InMemoryJobSubmitter` executes trains synchronously within `EnqueueAsync`. If the enqueue fails after commit, the dispatcher marks that Metadata `Failed` and, while the entry has dispatch attempts left (`MaxDispatchAttempts`, default 5), resets the WorkQueue entry to `Queued` so a later cycle dispatches it again with a new Metadata. Once the attempts are used up, the entry stays `Dispatched`.
 
 ### Capacity Limit Approximation
 
-With multiple servers, `MaxActiveJobs` enforcement is approximate. Each server independently counts active Metadata records in `LoadDispatchCapacityJunction`. Between the count and the actual dispatch, another server may have dispatched entries, causing the total to slightly exceed the configured limit.
+With multiple servers, `MaxActiveJobs` enforcement is approximate. Each server independently counts active Metadata records in `LoadDispatchCapacityJunction`. Between the count and the actual dispatch, other servers may have dispatched entries of their own, so the total can exceed the configured limit.
 
 This is a deliberate tradeoff. `MaxActiveJobs` is a soft limit to prevent overwhelming the system. Not a strict concurrency semaphore. The alternative (a global advisory lock for the entire dispatch cycle) would serialize all dispatch activity, defeating the purpose of multi-server deployment.
 
-In practice, the overshoot is bounded by the number of servers multiplied by the number of entries dispatched per cycle. For most deployments, this is negligible.
+Each server can dispatch up to the whole limit from the same count, so with N dispatching servers the number of active jobs can reach N times `MaxActiveJobs` (and N times a group's `MaxActiveJobs`). Size the limit for that, or run the dispatcher on one host if the limit must hold exactly.
 
 ## LocalWorkerService: Already Safe
 

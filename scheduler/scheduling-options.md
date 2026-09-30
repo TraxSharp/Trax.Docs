@@ -92,7 +92,7 @@ var tables = new[]
 var allJobs = tables.SelectMany(t =>
     Enumerable.Range(0, t.SliceCount).Select(slice => (t.Name, slice)));
 
-await scheduler.ScheduleManyAsync<ISyncTableTrain, SyncTableInput, (string Table, int Slice)>(
+await scheduler.ScheduleManyAsync<ISyncTableTrain, SyncTableInput, Unit, (string Table, int Slice)>(
     allJobs,
     item => (
         ExternalId: $"sync-{item.Table}-{item.Slice}",
@@ -103,7 +103,7 @@ await scheduler.ScheduleManyAsync<ISyncTableTrain, SyncTableInput, (string Table
 
 ### Pruning Stale Manifests
 
-When the source collection shrinks between deployments, tables removed, slices reduced, old manifests stick around in the database. The name-based overload handles this automatically (`prunePrefix: "{name}-"`). With the explicit overload, specify `prunePrefix` manually. After upserting the batch, any existing manifests whose `ExternalId` starts with the prefix but weren't in the current batch are deleted, keeping the manifest table in sync with your source data.
+When the source collection shrinks between deployments, tables removed, slices reduced, old manifests stick around in the database. The name-based overload handles this automatically (its prune prefix is `"{name}-"`). With the explicit overload, set one with `options => options.PrunePrefix("...")`. After upserting the batch, any existing manifests whose `ExternalId` starts with the prefix but weren't in the current batch are deleted, keeping the manifest table in sync with your source data.
 
 Pruning runs in a **separate database context** after the main transaction commits. This means a prune failure (e.g., a transient database error) does not roll back successfully upserted manifests. The failure is logged as a warning and retried on the next startup or scheduling cycle.
 
@@ -363,8 +363,8 @@ A scheduler job timeout is a cancellation the scheduler asked for. A timeout ins
 
 Key options to know:
 
-- **`ManifestManagerPollingInterval`** / **`JobDispatcherPollingInterval`** (default: 5 seconds each), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
-- **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
+- **`ManifestManagerPollingInterval`** (default: 5 seconds) / **`JobDispatcherPollingInterval`** (default: 2 seconds), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
+- **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Each dispatching host counts on its own, so with N hosts the total can reach N times the cap (see [Capacity Limit Approximation](/docs/scheduler/concurrency#capacity-limit-approximation)). Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
 - **`DefaultMaxRetries`** (default: 3), retries after the first run before dead-lettering (the default allows four attempts)
 - **`FailureCountWindow`** (default: 24 hours), how far back a manifest's failed runs count toward its retry backoff and its `MaxRetries`. A failure older than the window no longer delays the next run or counts toward a dead letter, so occasional failures weeks apart do not dead-letter a healthy manifest. A success does not reset the count inside the window. Set with `FailureCountWindow(TimeSpan)`; must be between one second and ten years
 - **`DefaultRetryDelay`** (default: 5 minutes), base delay between retry attempts. Combined with `RetryBackoffMultiplier` for exponential backoff

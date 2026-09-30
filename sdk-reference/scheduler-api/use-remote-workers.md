@@ -72,8 +72,8 @@ services.AddTrax(trax => trax
             routing => routing
                 .ForTrain<IHeavyComputeTrain>()
                 .ForTrain<IAiInferenceTrain>())
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
-        .Schedule<IHeavyComputeTrain, HeavyInput>("heavy", new HeavyInput(), Every.Hours(1))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IHeavyComputeTrain>("heavy", new HeavyInput(), Every.Hours(1))
     )
 );
 ```
@@ -182,7 +182,7 @@ See [Parallel Dispatch](/docs/scheduler/admin-trains/job-dispatcher#parallel-dis
 | Service | Lifetime | Description |
 |---------|----------|-------------|
 | `RemoteWorkerOptions` | Singleton | Configuration options |
-| HTTP job submitter | Scoped | An internal `IJobSubmitter` that dispatches jobs via HTTP POST. The JobDispatcher resolves it for each train routed to this endpoint; application code does not resolve it |
+| HTTP job submitter | Transient | A typed `HttpClient` client (`AddHttpClient`): an internal `IJobSubmitter` that dispatches jobs via HTTP POST. The JobDispatcher resolves it for each train routed to this endpoint; application code does not resolve it |
 
 > **Note:** `UseRemoteWorkers()` does **not** replace the default `IJobSubmitter`. Local workers continue to run for trains not routed to this endpoint.
 
