@@ -467,7 +467,9 @@ mutation {
 
 ### config (nested namespace)
 
-The `operations.config` namespace patches scheduler runtime settings. Writes go to both the in-memory `SchedulerConfiguration` singleton (immediate effect on running services) and the persisted `trax.scheduler_config` row (survives restarts via the `SchedulerConfigBootstrapHostedService`).
+The `operations.config` namespace patches scheduler runtime settings. A save writes only the fields it sets to the persisted `trax.scheduler_config` row, so it never rewrites a setting it did not name, and applies them to the host that received it at once. Every running scheduler host reads the row every few seconds and applies a new or changed one without a restart, so a save made on an API-only host, or on one of several scheduler hosts, reaches all of them. A scheduler applies a change from its next polling cycle, including a new polling or cleanup interval; `localWorkerCount` is the exception and applies when the worker pool next starts. The row also survives restarts: each scheduler applies it at startup over the settings configured in code.
+
+The row stores every setting, so the first save, which creates it, records the saving host's values for the settings it does not name. A host that does not run the scheduler (an API-only host built with `AddTraxJobRunner()`) cannot know those values, so there the first save is refused with a message saying so; make it on a host that calls `AddScheduler`. Once the row exists, a stored value takes precedence over the value in code until the row is changed or deleted, and deleting the row returns every running scheduler to its configured settings.
 
 #### updateScheduler
 
@@ -511,12 +513,12 @@ Every field defaults to `null` and means "no change". To clear `maxActiveJobs` (
 | `recoverStuckJobsOnStartup` | `Boolean` | |
 | `deadLetterRetentionPeriod` | `TimeSpan` | Zero to ten years |
 | `autoPurgeDeadLetters` | `Boolean` | |
-| `localWorkerCount` | `Int` | 1 to 256. Ignored when `UseLocalWorkers()` is not configured |
+| `localWorkerCount` | `Int` | 1 to 256. Ignored when `UseLocalWorkers()` is not configured. Applies when the worker pool next starts |
 | `clearLocalWorkerCount` | `Boolean` | Resets `localWorkerCount` to `Environment.ProcessorCount` |
 | `metadataCleanupInterval` | `TimeSpan` | 1 second to 30 days. Ignored when metadata cleanup is not configured |
 | `metadataCleanupRetention` | `TimeSpan` | 1 second to ten years. Ignored when metadata cleanup is not configured |
 
-**Returns**: `OperationResponse`. `count` is the number of fields actually changed (zero if every supplied value already matched). A value outside its range makes `success` `false`, with a `message` naming each offending field, and nothing in the patch is applied or persisted. The ranges are what the scheduler can run with: an interval becomes a timer that rejects values under a millisecond or over about 49 days, and polling the database more often than once a second is load rather than responsiveness. At startup, a persisted value outside its range (from a row written before these checks, or edited by hand) is skipped with a warning, and the configured value stays in effect.
+**Returns**: `OperationResponse`. `count` is the number of fields actually changed (zero if every supplied value already matched). A value outside its range makes `success` `false`, with a `message` naming each offending field, and nothing in the patch is applied or persisted; so does a first save on a host that does not run the scheduler. The ranges are what the scheduler can run with: an interval is the wait between two polling cycles, which a timer caps at about 49 days, and polling the database more often than once a second is load rather than responsiveness. When a scheduler applies the row, a persisted value outside its range (from a row written before these checks, or edited by hand) is skipped with a warning, and the configured value stays in effect.
 
 ---
 
