@@ -76,6 +76,13 @@ services.AddScoped<IUserRepository, UserRepository>();
 services.AddScoped<IEmailService, EmailService>();
 ```
 
+## "ITrain cannot be built: its constructor needs 'X', which is not registered"
+
+The host refused to start because a train's own constructor asks for a type that nothing registers
+in the container, so the train would fail every run. Register the type before building the host.
+A type that *is* registered but can only be built inside a request (one reading `HttpContext`, say)
+is not refused: the train is skipped with a warning, "was not verified at startup".
+
 ## "Junction 'X' (train 'Y') needs 'Z' as a constructor argument"
 
 A junction's constructor asks for something the chain never produced and the container does not
