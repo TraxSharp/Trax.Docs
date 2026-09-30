@@ -41,13 +41,21 @@ builder.Services.AddTraxDashboard();   // After AddTrax()
 builder.Services.AddTraxGraphQL();     // After AddTrax()
 ```
 
-## Compile error: "TraxBuilder does not contain a definition for AddMediator"
+## Compile error: "Call AddEffects(...) before AddMediator(...)"
 
 The step builder pattern enforces configuration ordering at compile time. `AddMediator()` is only available on `TraxBuilderWithEffects` (returned by `AddEffects()`), and `AddScheduler()` is only available on `TraxBuilderWithMediator` (returned by `AddMediator()`).
 
-**Cause:** Calling methods out of order, e.g. `AddMediator()` before `AddEffects()`.
+**Cause:** Calling methods out of order. Trax.Mediator reports its own order mistakes as CS0619 with the fix as the text:
 
-**Fix:** Follow the required order: `AddEffects()` -> `AddMediator()` -> `AddScheduler()`:
+| Error text | Cause |
+|---|---|
+| `Call AddEffects(...) before AddMediator(...).` | `AddMediator()` called before `AddEffects()` |
+| `AddMediator(...) is already called. Call it once and configure everything in that call.` | `AddMediator()` called twice |
+| `Call AddStateMachines(...) before AddMediator(...).` | `AddStateMachines()` called after `AddMediator()` |
+
+`AddScheduler()` called before `AddMediator()` still reports CS1929, `'TraxBuilderWithEffects' does not contain a definition for 'AddScheduler'`. It is the same mistake.
+
+**Fix:** Follow the required order: `AddEffects()` -> `AddStateMachines()` if you use it -> `AddMediator()` -> `AddScheduler()`:
 ```csharp
 services.AddTrax(trax => trax
     .AddEffects(effects => effects.UsePostgres(connectionString))  // Step 1
