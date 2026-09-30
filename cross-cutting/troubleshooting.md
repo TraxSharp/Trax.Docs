@@ -140,10 +140,15 @@ If you're using `ShortCircuit`, remember that throwing an exception means "conti
 ## Scheduled jobs don't execute (no errors)
 
 Possible causes:
-- The manifest's `IsEnabled` is `false`. Check via `ITraxScheduler` or the database
+- The manifest's `IsEnabled` is `false`. Check via `ITraxScheduler` or the database. A disabled manifest's already-queued entries also wait, `Queued`, until it is re-enabled
+- A new cron schedule has not reached its first occurrence yet. It first runs at its first occurrence after it was scheduled, not on the next poll, and cron times are UTC: `Cron.Daily(hour: 3)` is 03:00 UTC. The manifest's `NextScheduledRun` shows when that is
 - `ManifestManagerPollingInterval` or `JobDispatcherPollingInterval` is set too high and the job hasn't been picked up yet
 - The train's input type doesn't implement `IManifestProperties`
 - Your train assembly isn't registered with `AddMediator()`. Make sure to pass the assembly containing your trains
+
+## `FormatException` or `ArgumentOutOfRangeException` from `Cron` or `Every`
+
+`Schedule.FromCron`, which every `Cron` helper goes through, parses the expression and throws `FormatException` when it cannot fire: `Cron.Daily(hour: 25)`, `Cron.Hourly(minute: 60)`, a seven-field expression. `Schedule.FromInterval`, and so every `Every` helper, throws `ArgumentOutOfRangeException` for an interval shorter than one second, including `Every.Seconds(0)`. Fix the value at the call the stack trace names; earlier versions accepted these and stored a schedule that never ran, or ran once.
 
 ## "Ambiguous reference" between Cron types
 
