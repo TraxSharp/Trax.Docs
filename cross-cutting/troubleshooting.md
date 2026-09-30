@@ -7,22 +7,29 @@ nav_order: 4
 
 # Troubleshooting
 
-## "No train found for input type X"
+## "Could not find train with input type (X)"
 
-The `TrainBus` couldn't find a train that accepts your input type.
+The `TrainBus` has no train registered for the input's type. The message names the type, the assemblies the mediator scanned, and the two fixes:
+
+```text
+Could not find train with input type (MyApp.Orders.OrderInput): no IServiceTrain<OrderInput, TOut> is registered for it. Scanned assemblies: [MyApp.Api]. Add a train that takes this input type, or add the assembly that holds its train to ScanAssemblies(...).
+```
 
 **Causes:**
-- The assembly containing your train wasn't registered with `AddMediator`
+- The assembly containing your train is not in the scanned list, because it was never passed to `AddMediator` or `ScanAssemblies`
 - Your train doesn't implement `IServiceTrain<TIn, TOut>`
 - Your train class is `abstract`
 
-**Fix:**
+**Fix:** add the train's assembly to the scan.
 ```csharp
 services.AddTrax(trax => trax
     .AddEffects(effects => effects.UsePostgres(connectionString))
-    .AddMediator(typeof(YourTrain).Assembly)  // Ensure correct assembly
+    .AddMediator(mediator => mediator
+        .ScanAssemblies(typeof(Program).Assembly, typeof(YourTrain).Assembly))
 );
 ```
+
+This is a host configuration error, reported to the host. A caller that asks `ITrainExecutionService` for a train name that does not exist gets `TrainNotFoundException` instead, whose message is always "The requested train was not found." and does not say what is registered.
 
 ## "AddTrax() must be called before AddTraxDashboard()" / "...before AddTraxGraphQL()"
 

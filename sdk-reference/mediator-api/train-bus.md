@@ -29,7 +29,7 @@ Task<TOut> RunAsync<TOut>(object trainInput, CancellationToken cancellationToken
 
 **Returns**: `Task<TOut>`, the train's output.
 
-**Throws**: `TrainException` if no train is registered for the input's type, or if `metadata` is not `Pending`. `TrainAlreadyStartedException` (a `TrainException`, namespace `Trax.Effect.Exceptions`) if `metadata` says `Pending` but the stored row no longer is, because another execution started it first: the start is claimed with one conditional write in the store, so of two executions handed the same row only one runs the train. The refused one has run nothing and written nothing, and the row belongs to the other: do not record a failure on it. `OperationCanceledException` if the token is cancelled.
+**Throws**: `TrainException` if no train is registered for the input's type (the message names the input type, the scanned assemblies and `ScanAssemblies(...)`; see [Troubleshooting](/docs/cross-cutting/troubleshooting#could-not-find-train-with-input-type-x)), or if `metadata` is not `Pending`. `TrainAlreadyStartedException` (a `TrainException`, namespace `Trax.Effect.Exceptions`) if `metadata` says `Pending` but the stored row no longer is, because another execution started it first: the start is claimed with one conditional write in the store, so of two executions handed the same row only one runs the train. The refused one has run nothing and written nothing, and the row belongs to the other: do not record a failure on it. `OperationCanceledException` if the token is cancelled.
 
 ### RunAsync (void)
 
@@ -109,7 +109,7 @@ The child runs as a train of its own and is not linked to the parent run: its me
 
 ## Scope Isolation
 
-Each `RunAsync` call creates a child DI scope. The train and all its dependencies are resolved from this scope, which is disposed when the call returns. This means:
+Each `RunAsync` call creates a child DI scope. The train and all its dependencies are resolved from this scope, which is disposed asynchronously when the call returns, so a scoped dependency that implements only `IAsyncDisposable` is released without turning the run's result, or its own exception, into a disposal error. This means:
 
 - **Blazor Server safe**: circuit-scoped services don't leak between train executions
 - **Resource cleanup**: scoped services (`DbContext`, etc.) are disposed after each train
