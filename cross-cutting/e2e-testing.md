@@ -154,7 +154,7 @@ An entry built this way skips everything `ITrainExecutionService.QueueAsync` doe
 
 | Field | Default | Effect |
 |-------|---------|--------|
-| `SubjectKey` | `null` | The [subject](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) the entry is serialized against. Entries sharing a non-null key are not dispatched concurrently. `Create` throws `ArgumentException` for an empty or whitespace-only key, one holding an unpaired surrogate, or one longer than 512 characters. Characters are counted as Unicode characters, so an emoji counts once although it is two UTF-16 units |
+| `SubjectKey` | `null` | The [subject](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) the entry is serialized against. Entries sharing a non-null key are not dispatched concurrently. `Create` throws `ArgumentException` for an empty or whitespace-only key, one holding a NUL character or an unpaired surrogate, or one longer than 512 characters. Characters are counted as Unicode characters, so an emoji counts once although it is two UTF-16 units |
 | `DeferPromotion` | `false` | Commits the entry unconfirmed, so the dispatcher will not claim it until [`IWorkQueuePromotion`](/docs/sdk-reference/scheduler-api/i-work-queue-promotion) promotes it |
 | `ExplicitTrigger` | `false` | Marks the entry as a run someone asked for by name, so it is dispatched while its manifest is disabled. A scheduled entry of a disabled manifest waits until the manifest is enabled. `Create` sets it for any entry with a `DeadLetterId` |
 
