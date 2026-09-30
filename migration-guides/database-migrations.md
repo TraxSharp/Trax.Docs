@@ -174,3 +174,14 @@ the exact instant it compared as earlier than itself, so a lease or a draft's ag
 and a non-UTC offset sorted wrong outright. The whole seconds are converted to UTC and the fraction is
 padded, so no precision is lost. Rows already in the fixed-width form are not touched, and a second
 run changes nothing.
+
+## Effect claim content fingerprint (053, SQLite 018)
+
+`053_effect_claim_content_fingerprint.sql` (Postgres) and `018_effect_claim_content_fingerprint.sql` (SQLite) add a
+nullable `content_fingerprint` text column to `effect_claim`. The state-machine effect runner records the SHA-256 of
+the draft's canonical wire there when it claims the effect, and replays the claim's receipt only onto a draft with
+the same content; see [effects](/docs/sdk-reference/statemachine-api/effects#exactly-once-and-the-receipt).
+
+Nothing is backfilled. A claim written before the upgrade has no fingerprint and replays as it did, and a host still
+on the previous version reads and writes the table unchanged, so a rolling deploy is safe. Adding a nullable column
+is a catalog change on both providers, not a rewrite of the table.

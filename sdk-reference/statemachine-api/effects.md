@@ -77,8 +77,15 @@ Once the effect has returned, its receipt is recorded and the draft advanced on 
 cancel. A client that disconnects right after a charge still leaves the draft showing the charge, and the next
 send replays it instead of charging again. The receipt is recorded only on the draft exactly as the effect loaded
 it: if the draft was saved, reset or advanced while the effect ran, the send reports `conflict` and records
-nothing, and the claim keeps the receipt. Sending again replays that receipt on the draft as it is then, without
-running the effect.
+nothing, and the claim keeps the receipt.
+
+The claim also records a fingerprint of the content the effect ran on: the SHA-256 of the draft's canonical wire,
+`SnapshotFingerprint.Of(service.Serialize(snapshot))`. A later send replays the receipt only onto a draft whose
+content has that fingerprint. If the draft now holds anything else, the send is refused as `draft-changed`: the
+receipt is not recorded and the effect does not run again. Restoring the content the effect ran on, for example by
+autosaving the snapshot the client sent, makes the next send replay the receipt, so a client keeps that snapshot
+until its send settles. A claim recorded before the fingerprint existed has none and replays onto whatever the
+draft holds.
 
 The transition itself is fired only by the send. An advance of its trigger is refused as `effect-bound`, and an
 autosave cannot put a draft into its destination state; see

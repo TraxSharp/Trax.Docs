@@ -103,6 +103,7 @@ effect-bound transition lands in, because only send knows the effect ran:
 | autosave | any change to a draft already in a committed state or an effect's target, except a reset to the initial state that the machine declares from that state | `draft-committed` |
 | autosave | overwriting a stored draft that fails rehydration with anything but the initial state | `draft-unreadable` |
 | send | recording the receipt on a draft that was written while the effect ran | `conflict` |
+| send | replaying a receipt onto a draft whose content is not what the effect ran on | `draft-changed` |
 
 The receipt a draft in a committed state holds is the one the effect produced for that draft's content, so its
 content is as fixed as its state. A save identical to the stored draft, the snapshot a send returned for instance,
@@ -112,7 +113,8 @@ state back to the initial state; a machine with none has no soft reset out of it
 A reset releases the draft's effect claims once their outcome is settled on the draft, so the next draft runs its
 effect afresh. A claim whose effect is still running inside its lease is kept, and so is a completed claim whose
 receipt the draft never recorded (its send reported a conflict): the next send replays that receipt rather than
-running the effect a second time. To seed a draft in a committed state in a test, write it through the store.
+running the effect a second time, provided the draft again holds the content the effect ran on, and is refused as
+`draft-changed` otherwise. To seed a draft in a committed state in a test, write it through the store.
 
 ## EfSnapshotStore and EfEffectClaimStore
 
@@ -132,3 +134,11 @@ in-flight claim whose lease has not passed, and deletes a completed claim only w
 receipt. `Release` deletes whatever is there, and is what deleting an expired draft uses. A custom claim store
 that does not override `ReleaseForReset` gets a default that releases only a completed claim whose receipt was
 recorded, and keeps every in-flight claim until the lease lets the next send reclaim it.
+
+`TryClaim(effectKey, lease, contentFingerprint, ct)` records the fingerprint of the content the effect runs on in
+`effect_claim.content_fingerprint`, on a new claim or on an expired one it takes over, and
+`GetCompleted(effectKey, ct)` returns a completed claim's receipt with that fingerprint in one read as a
+`CompletedEffect`. `IdempotentEffect.RunOnce(effectKey, contentFingerprint, effect, lease, ct)` passes it through,
+and a lost claim's `EffectOutcome.AlreadyRan` carries the recorded `ContentFingerprint`; the effect runner compares it
+with the draft's before replaying. Both members have defaults, so a custom claim store keeps compiling: one that does
+not override them records no fingerprint, and its claims replay without the content check.
