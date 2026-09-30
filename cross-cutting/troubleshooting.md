@@ -68,6 +68,7 @@ The step builder pattern enforces configuration ordering at compile time. `AddMe
 | `AddMediator(...) is already called. Call it once and configure everything in that call.` | `AddMediator()` called twice |
 | `Call AddStateMachines(...) before AddMediator(...).` | `AddStateMachines()` called after `AddMediator()` |
 | `Call AddMediator(...) before AddScheduler(...).` | `AddScheduler()` called before `AddMediator()`, straight after `AddEffects()` or on the bare builder |
+| `Call UsePostgres(...), UseSqlite(...) or UseInMemory(...) before AddDataContextLogging(...).` | `AddDataContextLogging()` called before a data provider |
 
 **Fix:** Follow the required order: `AddEffects()` -> `AddStateMachines()` if you use it -> `AddMediator()` -> `AddScheduler()`:
 ```csharp

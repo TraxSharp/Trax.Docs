@@ -349,7 +349,8 @@ Lookup is by exact type, then the container, with one exception: a junction whos
 tuple has each element assembled from Memory only, never from the container, because that is how a
 run builds it. A junction asking for an interface that the previous
 junction's declared output only implements is a fault, because the run would not find it either.
-`Extract` reads Memory only and never falls back to the container. Container availability is
+`Extract` reads Memory only and never falls back to the container. An `ILogger<T>` the container
+does not supply can also be made by an `ILoggerFactory` passed to `AddServices`. Container availability is
 checked without constructing anything, so a service whose factory only works inside a request does
 not crash startup. Reading a chain runs no junction: a monad the train creates while declaring,
 including through `NewMonad()`, records its steps instead of executing them.
@@ -560,7 +561,7 @@ The key is an opaque string. Trax compares it and nothing else, so its shape is 
 
 **Keys are compared exactly, case-sensitively, across all trains.** They are not namespaced by train: two trains returning `"42"` serialize against each other. Prefix the key with something the train owns (`customer-`, above) unless serializing across trains is what you want.
 
-Returning null, which is the default, means no serialization. Every train that does not override this is unaffected. An empty string, or one that is only whitespace, is refused, because it is almost always an unset identity and would serialize every train returning it against every other. A key containing an unpaired surrogate is refused too, because it is not valid text. The key is limited to 512 Unicode characters, so an emoji counts once although it takes two UTF-16 units; use a record identity, or a hash of a longer one. `WorkQueue.Create` applies these rules, and the enqueue reports its refusal as an `InvalidOperationException` naming the train, where the caller sees it. Before Trax.Mediator 1.23.0 the enqueue counted UTF-16 units, so a key of more than 256 characters outside the Basic Multilingual Plane was refused.
+Returning null, which is the default, means no serialization. Every train that does not override this is unaffected. An empty string, or one that is only whitespace, is refused, because it is almost always an unset identity and would serialize every train returning it against every other. A key containing an unpaired surrogate or a NUL character is refused too, because neither can be stored as text. The key is limited to 512 Unicode characters, so an emoji counts once although it takes two UTF-16 units; use a record identity, or a hash of a longer one. `WorkQueue.Create` applies these rules, and the enqueue reports its refusal as an `InvalidOperationException` naming the train, where the caller sees it. Before Trax.Mediator 1.23.0 the enqueue counted UTF-16 units, so a key of more than 256 characters outside the Basic Multilingual Plane was refused.
 
 **Throwing aborts the enqueue.** A key that cannot be computed must not quietly become null: that would drop the guarantee at exactly the moment the caller was relying on it.
 

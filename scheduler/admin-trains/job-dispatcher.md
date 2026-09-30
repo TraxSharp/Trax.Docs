@@ -67,13 +67,16 @@ SELECT * FROM trax.work_queue w
 WHERE w.id = :entry_id
   AND w.status = 'queued'
   AND w.confirmed_at IS NOT NULL
+  AND (w.manifest_id IS NULL OR w.is_explicit_trigger OR EXISTS (
+      -- the entry's manifest, enabled
+  ))
   AND (w.subject_key IS NULL OR NOT EXISTS (
       -- a dispatched entry for the same subject whose run is Pending or InProgress
   ))
 FOR UPDATE SKIP LOCKED
 ```
 
-If the entry has already been claimed by another server (locked in another transaction or already `Dispatched`), is unconfirmed, or its subject has a run in flight, the query returns no rows and the entry is skipped. This prevents duplicate dispatch in multi-server deployments. See [Multi-Server Concurrency](/docs/scheduler/concurrency#jobdispatcher-row-level-locking) for details.
+If the entry has already been claimed by another server (locked in another transaction or already `Dispatched`), is unconfirmed, belongs to a manifest disabled since it was loaded and is not an explicit trigger, or its subject has a run in flight, the query returns no rows and the entry is skipped. The manifest is tested with `EXISTS` rather than joined, so the claim never locks the manifest row. This prevents duplicate dispatch in multi-server deployments. See [Multi-Server Concurrency](/docs/scheduler/concurrency#jobdispatcher-row-level-locking) for details.
 
 **Subject lock**: for an entry with a subject key, the claim transaction first takes a per-subject advisory lock on Postgres, `pg_advisory_xact_lock(hashtext('trax_subject'), hashtext(key))`. Row locking alone cannot serialize two entries for one subject, because they are different rows. The lock is released when the claim commits, before the job is submitted. SQLite relies on its single writer and takes no lock. See [Multi-Server Concurrency](/docs/scheduler/concurrency#subject-serialization-advisory-lock-per-subject).
 
