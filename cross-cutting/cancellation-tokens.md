@@ -327,7 +327,7 @@ int cancelled = await scheduler.CancelGroupAsync(groupId);
 ```
 
 Both methods use dual-layer cancellation:
-1. **Database flag** (`CancellationRequested = true`): works cross-server, picked up by `CancellationCheckProvider` at the next junction boundary
+1. **Database flag** (`CancellationRequested = true`): works cross-server. A run still `Pending` is recorded `Cancelled` and never run when the job runner picks it up, on any host; a running one picks the flag up through `CancellationCheckProvider` at the next junction boundary
 2. **Same-server instant cancel** (`ICancellationRegistry.TryCancel()`): immediately fires the `CancellationTokenSource` if the job is running on the same server
 
 Cancelled trains transition to `TrainState.Cancelled`, are **not retried**, and **do not create dead letters**. A cancelled run of a scheduled manifest consumes the occurrence it ran for: the manifest next runs at its next scheduled occurrence, not on the next polling cycle.
