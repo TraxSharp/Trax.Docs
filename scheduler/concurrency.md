@@ -90,9 +90,9 @@ CREATE UNIQUE INDEX ix_work_queue_unique_queued_manifest
     WHERE status = 'queued' AND manifest_id IS NOT NULL;
 ```
 
-If the advisory lock is somehow bypassed (e.g., a bug, a code path that doesn't go through the polling service), this index causes a constraint violation on the second insert. The existing per-entry `try/catch` in `CreateWorkQueueEntriesJunction` catches the error and logs it. No crash, no corruption.
+The index also meets a manual trigger: `TriggerAsync`, `TriggerGroupAsync` and the dashboard's trigger buttons queue an entry for the manifest, with its `manifest_id` set, and can land between the cycle loading a manifest as due and writing its entry. `CreateWorkQueueEntriesJunction` saves each entry on its own; when one insert fails, it logs the error and detaches that entry, so the rest of the cycle, the reapers' and dead-letter writes included, still saves. EF Core takes a savepoint before each save inside the leader transaction and rolls back to it on failure, so the transaction itself stays usable. No crash, no corruption.
 
-Manual WorkQueue entries (from the dashboard or `TriggerAsync`) have `manifest_id IS NULL` and are excluded from this index. Multiple manual triggers for different purposes are always allowed.
+A trigger checks for a queued entry first and skips a manifest that already has one, since that entry already runs it; an insert that loses a race is recognised the same way. So a trigger never fails on this index. Entries with no manifest (`manifest_id IS NULL`, such as a `queueTrain` enqueue) are excluded from it, and any number may be queued.
 
 ## JobDispatcher: Row-Level Locking
 

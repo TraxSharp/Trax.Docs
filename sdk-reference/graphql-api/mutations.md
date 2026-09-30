@@ -211,7 +211,7 @@ The whole namespace sits behind the operations gate (`GateOperations`, `RequireA
 
 ### triggerManifest
 
-Triggers an immediate execution of a manifest, bypassing its normal schedule.
+Triggers an immediate execution of a manifest, bypassing its normal schedule. A manifest holds at most one queued work queue entry, so when it already has one, that entry runs it and nothing more is queued; the mutation still succeeds.
 
 ```graphql
 mutation {
@@ -331,7 +331,7 @@ mutation {
 
 ### triggerGroup
 
-Triggers immediate execution of all enabled manifests in a group.
+Triggers immediate execution of all enabled manifests in a group. A manifest that already has a queued work queue entry is skipped, and does not stop the others being queued.
 
 ```graphql
 mutation {
@@ -349,7 +349,7 @@ mutation {
 |-----------|------|----------|-------------|
 | `groupId` | `Long!` | Yes | The manifest group's database ID |
 
-**Returns**: `OperationResponse` (includes `count`, the number of manifests triggered)
+**Returns**: `OperationResponse` (includes `count`, the number of manifests queued, which leaves out those skipped as already queued; the server logs the skipped count)
 
 ---
 
@@ -571,9 +571,9 @@ Upgrading from a version where this mutation wrote the row itself: it now author
 
 The entry is created through [`ITrainExecutionService.QueueAsync`](/docs/sdk-reference/mediator-api/train-execution#queueasync), so the train's `[TraxAuthorize]` requirements apply on top of the operations gate. Authorization runs before `inputJson` is read: a caller who may not run the train gets a GraphQL error with code `TRAX_AUTHORIZATION` and message `"Not authorized."`, not `success: false`, even when the input is malformed, and nothing is inserted. See [Authorization: The Operations Surface](/docs/authorization#the-operations-surface).
 
-Three kinds of exception propagate out of the mutation rather than becoming `success: false`. Authorization (an `UnauthorizedAccessException`, which `TrainAuthorizationException` is) surfaces as the `TRAX_AUTHORIZATION` error above. Cancellation of the request ends it. An infrastructure failure, meaning a database, EF Core, network, I/O or timeout exception anywhere in the exception's chain (a `DbException` such as `NpgsqlException`, `DbUpdateException`, `TimeoutException`, `SocketException`, `HttpRequestException` or `IOException`), is logged on the server and arrives as a GraphQL error with HotChocolate's masked `"Unexpected Execution Error"` message, so nothing about the server reaches the caller. That includes a data-layer exception caused by the train's own `OnQueue` hook; a hook that means to refuse throws its own exception.
+Four kinds of exception propagate out of the mutation rather than becoming `success: false`. Authorization (an `UnauthorizedAccessException`, which `TrainAuthorizationException` is) surfaces as the `TRAX_AUTHORIZATION` error above. Cancellation of the request ends it. An infrastructure failure, meaning a database, EF Core, network, I/O or timeout exception anywhere in the exception's chain (a `DbException` such as `NpgsqlException`, `DbUpdateException`, `TimeoutException`, `SocketException`, `HttpRequestException` or `IOException`), is logged on the server and arrives as a GraphQL error with HotChocolate's masked `"Unexpected Execution Error"` message, so nothing about the server reaches the caller. That includes a data-layer exception caused by the train's own `OnQueue` hook; a hook that means to refuse throws its own exception. The mediator's `TrainAuthorizationNotConfiguredException`, for a `[TraxAuthorize]` train on a host with no `ITrainAuthorizationService` registered, is a host misconfiguration, so it is logged and masked the same way.
 
-Every other exception from the enqueue is a refusal and becomes `success: false`: invalid JSON as `"Invalid InputJson: "` followed by the parser's message, an oversized input as the generic `"The train input failed validation."` (neither the cap nor the input's size is echoed), and anything else as `"The enqueue was refused: "` followed by the exception's message. That last group covers the train's `OnQueue` hook throwing, `QueueSubjectKey` throwing or returning an empty key, one that is only whitespace, or one longer than 512 Unicode characters, and a deferred entry being cancelled before it was confirmed (in which case the hook's side-effect may already have landed). The mediator's `InvalidOperationException` for a `[TraxAuthorize]` train on a host with no `ITrainAuthorizationService` registered also arrives this way, although it is a host misconfiguration rather than a refusal of the input. `Trax.Scheduler/docs/adr/0004` records the split.
+Every other exception from the enqueue is a refusal and becomes `success: false`: invalid JSON as `"Invalid InputJson: "` followed by the parser's message, an oversized input as the generic `"The train input failed validation."` (neither the cap nor the input's size is echoed), and anything else as `"The enqueue was refused: "` followed by the exception's message. That last group covers the train's `OnQueue` hook throwing, `QueueSubjectKey` throwing or returning an empty key, one that is only whitespace, or one longer than 512 Unicode characters, and a deferred entry being cancelled before it was confirmed (in which case the hook's side-effect may already have landed). `Trax.Scheduler/docs/adr/0004` records the split.
 
 ```graphql
 mutation {
