@@ -144,7 +144,7 @@ Both limits are enforced simultaneously. In practice, a group can dispatch at mo
 
 ### How Global and Per-Group Limits Interact
 
-The global `MaxActiveJobs` is a hard ceiling on total concurrent jobs across all groups. Per-group limits are independent caps within that ceiling. When the sum of per-group limits exceeds the global limit, the global limit wins. Not every group can run at full capacity simultaneously.
+On one dispatching host, the global `MaxActiveJobs` caps total concurrent jobs across all groups, and per-group limits are independent caps within it. Neither is a hard ceiling across hosts: each dispatcher counts active jobs on its own, so with N hosts dispatching the total can reach N times either limit (see [Capacity Limit Approximation](/docs/scheduler/concurrency#capacity-limit-approximation)). When the sum of per-group limits exceeds the global limit, the global limit wins. Not every group can run at full capacity simultaneously.
 
 The dispatcher processes entries in priority order and applies two checks with different behaviors:
 

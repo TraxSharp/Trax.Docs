@@ -38,7 +38,7 @@ Fails Pending metadata that has not been picked up within `StalePendingTimeout` 
 
 Fails InProgress metadata that has not completed within `StaleInProgressTimeout` (default: 60 minutes). Acts as a safety net for hard crashes. Lambda hard-kills, OOM events, or process crashes where the worker dies without reaching `FinishServiceTrain`. This timeout should be longer than `DefaultJobTimeout` to allow cooperative cancellation (via `CancelTimedOutJobsJunction`) to propagate before force-failing.
 
-Newly-failed metadata from both stale reapers is visible to `ReapFailedJobsJunction` in the same ManifestManager cycle, enabling dead-lettering if retries are exhausted.
+The reapers do not refresh the counts `LoadManifestsJunction` took at the start of the cycle, so a run either reaper fails is counted by `ReapFailedJobsJunction` and `DetermineJobsToQueueJunction` in the next ManifestManager cycle: dead-lettering or re-queueing its manifest happens one cycle later.
 
 Failing a run, from either reaper, also releases its [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing), so a run still pending past `StalePendingTimeout` or still working past `StaleInProgressTimeout` stops holding its subject.
 

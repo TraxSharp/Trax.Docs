@@ -345,8 +345,8 @@ A scheduler job timeout is a cancellation the scheduler asked for. A timeout ins
 
 Key options to know:
 
-- **`ManifestManagerPollingInterval`** / **`JobDispatcherPollingInterval`** (default: 5 seconds each), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
-- **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
+- **`ManifestManagerPollingInterval`** (default: 5 seconds) / **`JobDispatcherPollingInterval`** (default: 2 seconds), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
+- **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Each dispatching host counts on its own, so with N hosts the total can reach N times the cap (see [Capacity Limit Approximation](/docs/scheduler/concurrency#capacity-limit-approximation)). Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
 - **`DefaultMaxRetries`** (default: 3), retry attempts before dead-lettering
 - **`DefaultRetryDelay`** (default: 5 minutes), base delay between retry attempts. Combined with `RetryBackoffMultiplier` for exponential backoff
 - **`RetryBackoffMultiplier`** (default: 2.0), multiplier applied to each subsequent retry delay (e.g., 5m, 10m, 20m). Set to `1.0` for constant delay

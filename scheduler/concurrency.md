@@ -188,11 +188,11 @@ Each entry is dispatched within its own DI scope, following the same pattern as 
 
 ### Capacity Limit Approximation
 
-With multiple servers, `MaxActiveJobs` enforcement is approximate. Each server independently counts active Metadata records in `LoadDispatchCapacityJunction`. Between the count and the actual dispatch, another server may have dispatched entries, causing the total to slightly exceed the configured limit.
+With multiple servers, `MaxActiveJobs` enforcement is approximate. Each server independently counts active Metadata records in `LoadDispatchCapacityJunction`. Between the count and the actual dispatch, other servers may have dispatched entries of their own, so the total can exceed the configured limit.
 
 This is a deliberate tradeoff. `MaxActiveJobs` is a soft limit to prevent overwhelming the system. Not a strict concurrency semaphore. The alternative (a global advisory lock for the entire dispatch cycle) would serialize all dispatch activity, defeating the purpose of multi-server deployment.
 
-In practice, the overshoot is bounded by the number of servers multiplied by the number of entries dispatched per cycle. For most deployments, this is negligible.
+Each server can dispatch up to the whole limit from the same count, so with N dispatching servers the number of active jobs can reach N times `MaxActiveJobs` (and N times a group's `MaxActiveJobs`). Size the limit for that, or run the dispatcher on one host if the limit must hold exactly.
 
 ## LocalWorkerService: Already Safe
 

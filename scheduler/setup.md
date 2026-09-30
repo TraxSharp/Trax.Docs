@@ -81,7 +81,7 @@ With InMemory, the `ManifestManagerPollingService` runs an `InMemoryManifestMana
 
 When `UsePostgres()` is configured, the scheduler automatically starts a background worker service that polls the `trax.background_job` table for queued jobs using PostgreSQL's `FOR UPDATE SKIP LOCKED` for atomic, lock-free dequeue. No extra connection string needed, it reuses the `IDataContext` from `UsePostgres()`. See [Job Submission](/docs/scheduler/job-submission) for architecture details.
 
-All internal scheduler trains (`ManifestManagerTrain`, `JobDispatcherTrain`, `JobRunnerTrain`, `MetadataCleanupTrain`) are registered automatically by `AddScheduler()`, you only need to pass your own train assemblies to `AddMediator()`.
+All internal scheduler trains (`ManifestManagerTrain`, `JobDispatcherTrain`, `JobRunnerTrain`, `MetadataCleanupTrain`, `DeadLetterCleanupTrain`) are registered automatically by `AddScheduler()`, you only need to pass your own train assemblies to `AddMediator()`.
 
 ### Local Worker Options
 
