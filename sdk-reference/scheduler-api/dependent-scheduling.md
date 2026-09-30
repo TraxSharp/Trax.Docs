@@ -320,6 +320,8 @@ A scoped service for activating dormant dependent manifests at runtime. Injected
 
 The context is automatically initialized by the `JobRunner` before the user's train runs. Only dormant dependents declared as children of the currently executing parent manifest can be activated.
 
+Outside a scheduled run (the train invoked through `ITrainBus`, a GraphQL mutation or a test) the context has no parent manifest. `ActivateAsync` and `ActivateManyAsync` then log a warning and return without activating anything or throwing, so the same train can run both ways.
+
 ### ActivateAsync
 
 ```csharp
@@ -339,7 +341,7 @@ Task ActivateAsync<TTrain, TInput, TOutput>(
 | `ct` | `CancellationToken` | No | Cancellation token |
 
 **Exceptions:**
-- `InvalidOperationException` if the context is not initialized, the manifest is not found, the manifest is not `DormantDependent`, or the manifest does not depend on the current parent
+- `InvalidOperationException` if the manifest is not found, the manifest is not `DormantDependent`, or the manifest does not depend on the current parent
 
 **Disabled:** If the target manifest is disabled, or its manifest group is, the activation is skipped with a warning log.
 
