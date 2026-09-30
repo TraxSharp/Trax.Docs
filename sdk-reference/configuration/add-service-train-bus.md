@@ -42,7 +42,7 @@ Scans the given assemblies with the default `Transient` lifetime. Equivalent to:
 )
 ```
 
-Both overloads are called on `TraxBuilderWithEffects` (the return type of `AddEffects()`), which enforces at compile time that effects are configured before the mediator. Both return `TraxBuilderWithMediator`, which exposes `AddScheduler()` as the next valid step.
+Both overloads are called on `TraxBuilderWithEffects` (the return type of `AddEffects()`), which enforces at compile time that effects are configured before the mediator. Both return `TraxBuilderWithMediator`, which exposes `AddScheduler()` as the next valid step. Called before `AddEffects()`, `AddMediator` fails to compile with `Call AddEffects(...) before AddMediator(...).`, and called a second time with `AddMediator(...) is already called. Call it once and configure everything in that call.`
 
 ## TraxMediatorBuilder
 
