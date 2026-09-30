@@ -90,7 +90,7 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 
 | Method | Parameter | Default | Description |
 |--------|-----------|---------|-------------|
-| `PollingInterval(TimeSpan)` | interval | 5 seconds | Shorthand that sets both `ManifestManagerPollingInterval` and `JobDispatcherPollingInterval` to the same value |
+| `PollingInterval(TimeSpan)` | interval | see the two below | Shorthand that sets both `ManifestManagerPollingInterval` and `JobDispatcherPollingInterval` to the same value |
 | `ManifestManagerPollingInterval(TimeSpan)` | interval | 5 seconds | How often the ManifestManager evaluates manifests and writes to the work queue |
 | `JobDispatcherPollingInterval(TimeSpan)` | interval | 2 seconds | How often the JobDispatcher reads from the work queue and dispatches to the job submitter |
 | `SchedulerLivenessThreshold(TimeSpan)` | threshold | max(JobDispatcherPollingInterval * 10, 30s) | How long the dispatcher may go without completing a cycle before [`AddTraxSchedulerLiveness()`](/docs/scheduler/health-and-liveness) reports unhealthy |
