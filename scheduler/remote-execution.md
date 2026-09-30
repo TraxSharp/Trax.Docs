@@ -227,14 +227,35 @@ public class Function
     private static readonly IServiceProvider Services = BuildServiceProvider();
     private readonly SqsJobRunnerHandler _handler = new(Services);
 
-    public async Task FunctionHandler(SQSEvent sqsEvent, ILambdaContext context)
-    {
-        await _handler.HandleAsync(sqsEvent, context.CancellationToken);
-    }
+    public Task<SQSBatchResponse> FunctionHandler(SQSEvent sqsEvent, ILambdaContext context) =>
+        _handler.HandleBatchAsync(sqsEvent, context.CancellationToken);
 }
 ```
 
-`BuildServiceProvider` registers `AddTrax(...)` and `AddTraxJobRunner(runner => runner.SigningKey = ...)` with the same key as `sqs.SigningKey`. The handler checks each message's signature attribute; it does not check the message's age or refuse a repeat, because SQS redelivers by design and the job's `Pending` metadata row is what stops a second run.
+Enable **`ReportBatchItemFailures`** in the event source mapping's `FunctionResponseTypes`. Without it, Lambda ignores the `SQSBatchResponse` and treats the whole batch as succeeded. In CloudFormation or SAM:
+
+```yaml
+Events:
+  TraxJobs:
+    Type: SQS
+    Properties:
+      Queue: !GetAtt TraxJobsQueue.Arn
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+```
+
+`HandleBatchAsync` runs every record in the batch and reports back only the records SQS should deliver again:
+
+| Record | Result |
+|--------|--------|
+| The train ran and succeeded | Acknowledged |
+| The train ran and failed | Acknowledged: the failure is recorded on the run's row, and the manifest's retries and dead letters act on it. A redelivery would not run it again |
+| Another delivery of the same job already started or finished it | Acknowledged without running it (SQS delivers at least once) |
+| Its signature or body is refused, or the runner failed before starting the run (for example, its input type is unknown or the database is unreachable) | Reported, so SQS redelivers it until the queue's `maxReceiveCount` moves it to the dead-letter queue |
+
+`HandleAsync` is still available for a function that returns nothing: it also runs every record, then throws if any record must be delivered again, so Lambda retries the whole batch (the records in it that already ran are acknowledged on the retry without running again).
+
+`BuildServiceProvider` registers `AddTrax(...)` with a data provider and `AddTraxJobRunner(runner => runner.SigningKey = ...)` with the same key as `sqs.SigningKey`. The handler checks each message's signature attribute; it does not check the message's age or refuse a repeat, because SQS redelivers by design and the job's `Pending` metadata row is what stops a second run.
 
 ```
 ┌──── Scheduler Process ────┐         ┌──── SQS ────┐       ┌── Lambda ──────────────┐
@@ -453,6 +474,29 @@ You can also mix models. For example, run local workers for fast trains and remo
 
 Trains not routed via `ForTrain<T>()` or `[TraxRemote]` execute locally.
 
+To send different trains to different runners, call `UseRemoteWorkers()` (or `UseLambdaWorkers()`, or `UseSqsWorkers()`) once per endpoint. Each call keeps its own options and its own client, so a train is sent only to the endpoint it is routed to, with that endpoint's signing key and headers:
+
+```csharp
+.AddScheduler(scheduler => scheduler
+    .UseRemoteWorkers(
+        remote =>
+        {
+            remote.BaseUrl = "https://gpu-workers/trax/execute";
+            remote.SigningKey = gpuRunnerKey;
+        },
+        routing => routing.ForTrain<IAiInferenceTrain>())
+    .UseRemoteWorkers(
+        remote =>
+        {
+            remote.BaseUrl = "https://cpu-workers/trax/execute";
+            remote.SigningKey = cpuRunnerKey;
+        },
+        routing => routing.ForTrain<IBatchProcessTrain>())
+)
+```
+
+A train routed by two calls is refused when the scheduler is built. A `[TraxRemote]` train that no call routes explicitly goes to the first routed registration of any kind (the first `UseRemoteWorkers()`, `UseSqsWorkers()` or `UseLambdaWorkers()` call).
+
 ## Authorization Posture
 
 A runner runs what it is sent as trusted infrastructure: the scheduler already authorized the work, so the runner skips per-train `[TraxAuthorize]` checks. Every runner entry point (`UseTraxJobRunner`, `UseTraxRunEndpoint`, `SqsJobRunnerHandler`, `TraxLambdaFunction`) therefore refuses to start until `AddTraxJobRunner(runner => ...)` says who may send it work. The startup error names the choices.
@@ -534,7 +578,15 @@ Regardless of deployment model, every process that executes trains must:
 
 When the JobDispatcher dispatches a job, the Metadata record is committed to the database **before** the job is submitted to the worker. This is necessary because the worker needs to read the Metadata. However, if the submission fails (network timeout, remote worker unreachable, throttling), the Metadata would be orphaned in `Pending` state.
 
-Trax handles this with multiple layers of protection:
+Trax handles this with multiple layers of protection.
+
+### Delivery and execution
+
+A failed submit is not always a failed delivery. The HTTP submitter also fails when the runner ran the job and answered with an error, and when the runner is still running the job as the HTTP `Timeout` expires. In both cases the runner already owns the run: its outcome is, or will be, recorded on the run's row.
+
+So when a submit fails, the dispatcher fails the run's row only if it is still `Pending`, with a single conditional write. If the row has left `Pending`, a runner started it: the work queue entry stays `Dispatched`, no dispatch attempt is counted, and the train is **not** run again. The run's own failure, if it failed, counts toward the manifest's retries like any other (see [Dead-Lettering](#5-dead-lettering)). If the row is still `Pending`, the job was not delivered, and the requeue below applies. A runner that receives that job later finds the row already `Failed` and completes without running it.
+
+The same rule covers a job delivered twice (an SQS redelivery, a retried Lambda invocation, a re-claimed local job): only the delivery that moves the run's row out of `Pending` runs the train, and every other delivery completes without running it or recording anything, so its transport acknowledges it.
 
 ### 1. Retry with Exponential Backoff
 
@@ -578,14 +630,15 @@ Set `MaxRetries = 0` to disable retries entirely.
 
 ### 2. Dispatch Requeue
 
-If the HTTP request still fails after exhausting retries, the work queue entry is automatically reset to `Queued` status so the next dispatcher cycle can try again. Each failed attempt:
+If the submit still fails after exhausting retries and no runner started the job, the work queue entry is reset to `Queued` so a later dispatcher cycle can try again. Each failed attempt:
 
-- Marks the orphaned Metadata as `Failed` (immutable audit record)
+- Marks the orphaned Metadata as `Failed` (immutable audit record). While the entry has attempts left, its `FailureException` is `DispatchRequeued` and the submitter's exception type and message are in `FailureReason`; such a run is **not** counted as a failure of the manifest, because the job has not failed, only one delivery of it
 - Increments `dispatch_attempts` on the work queue entry
 - Resets `status` to `Queued`, clears `metadata_id` and `dispatched_at`
-- On the next dispatch cycle, a **new** Metadata row is created
+- Sets `scheduled_at` to hold the entry back before its next attempt: 5 seconds after the first failure, doubling with each attempt, up to 5 minutes
+- On the next dispatch cycle after that, a **new** Metadata row is created
 
-After `MaxDispatchAttempts` failures, the entry stays in `Dispatched` status and feeds into the dead letter pipeline.
+After `MaxDispatchAttempts` failures, the entry stays in `Dispatched` status. That last attempt's run records the submitter's exception as usual and counts once toward the manifest's retries, so an outage that outlasts every attempt still leads to a retry and, eventually, a dead letter.
 
 ```csharp
 .AddScheduler(scheduler => scheduler
@@ -599,6 +652,8 @@ Set `MaxDispatchAttempts(0)` to disable requeuing (immediate failure, matching p
 ### 3. Stale Pending Reaper
 
 The ManifestManager runs a `ReapStalePendingMetadataJunction` on every polling cycle. Any Metadata that has been in `Pending` state longer than `StalePendingTimeout` (default: 20 minutes) is automatically marked as `Failed`. This catches edge cases where the remote worker received the job but crashed before updating the Metadata.
+
+A run whose job still has a row in `trax.background_job` is not reaped: it was delivered to the local worker pool and is waiting for a free worker (the dispatcher can have more runs `Pending` than there are workers). The worker pool recovers a job whose worker died by itself, after `VisibilityTimeout`.
 
 ```csharp
 .AddScheduler(scheduler => scheduler
@@ -624,7 +679,7 @@ This timeout should be longer than `DefaultJobTimeout` (default: 20 minutes) to 
 
 ### 5. Dead-Lettering
 
-When a manifest's failed **executions** (distinct from dispatch attempts) within `FailureCountWindow` exceed `MaxRetries`, the retries allowed after the first run, the ManifestManager creates a `DeadLetter` record and marks the manifest as `AwaitingIntervention`. Dead letters can be resolved via the Dashboard or programmatically.
+When a manifest's failed **executions** (distinct from dispatch attempts: a requeued dispatch attempt is not counted, and only the attempt that exhausts `MaxDispatchAttempts` counts, once) within `FailureCountWindow` exceed `MaxRetries`, the retries allowed after the first run, the ManifestManager creates a `DeadLetter` record and marks the manifest as `AwaitingIntervention`. Dead letters can be resolved via the Dashboard or programmatically.
 
 Failed metadata feeds into the normal retry pipeline, if the manifest has retries remaining, the ManifestManager will create a new work queue entry on the next cycle.
 
@@ -691,6 +746,7 @@ When a remote job fails, check these in order:
 1. **Metadata table**: `SELECT failure_exception, failure_junction, failure_reason, stack_trace FROM trax.metadata WHERE id = <id>`. These fields are populated from the structured error response.
 2. **Log table**: `SELECT * FROM trax.log WHERE metadata_id = <id> ORDER BY id`. If `AddDataContextLogging()` is enabled on the runner, junction-level logs are persisted.
 3. **Stale pending check**: If `failure_exception = 'StalePendingTimeout'`, the runner never started executing. Check runner health, network connectivity, and deployment status.
+4. **Dispatch attempts**: If `failure_exception = 'DispatchRequeued'`, that attempt never reached a runner and the entry was queued again; `failure_reason` holds the submitter's error. A run whose `failure_junction` is `DispatchJobsJunction` with any other exception is the attempt that exhausted `MaxDispatchAttempts`.
 
 ## Limitations
 

@@ -184,7 +184,7 @@ Each entry is dispatched within its own DI scope, following the same pattern as 
 
 1. **Clean change tracker**: each entry gets a fresh `IDataContext` with no stale tracked entities from previous iterations.
 2. **Transaction isolation**: if one entry fails, its transaction is rolled back without affecting others.
-3. **Commit-then-enqueue**: the claim transaction (Metadata creation + WorkQueue status update) is committed before calling `EnqueueAsync` on the job submitter. This makes the Metadata record visible to the job submitter when it begins execution, necessary because the `InMemoryJobSubmitter` executes trains synchronously within `EnqueueAsync`. If the enqueue fails after commit, the dispatcher marks that Metadata `Failed` and, while the entry has dispatch attempts left (`MaxDispatchAttempts`, default 5), resets the WorkQueue entry to `Queued` so a later cycle dispatches it again with a new Metadata. Once the attempts are used up, the entry stays `Dispatched`.
+3. **Commit-then-enqueue**: the claim transaction (Metadata creation + WorkQueue status update) is committed before calling `EnqueueAsync` on the job submitter. This makes the Metadata record visible to the job submitter when it begins execution, necessary because the `InMemoryJobSubmitter` executes trains synchronously within `EnqueueAsync`. If the enqueue fails after commit, the dispatcher fails that Metadata with a write that matches it only while it is still `Pending`. If a runner already started it (a remote runner that ran the job and answered with an error, or is still running it when the HTTP call times out), the write matches nothing, the entry stays `Dispatched` and the train is not run again. Otherwise, while the entry has dispatch attempts left (`MaxDispatchAttempts`, default 5), the failed run is recorded with `FailureException = "DispatchRequeued"` (not counted toward the manifest's retries) and the WorkQueue entry is reset to `Queued`, held back by a backoff (5 seconds, doubling, up to 5 minutes), so a later cycle dispatches it again with a new Metadata. Once the attempts are used up, the entry stays `Dispatched` and that last failure counts once. See [Dispatch failures](/docs/scheduler/admin-trains/job-dispatcher#dispatch-failures).
 
 ### Capacity Limit Approximation
 
@@ -255,7 +255,8 @@ These are `Debug`-level messages. In production, set the log level to `Informati
 | Two servers run metadata cleanup concurrently | Both succeed, no side effects | Idempotent deletes |
 | A server crashes mid-ManifestManager cycle | Transaction rolls back, lock released, no partial state | Transaction-scoped advisory lock |
 | A server crashes mid-dispatch of a WorkQueue entry | Transaction rolls back, entry remains `Queued` for next cycle | Per-entry transaction |
-| A worker crashes mid-execution of a BackgroundJob | Visibility timeout expires, job reclaimed by another worker | `fetched_at` timestamp |
+| A worker crashes mid-execution of a BackgroundJob | Visibility timeout expires, job reclaimed by another worker | `fetched_at` timestamp, refreshed only while the job runs |
+| One job is delivered twice (SQS redelivery, retried dispatch, re-claimed job) | Only one delivery runs the train; the other completes without running it or recording anything | Conditional `Pending` → `InProgress` claim on the run's row |
 
 ## SDK Reference
 
