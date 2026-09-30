@@ -246,7 +246,7 @@ Cancelled trains are treated as terminal, they are eligible for cleanup but are 
 
 Resolved dead letters (Retried or Acknowledged) are automatically purged after the configured retention period. This is enabled by default.
 
-The `DeadLetterCleanupTrain` runs on its own polling interval (default: 1 hour) and deletes resolved dead letters where `ResolvedAt` is older than `DeadLetterRetentionPeriod` (default: 30 days). Dead letters in `AwaitingIntervention` status are never deleted.
+The `DeadLetterCleanupTrain` runs on its own polling interval (default: 1 hour) and deletes resolved dead letters where `ResolvedAt` is older than `DeadLetterRetentionPeriod` (default: 30 days). Dead letters in `AwaitingIntervention` status are never deleted. Nor is a retried dead letter whose requeued work queue entry is still `Queued` (a paused dispatcher, or a group at its limit): deleting the dead letter would delete that retry before it ran. It is purged on a later run, once the retry has left the queue.
 
 Configure via the scheduler builder:
 
@@ -261,6 +261,17 @@ Configure via the scheduler builder:
 ```
 
 Both settings can also be changed at runtime, from the dashboard's Server Settings page or the [`updateScheduler`](/docs/sdk-reference/graphql-api/mutations#config-nested-namespace) mutation. The purge reads them on every run, so turning auto-purge off keeps resolved dead letters from the next run on, without a restart, and the cleanup service stays registered so it can be turned back on the same way.
+
+Both settings delete data, so when the builder states them and a saved setting does too, they fail closed rather than letting the saved value win:
+
+| Code | Saved | Result |
+|------|-------|--------|
+| `AutoPurgeDeadLetters(false)` | `true` | No purge |
+| `AutoPurgeDeadLetters(true)` or unstated | `false` | No purge |
+| `DeadLetterRetentionPeriod(90 days)` | 7 days | 90 days |
+| `DeadLetterRetentionPeriod(7 days)` | 90 days | 90 days |
+
+When the builder does not state a setting, a saved value replaces the default as any other saved setting does. In every case where the saved value differs from the host's code value, the scheduler logs a warning naming the setting, both values and the one it runs with.
 
 ## Testing
 
