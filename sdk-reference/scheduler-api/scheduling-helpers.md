@@ -48,7 +48,7 @@ Static factory class for creating **cron-based** schedules with readable methods
 
 Each method builds its schedule through `Schedule.FromCron`, which parses the expression, so a value out of range throws `FormatException` at the call that states it: `Cron.Daily(hour: 25)`, `Cron.Hourly(minute: 60)`, or a malformed `Cron.Expression(...)`.
 
-A new cron schedule first runs at **its first occurrence after it is scheduled**, not on the next poll: `Cron.Daily(hour: 3)` scheduled at 14:00 first runs at 03:00 the next day. Scheduling records that occurrence on the manifest's `NextScheduledRun`, and re-stating the same cron at a restart keeps it.
+A new cron schedule first runs at **its first occurrence after it is scheduled**, not on the next poll: `Cron.Daily(hour: 3)` scheduled at 14:00 first runs at 03:00 the next day. Scheduling records that occurrence on the manifest's `NextScheduledRun`, and re-stating the same cron at a restart keeps it. A cron manifest written by an earlier Trax version that has never succeeded and has no stored `NextScheduledRun` is due on the next poll instead; scheduling it again, which the builder does for its own manifests at every start, records its first occurrence.
 
 ```csharp
 public static class Cron

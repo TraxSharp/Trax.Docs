@@ -91,7 +91,7 @@ The `ScheduleOptions` fluent builder consolidates all optional scheduling parame
 | `.Timeout(TimeSpan)` | Job execution timeout. `null` uses global default. |
 | `.OnMisfire(MisfirePolicy)` | Misfire policy for missed runs. Unstated: the scheduler's `DefaultMisfirePolicy` (`FireOnceNow`). `FireOnceNow` fires immediately; `DoNothing` skips and waits for the next natural occurrence. Only applies to Cron and Interval types. |
 | `.MisfireThreshold(TimeSpan)` | Grace period before the misfire policy takes effect. Overrides the global `DefaultMisfireThreshold`. |
-| `.Variance(TimeSpan)` | Adds random jitter to the schedule. After each successful run, the next execution is delayed by `[0, variance]` seconds. Only supported on `Interval` and `Cron` types. If `Schedule.WithVariance()` is also set, the schedule-level value takes precedence. See [Schedule Variance](/docs/scheduler/scheduling-options#schedule-variance). |
+| `.Variance(TimeSpan)` | Adds random jitter to the schedule. After each successful run, the next execution is delayed by `[0, variance]` seconds. Applies to `Interval` and `Cron` schedules only; on a dependent or one-off manifest it is ignored. If `Schedule.WithVariance()` is also set, the schedule-level value takes precedence. See [Schedule Variance](/docs/scheduler/scheduling-options#schedule-variance). |
 | `.Exclude(Exclusion)` | Adds an exclusion window. The manifest is skipped when any exclusion matches the current time. Multiple can be combined. Use `Exclude.DaysOfWeek(...)`, `Exclude.Dates(...)`, `Exclude.DateRange(...)`, or `Exclude.TimeWindow(...)` factories. See [Exclusion Windows](/docs/scheduler/exclusions). |
 
 ### Group-level methods
@@ -171,7 +171,7 @@ The `Schedule` record defines the timing for a scheduled manifest. Create instan
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `WithVariance(TimeSpan variance)` | `Schedule` | Returns a new `Schedule` with the specified variance. The next run after each success is delayed by a random `[0, variance]` duration. Only valid on `Interval` and `Cron` types. Applying it to other types throws `InvalidOperationException` at manifest creation time. |
+| `WithVariance(TimeSpan variance)` | `Schedule` | Returns a new `Schedule` with the specified variance. The next run after each success is delayed by a random `[0, variance]` duration. A `Schedule` is always `Interval` or `Cron`, so any schedule accepts it. A negative variance throws `InvalidOperationException` when the manifest is scheduled. |
 
 ```csharp
 // Interval with 2-minute jitter

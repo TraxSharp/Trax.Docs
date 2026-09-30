@@ -275,12 +275,14 @@ If both are specified, `Schedule.WithVariance()` takes precedence over `Schedule
 3. The result is persisted to `NextScheduledRun` in the database
 4. On each polling cycle, `ShouldRunNow` checks `NextScheduledRun`, if it's in the past, the job fires; if in the future, it waits
 
-When `NextScheduledRun` is null (first run, or variance not configured), the scheduler falls back to standard interval/cron evaluation.
+`NextScheduledRun` also holds a new cron's first run: scheduling a cron that has never succeeded stores its first occurrence after the scheduling time, with no jitter, so variance applies from the second run. When `NextScheduledRun` is null (variance not configured, or an interval that has never run), the scheduler falls back to standard interval/cron evaluation, and an interval that has never run fires on the next poll.
+
+A cancelled run later than the last success resets the variance for one run. The schedule is then evaluated from the cancelled run and the stored `NextScheduledRun` is ignored, because it was computed from the earlier success, so the next run is the next base time after the cancelled run with no jitter. The next success computes a jittered `NextScheduledRun` again.
 
 ### Constraints
 
-- Variance is only supported on `Interval` and `Cron` schedule types. Applying it to `Dependent`, `Once`, or other types throws `InvalidOperationException` at configuration time.
-- Variance must be non-negative.
+- Variance applies only to `Interval` and `Cron` schedules. `ScheduleOptions.Variance()` on a dependent (`ThenInclude`, `Include`) or one-off (`ScheduleOnce`) manifest is ignored: nothing is stored and nothing throws.
+- Variance must be non-negative. A negative value throws `InvalidOperationException` when the manifest is scheduled, which for the builder is at startup seeding.
 - Variance can exceed the interval (e.g., 5-minute variance on a 1-minute interval), this is allowed but means runs may be delayed well past the next base interval.
 
 ### Interaction with Other Features
@@ -323,7 +325,7 @@ If the scheduler comes back at 13:00:30 instead:
 
 For cron-based schedules, the scheduler uses the Cronos library to find the latest cron occurrence at or before now, in UTC, and checks if the current time is within the misfire threshold of that occurrence. The search takes the same few dozen evaluations however long the scheduler was down, so a secondly cron that missed two days, or a minutely cron that missed a year, fires at its next occurrence like any other. Both 5-field and 6-field (seconds) cron expressions are supported.
 
-A cron that has never succeeded counts from its first occurrence after it was scheduled, not from when it was scheduled.
+A cron that has never succeeded counts from its first occurrence after it was scheduled, not from when it was scheduled. A cron manifest written by an earlier Trax version that has never succeeded and has no stored `NextScheduledRun` is instead due on the next poll; scheduling it again, which the builder does for its own manifests at every start, records its first occurrence.
 
 > **Seconds-granularity cron:** When using 6-field cron expressions with second-level precision, verify the `ManifestManagerPollingInterval` is set appropriately. The default 5-second polling interval means the scheduler checks for due manifests every 5 seconds. For "every 10 seconds" cron (`*/10 * * * * *`), the default polling is adequate. For "every second" cron (`* * * * * *`), reduce the polling interval accordingly.
 
