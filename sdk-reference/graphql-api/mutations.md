@@ -469,7 +469,7 @@ mutation {
 
 The `operations.config` namespace patches scheduler runtime settings. A save writes only the fields it sets to the persisted `trax.scheduler_config` row, so it never rewrites a setting it did not name, and applies them to the host that received it at once. Every running scheduler host reads the row every few seconds and applies a new or changed one without a restart, so a save made on an API-only host, or on one of several scheduler hosts, reaches all of them. A scheduler applies a change from its next polling cycle, including a new polling or cleanup interval; `localWorkerCount` is the exception and applies when the worker pool next starts. The row also survives restarts: each scheduler applies it at startup over the settings configured in code.
 
-The row stores every setting, so the first save, which creates it, records the saving host's values for the settings it does not name. A host that does not run the scheduler (an API-only host built with `AddTraxJobRunner()`) cannot know those values, so there the first save is refused with a message saying so; make it on a host that calls `AddScheduler`. Once the row exists, a stored value takes precedence over the value in code until the row is changed or deleted, and deleting the row returns every running scheduler to its configured settings.
+A setting no save has named is not stored, so each host keeps the value configured in code for it. That is why a save can be made on any host, including one that does not run the scheduler (an API-only host built with `AddTraxJobRunner()`): it never has to supply values for settings it did not name. A stored value takes precedence over the value in code until it is changed or the row is deleted, and deleting the row returns every running scheduler to its configured settings.
 
 #### updateScheduler
 
@@ -505,6 +505,7 @@ Every field defaults to `null` and means "no change". To clear `maxActiveJobs` (
 | `maxActiveJobs` | `Int` | At least 1 |
 | `clearMaxActiveJobs` | `Boolean` | When `true`, sets `maxActiveJobs` to null |
 | `defaultMaxRetries` | `Int` | Zero or more |
+| `failureCountWindow` | `TimeSpan` | 1 second to ten years. How far back failed runs count toward retry backoff and `MaxRetries` |
 | `defaultRetryDelay` | `TimeSpan` | Zero to ten years |
 | `retryBackoffMultiplier` | `Float` | At least 1 |
 | `maxRetryDelay` | `TimeSpan` | Zero to ten years |
