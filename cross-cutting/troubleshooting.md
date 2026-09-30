@@ -31,6 +31,14 @@ services.AddTrax(trax => trax
 
 This is a host configuration error, reported to the host. A caller that asks `ITrainExecutionService` for a train name that does not exist gets `TrainNotFoundException` instead, whose message is always "The requested train was not found." and does not say what is registered.
 
+The scheduler checks the same thing when a train is scheduled (`Schedule`, `ScheduleMany`, `ScheduleOnceAsync` and the rest) and throws `InvalidOperationException` with the same fix:
+
+```text
+No train implements IServiceTrain<OrderInput, TOut>. Add the train's assembly to AddMediator(m => m.ScanAssemblies(typeof(MyTrain).Assembly)).
+```
+
+A scheduled run runs the train it names, so the scheduler also refuses a train that was not scanned when another train takes the same input type: `Train 'MyApp.Orders.IOrderTrain' is not registered, although another train takes OrderInput.`, followed by the same fix.
+
 ## "AddTrax() must be called before AddTraxDashboard()" / "...before AddTraxGraphQL()"
 
 `AddTraxDashboard()` and `AddTraxGraphQL()` require `AddTrax()` to be called first. They check for a `TraxMarker` singleton in the DI container at registration time.
@@ -52,15 +60,14 @@ builder.Services.AddTraxGraphQL();     // After AddTrax()
 
 The step builder pattern enforces configuration ordering at compile time. `AddMediator()` is only available on `TraxBuilderWithEffects` (returned by `AddEffects()`), and `AddScheduler()` is only available on `TraxBuilderWithMediator` (returned by `AddMediator()`).
 
-**Cause:** Calling methods out of order. Trax.Mediator reports its own order mistakes as CS0619 with the fix as the text:
+**Cause:** Calling methods out of order. Trax.Mediator and Trax.Scheduler report order mistakes as CS0619 with the fix as the text:
 
 | Error text | Cause |
 |---|---|
 | `Call AddEffects(...) before AddMediator(...).` | `AddMediator()` called before `AddEffects()` |
 | `AddMediator(...) is already called. Call it once and configure everything in that call.` | `AddMediator()` called twice |
 | `Call AddStateMachines(...) before AddMediator(...).` | `AddStateMachines()` called after `AddMediator()` |
-
-`AddScheduler()` called before `AddMediator()` still reports CS1929, `'TraxBuilderWithEffects' does not contain a definition for 'AddScheduler'`. It is the same mistake.
+| `Call AddMediator(...) before AddScheduler(...).` | `AddScheduler()` called before `AddMediator()`, straight after `AddEffects()` or on the bare builder |
 
 **Fix:** Follow the required order: `AddEffects()` -> `AddStateMachines()` if you use it -> `AddMediator()` -> `AddScheduler()`:
 ```csharp

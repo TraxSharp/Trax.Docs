@@ -28,7 +28,11 @@ The `MetadataId` points to the `Metadata` row created by the [JobDispatcher](/do
 
 ### LoadMetadataJunction
 
-Loads the `Metadata` record by ID, eagerly including its `Manifest` navigation (needed later by `RunScheduledTrainJunction` to record the success). If the input includes a non-null `Input` object, it wraps it in a `ResolvedTrainInput` for type-safe routing through Trax.Core's memory system.
+Loads the `Metadata` record by ID, eagerly including its `Manifest` navigation (needed later by `RunScheduledTrainJunction` to record the success), and requires a non-null `Input`.
+
+It then resolves the train the row names. The row's `Name` is the train's canonical name, its interface's `FullName`; a row written by an older version may carry the interface's short name or the class's name, which is accepted when exactly one registered train taking the input goes by it. The train must be registered and must take the input given, and it may not be one of the scheduler's own trains, which the scheduler runs in its own process. Otherwise the junction throws before anything touches the row, which stays `Pending`.
+
+Two trains may take the same input type, so the train is found by the name on the row, never by the input's type. The input and the train's canonical name travel on in a `ResolvedTrainInput`, a wrapper for routing through Trax.Core's memory system.
 
 ### ValidateMetadataStateJunction
 
@@ -36,7 +40,7 @@ Checks that the loaded metadata is in `TrainState.Pending`. If it's already `InP
 
 ### RunScheduledTrainJunction
 
-Resolves the target train via `ITrainBus` using the deserialized input and invokes it. The train name stored in the metadata record is the canonical interface name (set via `CanonicalName` during DI registration), which `ITrainBus` uses for resolution. This is where your train's `Junctions()` declaration gets run. The train runs as the `Pending` metadata record the dispatcher created (the request's `MetadataId`), passed to `ITrainBus.RunAsync`, so its execution is recorded on that row. The JobRunner's own run is a separate record, and the two are not linked by `ParentId`.
+Runs the train `LoadMetadataJunction` resolved, by name, through [`ITrainBus.RunByNameAsync`](/docs/sdk-reference/mediator-api/train-bus), with the deserialized input. The input-keyed `ITrainBus.RunAsync` reaches only one train per input type, so it is not used here: the train that runs is always the one the row names. This is where your train's `Junctions()` declaration gets run. The train runs as the `Pending` metadata record the dispatcher created (the request's `MetadataId`), passed to `RunByNameAsync`, so its execution is recorded on that row. The JobRunner's own run is a separate record, and the two are not linked by `ParentId`.
 
 Once the train has returned, the same junction records the success on the manifest: it sets `Manifest.LastSuccessfulRun` to `DateTime.UtcNow`, computes `NextScheduledRun`, and disables a `ScheduleType.Once` manifest. `LastSuccessfulRun` is what drives [dependent train](/docs/scheduler/dependent-trains) evaluation: downstream manifests won't fire until this value advances past their own `LastSuccessfulRun`. If there's no manifest (e.g., an ad-hoc execution), this step is a no-op.
 

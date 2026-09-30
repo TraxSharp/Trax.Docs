@@ -44,6 +44,8 @@ Task EnableAsync(string externalId, CancellationToken ct = default)
 
 Triggers execution of a scheduled job, independent of its normal schedule. The overload with `delay` creates a work queue entry with a future `ScheduledAt`. The JobDispatcher skips it until that time arrives.
 
+A manifest holds at most one queued work queue entry. When it already has one, both overloads queue nothing more and return normally: the entry already there runs the manifest, at its own time. `ITraxScheduler.TriggerGroupAsync` skips such manifests the same way, returns the number it queued, and logs how many it skipped.
+
 ```csharp
 Task TriggerAsync(string externalId, CancellationToken ct = default)
 ```
