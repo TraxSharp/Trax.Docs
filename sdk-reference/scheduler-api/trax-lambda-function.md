@@ -130,12 +130,17 @@ public class Function : TraxLambdaFunction
 
 ## Local Development
 
-Use `RunLocalAsync` to run the Lambda function as a local Kestrel web server. This maps `POST /trax/execute` and `POST /trax/run` endpoints, which enforce the same posture (a signed request carries the `Trax-Signature` header and must be fresh; a refused one gets `401`), and which wrap incoming HTTP request bodies into `LambdaEnvelope` payloads and execute them through the same handler logic as the Lambda entry point.
+Use `RunLocalAsync` to run the Lambda function as a local Kestrel web server. This maps `POST /trax/execute` and `POST /trax/run` endpoints, which enforce their own posture, and which wrap incoming HTTP request bodies into `LambdaEnvelope` payloads and execute them through the same handler logic as the Lambda entry point.
 
 ```csharp
 // Program.cs
 await new Function().RunLocalAsync(args);
 ```
+
+| Runner posture | What the local routes accept |
+|----------------|------------------------------|
+| `SigningKey` | Requests with a valid, fresh `Trax-Signature` header, from any address. The header is checked before the body is read (`401`), and a body over `MaxRequestBodyBytes` gets `413` |
+| `AllowUnsignedRequests()` | Unsigned requests from this machine's loopback address only, whatever address the server listens on; any other caller gets `401`. Unsigned is a posture for the Lambda invocation entry point, which only the scheduler's IAM role can reach. Configure a `SigningKey` to serve the local routes to another machine, such as a scheduler in a container |
 
 This enables a smooth development workflow:
 - **Local dev:** Scheduler uses `UseRemoteWorkers()` + `UseRemoteRun()` to hit the local Kestrel server
@@ -150,7 +155,7 @@ Internally `RunLocalAsync` delegates the route mapping to an internal `Configure
 Two extension points exist specifically for tests:
 
 1. Override `BuildServiceProvider` to swap in a fake `ITraxRequestHandler` (or any other dependency) without exercising `AddTraxJobRunner` and the full effect/mediator stack.
-2. Call `ConfigureRoutes` from a `TestServer`-hosted pipeline to exercise the `/trax/execute` and `/trax/run` endpoints in-process. `ConfigureRoutes` is `internal`, made visible to the Trax test assemblies via `InternalsVisibleTo`.
+2. Call `ConfigureRoutes` from a `TestServer`-hosted pipeline to exercise the `/trax/execute` and `/trax/run` endpoints in-process. `ConfigureRoutes` is `internal`, made visible to the Trax test assemblies via `InternalsVisibleTo`. `TestServer` sets no remote address, so a test that exercises the routes unsigned sets `HttpContext.Connection.RemoteIpAddress` to a loopback address in a middleware first; without it the routes answer `401`.
 
 ```csharp
 // Unit test: stub the request handler.
