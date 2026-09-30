@@ -111,26 +111,28 @@ services.AddTrax(trax => trax
 
 ## How Discovery Works
 
-1. Scans the specified assemblies for all types implementing `IServiceTrain<TIn, TOut>`.
-2. For each discovered type, extracts the `TIn` (input) type.
-3. Registers the train in the `ITrainRegistry` keyed by `TIn`.
-4. Registers the train in the DI container with the specified lifetime.
+1. Scans the specified assemblies for all concrete classes implementing `IServiceTrain<TIn, TOut>`.
+2. Selects each train's service type: its own interface, the non-generic one that derives from `IServiceTrain<TIn, TOut>`. When one train interface extends another, the most derived is selected. A train with no such interface is registered under the closed `IServiceTrain<TIn, TOut>`. No other interface counts, so a marker interface or `IDisposable` on a shared base class never becomes a train's service type. A train that implements two train interfaces, neither extending the other, has no single canonical name and is refused with a `TrainException`. `RegisterServiceTrains` selects the same way.
+3. Registers the train in the `ITrainRegistry` keyed by the `TIn` of its service type.
+4. Registers the train in the DI container under that service type, with the specified lifetime.
 
 ## Input Type Uniqueness
 
-Each input type maps to **exactly one** train via the `TrainBus`. If two trains accept the same `TIn`, the first registration wins and the duplicate is silently skipped via `TryAdd`. Only the first-registered train will be dispatched when calling `RunAsync` with that input type.
+`TrainBus.RunAsync` dispatches by input type, so it reaches **one** train per input type. If two trains accept the same `TIn`, the registry keeps the first one scanned (via `TryAdd`), and `RunAsync` with that input type runs it.
+
+Both trains are still registered and discovered, and a call that names a train runs that train, whichever one the registry keeps: `ITrainExecutionService.RunAsync`, the GraphQL `run` operations and `ITrainBus.RunByNameAsync` all do.
 
 ```csharp
 // This is fine -- different input types
 public class CreateOrderTrain : ServiceTrain<CreateOrderInput, OrderResult> { }
 public class CancelOrderTrain : ServiceTrain<CancelOrderInput, OrderResult> { }
 
-// Only CreateOrderTrain will be dispatched via TrainBus -- UpdateOrderTrain is silently skipped
+// trainBus.RunAsync(new OrderInput()) runs CreateOrderTrain; run UpdateOrderTrain by name
 public class CreateOrderTrain : ServiceTrain<OrderInput, OrderResult> { }
 public class UpdateOrderTrain : ServiceTrain<OrderInput, OrderResult> { }
 ```
 
-If you need multiple trains that share an input type, inject them directly by interface instead of dispatching through the bus.
+To run a specific one of several trains that share an input type, call `ITrainBus.RunByNameAsync` with its interface's full name, or inject it by its interface.
 
 ## Lifetime Considerations
 

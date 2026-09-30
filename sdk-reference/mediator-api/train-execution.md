@@ -127,7 +127,7 @@ Task<RunTrainResult> RunAsync(
 |-----------|------|----------|---------|-------------|
 | `trainName` | `string` | Yes | N/A | Train name (matched by canonical name, then friendly name) |
 | `inputJson` | `string` | Yes | N/A | JSON-serialized input matching the train's `InputType`. Blank is read the way `QueueAsync` reads a missing input |
-| `ct` | `CancellationToken` | No | `default` | Cancellation token forwarded to `ITrainBus.RunAsync` |
+| `ct` | `CancellationToken` | No | `default` | Cancellation token forwarded to the train's `Run` |
 
 **Returns**: `RunTrainResult`
 
@@ -150,12 +150,12 @@ Task<RunTrainResult> RunAsync(
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
 2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
 3. Deserializes `inputJson` to the train's `InputType`, reading blank, casing, repeated properties and reference metadata as `QueueAsync` does.
-4. Resolves the train for the input in a child DI scope. A train that cannot be built throws here, before anything is written.
+4. Resolves the train found in step 1 by its canonical name, in a child DI scope. The train that runs is the one that was authorized, even when another train takes the same input type. A train that cannot be built throws here, before anything is written.
 5. Creates a `Metadata` record with a generated external ID and persists it in the `Pending` state.
-6. Runs the train as that record, through the generic `RunAsync<TOut>` for the train's `OutputType`, invoked by reflection.
+6. Runs the train as that record, for the train's `OutputType`, invoked by reflection.
 7. Returns the metadata ID and the train's output (or `null` for `Unit` trains). The output is read through a generic method closed over `OutputType`, so an output type that is not public (an `internal` record in the consumer's assembly, say) is returned like any other.
 
-Steps 4 to 6 are the default `LocalRunExecutor` with the default `ITrainBus`. A host that registers its own `ITrainBus` gets the record written before the train is resolved, as in earlier versions. A remote executor (`UseRemoteRun`, `UseLambdaRun`) takes over steps 4 to 7 and does them its own way.
+Steps 4 to 6 are the default `LocalRunExecutor` with the default `ITrainBus`. A host that registers its own `ITrainBus` gets the record written first, then `ITrainBus.RunByNameAsync<TOut>(trainName, input, ct, metadata)` called with it. A remote executor (`UseRemoteRun`, `UseLambdaRun`) takes over steps 4 to 7 and does them its own way.
 
 ## PrepareAsync
 

@@ -42,6 +42,26 @@ Task RunAsync(object trainInput, CancellationToken cancellationToken, Metadata? 
 
 Parameters are identical to `RunAsync<TOut>`.
 
+### RunByNameAsync
+
+Runs the train registered under a name, rather than the one registered for the input's type. When two trains take the same input type, `RunAsync` reaches only one of them; `RunByNameAsync` runs the one you name.
+
+```csharp
+Task<TOut> RunByNameAsync<TOut>(string trainName, object trainInput, CancellationToken cancellationToken, Metadata? metadata = null)
+Task RunByNameAsync(string trainName, object trainInput, CancellationToken cancellationToken, Metadata? metadata = null)
+```
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `trainName` | `string` | Yes | N/A | The full name of the train's service type, `TrainRegistration.ServiceType.FullName`, which is also the name a run's metadata records (for example `MyApp.Trains.IProcessOrderTrain`). Only the exact full name matches. |
+| `trainInput` | `object` | Yes | N/A | The input. It must be an instance of the train's input type. |
+| `cancellationToken` | `CancellationToken` | Yes | N/A | Forwarded to the train's `Run` method. |
+| `metadata` | `Metadata?` | No | `null` | As for `RunAsync`: a pre-created `Pending` record for the train to run as. |
+
+**Throws**: `TrainException` if no discovered train has that name, if the input is not of its input type (both before anything is resolved), or if `metadata` is not `Pending`. Otherwise as `RunAsync`.
+
+Like the rest of the bus it is an in-process call and checks no authorization. `ITrainExecutionService.RunAsync` authorizes the caller for the train it looked up and then runs that train through this method. Each call gets its own DI scope, as `RunAsync` does. The interface ships a default implementation that throws `NotSupportedException`, so a test double implementing `ITrainBus` keeps compiling; the bus `AddMediator` registers implements it.
+
 ### InitializeTrain
 
 Resolves and initializes (but does **not** run) the train for the given input type.
@@ -120,7 +140,7 @@ Each `RunAsync` call creates a child DI scope. The train and all its dependencie
 
 ## Remarks
 
-- Trains are discovered by input type at registration time (via [AddMediator](/docs/sdk-reference/configuration/add-service-train-bus)). Each input type maps to exactly one train.
+- Trains are discovered by input type at registration time (via [AddMediator](/docs/sdk-reference/configuration/add-service-train-bus)). `RunAsync` and `InitializeTrain` reach one train per input type, the first scanned; `RunByNameAsync` reaches any registered train by name.
 - The `metadata` parameter is for running a train as a record created beforehand, which is how the scheduler and the dashboard's ad-hoc run execute a train. It does not link a child run to a parent.
 - `RunAsync` calls the train's `Run` method internally, which means exceptions are thrown (not returned as `Either`). Use try/catch for error handling.
 - The `cancellationToken` overloads forward the token to `train.Run(input, cancellationToken)`, which propagates it to all steps. See [Cancellation Tokens](/docs/cross-cutting/cancellation-tokens) for details.
