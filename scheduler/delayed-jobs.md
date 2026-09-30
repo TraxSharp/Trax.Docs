@@ -102,6 +102,8 @@ await scheduler.ScheduleOnceAsync<ICleanupTrain, CleanupInput>(
         .Group("maintenance"));
 ```
 
+`MaxRetries(1)` allows one retry after the first run, two attempts in all; `MaxRetries(0)` runs the job once and dead-letters it on its first failure. A one-off run that times out or is cancelled is not run again: the cancelled run consumed its one occurrence.
+
 ## SDK Reference
 
 > [TriggerAsync / ScheduleOnceAsync](/docs/sdk-reference/scheduler-api/manifest-management) | [Schedule](/docs/sdk-reference/scheduler-api/schedule)

@@ -21,7 +21,7 @@ Each polling cycle, the `ManifestManagerTrain` evaluates dependent manifests sep
 2. If the parent's `LastSuccessfulRun` is later than the moment the dependent's latest successful run **started**, queue the dependent
 3. If the parent has never succeeded, or the dependent's latest successful run started after the parent's last success, skip it
 
-A dependent runs **at least once after each parent success**. Comparing against when the dependent's run started, rather than when it finished, is what makes that hold: a parent success that lands while the dependent is running was not seen by that run, so the dependent is queued once more when it finishes. When the dependent has no successful run on record (its history was pruned), its own `LastSuccessfulRun` stands in.
+A dependent runs **at least once after each parent success**. Comparing against when the dependent's run started, rather than when it finished, is what makes that hold: a parent success that lands while the dependent is running was not seen by that run, so the dependent is queued once more when it finishes. When the dependent has no successful run on record (its history was pruned), its own `LastSuccessfulRun` stands in. A dependent run that was cancelled (timed out, or cancelled by an operator) consumed the parent success it was started for: when it ended later than that baseline, the dependent waits for the parent's next success.
 
 That's it. No event bus, no callbacks. The existing polling loop picks up the change on its next cycle.
 

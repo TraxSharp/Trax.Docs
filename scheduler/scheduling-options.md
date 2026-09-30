@@ -170,6 +170,8 @@ await scheduler.ScheduleAsync<IMyTrain, MyInput, Unit>(
         .Priority(10));                             // Default: 0
 ```
 
+`MaxRetries(n)` is the number of retries after the first run, so a manifest runs at most n + 1 times in a row before it is dead-lettered. `MaxRetries(0)` runs the job once and dead-letters it on its first failure; the default of 3 allows four attempts. A negative value is refused. Only failures inside [`FailureCountWindow`](#configuration-options) count, and only those after the manifest's latest resolved dead letter.
+
 For dependent manifests that should only fire when explicitly activated by the parent train at runtime, add `.Dormant()`:
 
 ```csharp
@@ -330,7 +332,7 @@ Misfire policies only apply to `Cron` and `Interval` schedule types. Dependent m
 
 ## Timeout Enforcement
 
-The ManifestManager actively cancels jobs that exceed their configured timeout. Each polling cycle, the `CancelTimedOutJobsJunction` checks all InProgress metadata and cancels any where the elapsed time exceeds the manifest's `TimeoutSeconds` (or the global `DefaultJobTimeout`).
+The ManifestManager actively cancels jobs that exceed their configured timeout. Each polling cycle, the `CancelTimedOutJobsJunction` checks every InProgress run and cancels any where the elapsed time exceeds its manifest's `TimeoutSeconds`, or the global `DefaultJobTimeout` when the manifest sets none. That includes runs with no manifest (queued or run through the operations surface, which get `DefaultJobTimeout`) and runs of a manifest that was disabled while they ran: disabling a manifest stops new runs, it does not exempt a running one. The scheduler's own trains are not timed out.
 
 **Per-manifest timeout**: Set via `Timeout()` on `ScheduleOptions`:
 
@@ -349,6 +351,10 @@ await scheduler.ScheduleAsync<IMyTrain, MyInput, Unit>(
 
 Timed-out jobs are cancelled using the same dual-layer mechanism as manual cancellation: `CancellationRequested = true` in the database (cross-server) plus `ICancellationRegistry.TryCancel()` for same-server instant cancel. The job transitions to `TrainState.Cancelled`, it is **not retried** and does **not create a dead letter**. This is distinct from dead-lettering, which handles jobs that have failed repeatedly.
 
+A cancelled run, whether it timed out or an operator cancelled it, **consumes the occurrence it ran for**. The ManifestManager evaluates a schedule from whichever is later, the last successful run or the last cancelled one, so an hourly job whose run is cancelled at 10:20 next runs at 11:20, not on the next polling cycle. A job that always exceeds its timeout therefore runs once per occurrence rather than back to back. A `Once` manifest whose run was cancelled is not run again (trigger it to run it), and a dependent whose run was cancelled waits for its parent's next success.
+
+The stale in-progress reaper, the safety net for workers that died mid-run, respects a manifest timeout longer than the default: such a run is failed only at its timeout plus the grace between `DefaultJobTimeout` and `StaleInProgressTimeout` (40 minutes with the defaults), never while it is still inside its timeout. See [ManifestManager](/docs/scheduler/admin-trains/manifest-manager#reapstaleinprogressmetadatajunction).
+
 A scheduler job timeout is a cancellation the scheduler asked for. A timeout inside your train is not: when an `HttpClient` gives up on a slow upstream it throws `TaskCanceledException`, and the run is recorded `Failed`, classified `Transient` (unless your `IFailureClassifier` says otherwise). That failure counts toward the manifest's `MaxRetries`, so the manifest runs it again and dead-letters it once the retries are used up.
 
 *See also: [Cancellation Tokens](/docs/cross-cutting/cancellation-tokens)*
@@ -359,13 +365,14 @@ Key options to know:
 
 - **`ManifestManagerPollingInterval`** / **`JobDispatcherPollingInterval`** (default: 5 seconds each), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
 - **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
-- **`DefaultMaxRetries`** (default: 3), retry attempts before dead-lettering
+- **`DefaultMaxRetries`** (default: 3), retries after the first run before dead-lettering (the default allows four attempts)
+- **`FailureCountWindow`** (default: 24 hours), how far back a manifest's failed runs count toward its retry backoff and its `MaxRetries`. A failure older than the window no longer delays the next run or counts toward a dead letter, so occasional failures weeks apart do not dead-letter a healthy manifest. A success does not reset the count inside the window. Set with `FailureCountWindow(TimeSpan)`; must be between one second and ten years
 - **`DefaultRetryDelay`** (default: 5 minutes), base delay between retry attempts. Combined with `RetryBackoffMultiplier` for exponential backoff
 - **`RetryBackoffMultiplier`** (default: 2.0), multiplier applied to each subsequent retry delay (e.g., 5m, 10m, 20m). Set to `1.0` for constant delay
 - **`MaxRetryDelay`** (default: 1 hour), maximum retry delay cap, prevents unbounded backoff growth
 - **`DeadLetterRetentionPeriod`** (default: 30 days), how long resolved dead letters are kept before auto-purge
 - **`AutoPurgeDeadLetters`** (default: true), enable automatic deletion of resolved dead letters past the retention period
-- **`DefaultJobTimeout`** (default: 20 minutes), jobs exceeding this duration are actively cancelled (see [Timeout Enforcement](#timeout-enforcement))
+- **`DefaultJobTimeout`** (default: 20 minutes), runs whose manifest sets no timeout, and runs with no manifest, are actively cancelled after this long (see [Timeout Enforcement](#timeout-enforcement))
 - **`DefaultMisfirePolicy`** (default: `FireOnceNow`), how missed runs are handled
 - **`DefaultMisfireThreshold`** (default: 60 seconds), grace period for misfire detection
 
