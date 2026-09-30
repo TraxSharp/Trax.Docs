@@ -100,19 +100,19 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 | `MaxQueuedJobsPerCycle(int?)` | limit | 100 | Max queued work queue entries loaded per JobDispatcher cycle. Prevents unbounded memory usage when the queue is large. `null` = unlimited. Provides headroom beyond `MaxActiveJobs` for per-group limit skipping |
 | `MaxWorkQueueEntriesPerCycle(int?)` | limit | 200 | Max work queue entries created per ManifestManager cycle, distributed fairly across manifest groups (`limit / numGroups` per group, overflow to higher-priority groups). Prevents a single large group from starving smaller groups. `null` = unlimited |
 | `ExcludeFromMaxActiveJobs<TTrain>()` | _(none)_ | _(none)_ | Excludes a train type from the MaxActiveJobs count |
-| `DefaultMaxRetries(int)` | maxRetries | 3 | Retry attempts before dead-lettering |
+| `DefaultMaxRetries(int)` | maxRetries | 3 | Retry attempts before dead-lettering, for manifests that don't set `MaxRetries`. A runtime change applies to manifests seeded after it (every manifest at the next start) |
 | `DefaultRetryDelay(TimeSpan)` | delay | 5 minutes | Base delay between retries |
 | `RetryBackoffMultiplier(double)` | multiplier | 2.0 | Exponential backoff multiplier. Set to 1.0 for constant delay |
 | `MaxRetryDelay(TimeSpan)` | maxDelay | 1 hour | Caps retry delay to prevent unbounded growth |
 | `DefaultJobTimeout(TimeSpan)` | timeout | 20 minutes | Timeout after which a running job is considered stuck |
-| `DefaultMisfirePolicy(MisfirePolicy)` | policy | `FireOnceNow` | Default [misfire policy](/docs/scheduler/scheduling-options#misfire-policies) for manifests that don't specify one |
+| `DefaultMisfirePolicy(MisfirePolicy)` | policy | `FireOnceNow` | Default [misfire policy](/docs/scheduler/scheduling-options#misfire-policies) for manifests that don't specify one. A runtime change applies to manifests seeded after it |
 | `DefaultMisfireThreshold(TimeSpan)` | threshold | 60 seconds | Grace period before misfire policies take effect. If a manifest is overdue by less than this, it fires normally |
 | `RecoverStuckJobsOnStartup(bool)` | recover | `true` | Whether to auto-recover stuck jobs on startup |
 | `StalePendingTimeout(TimeSpan)` | timeout | 20 minutes | Timeout after which a Pending job that was never picked up is automatically failed |
 | `StaleInProgressTimeout(TimeSpan)` | timeout | 60 minutes | Timeout after which an InProgress job that never completed is automatically failed. Acts as a safety net for hard crashes (Lambda kills, OOM) where FinishServiceTrain never runs. Should be longer than `DefaultJobTimeout` to allow cooperative cancellation to propagate first |
 | `StaleStagedEntryTimeout(TimeSpan)` | timeout | 10 minutes | How long a work queue entry staged by a train with `DeferQueuePromotion` may stay unconfirmed before the ManifestManager resolves it. An entry still unconfirmed after this long belongs to a process that stopped between the two commits. Keep it well above the slowest `OnQueue` hook, because an entry resolved while its hook is still running is resolved wrongly. The sweep runs in the ManifestManager, so nothing resolves stale entries while `ManifestManagerEnabled` is false |
 | `PromoteStaleStagedEntries(bool promote = true)` | `promote` | off (cancel) | Promotes stale unconfirmed entries instead of cancelling them. Cancelling is the default because nothing recorded tells a hook that succeeded from one that never ran or one that rejected the mutation. Opt in only when every deferring train's chain re-checks what its hook checked and every hook is idempotent. `Trax.Docs/adr/0018` records why |
-| `PruneOrphanedManifests(bool)` | prune | `true` | Whether to [delete manifests](/docs/scheduler/orphan-manifest-cleanup) from the database that are no longer defined in the startup configuration. Disable if you create manifests dynamically at runtime via `ITraxScheduler` |
+| `PruneOrphanedManifests(bool)` | prune | `true` | Whether to [delete manifests](/docs/scheduler/orphan-manifest-cleanup) from the database that are no longer defined in the startup configuration. Disable if you create manifests dynamically at runtime via `ITraxScheduler`. A host that declares no manifests prunes nothing, and a manifest with a pending or running run is kept until the run finishes |
 | `DependentPriorityBoost(int)` | boost | 16 | Priority boost added to dependent train work queue entries at dispatch time. Range: 0-31. Dependent trains are dispatched before non-dependent ones by default |
 
 ### Startup Schedules

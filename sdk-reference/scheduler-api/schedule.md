@@ -85,11 +85,11 @@ The `ScheduleOptions` fluent builder consolidates all optional scheduling parame
 
 | Method | Description |
 |--------|-------------|
-| `.Priority(int)` | Dispatch priority (0-31). Higher values dispatched first. |
-| `.Enabled(bool)` | Whether the manifest is enabled. Default: `true`. |
-| `.MaxRetries(int)` | Max retry attempts before dead-lettering. Default: `3`. |
+| `.Priority(int)` | Dispatch priority (0-31) of every entry queued for this manifest. Higher values dispatched first, within the order set by group priority. |
+| `.Enabled(bool)` | Whether the manifest is enabled. Unstated, a new manifest is enabled and an existing one keeps its current state, so a runtime disable survives a restart. |
+| `.MaxRetries(int)` | Max retry attempts before dead-lettering. Unstated: the scheduler's `DefaultMaxRetries` (3). |
 | `.Timeout(TimeSpan)` | Job execution timeout. `null` uses global default. |
-| `.OnMisfire(MisfirePolicy)` | Misfire policy for missed runs. `FireOnceNow` (default) fires immediately; `DoNothing` skips and waits for the next natural occurrence. Only applies to Cron and Interval types. |
+| `.OnMisfire(MisfirePolicy)` | Misfire policy for missed runs. Unstated: the scheduler's `DefaultMisfirePolicy` (`FireOnceNow`). `FireOnceNow` fires immediately; `DoNothing` skips and waits for the next natural occurrence. Only applies to Cron and Interval types. |
 | `.MisfireThreshold(TimeSpan)` | Grace period before the misfire policy takes effect. Overrides the global `DefaultMisfireThreshold`. |
 | `.Variance(TimeSpan)` | Adds random jitter to the schedule. After each successful run, the next execution is delayed by `[0, variance]` seconds. Only supported on `Interval` and `Cron` types. If `Schedule.WithVariance()` is also set, the schedule-level value takes precedence. See [Schedule Variance](/docs/scheduler/scheduling-options#schedule-variance). |
 | `.Exclude(Exclusion)` | Adds an exclusion window. The manifest is skipped when any exclusion matches the current time. Multiple can be combined. Use `Exclude.DaysOfWeek(...)`, `Exclude.Dates(...)`, `Exclude.DateRange(...)`, or `Exclude.TimeWindow(...)` factories. See [Exclusion Windows](/docs/scheduler/exclusions). |
@@ -107,8 +107,10 @@ The `ScheduleOptions` fluent builder consolidates all optional scheduling parame
 | Method | Description |
 |--------|-------------|
 | `.MaxActiveJobs(int?)` | Max concurrent active jobs for this group. `null` = no per-group limit. |
-| `.Priority(int)` | Group dispatch priority (0-31). Defaults to manifest priority if not set. |
-| `.Enabled(bool)` | Kill switch for the entire group. Default: `true`. |
+| `.Priority(int)` | Group dispatch priority (0-31). Unstated, a new group takes the manifest's priority. |
+| `.Enabled(bool)` | Kill switch for the entire group. Unstated, a new group is enabled. |
+
+Each group setting is written only when stated: an existing group keeps any setting its members leave unstated, including a change made from the dashboard. Members of one group that state different values for a setting fail `AddScheduler` at startup. See [What a Restart Rewrites](/docs/scheduler/scheduling-options#what-a-restart-rewrites).
 
 ## Returns
 

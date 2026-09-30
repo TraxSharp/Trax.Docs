@@ -88,10 +88,10 @@ For each manifest identified as due, creates a `WorkQueue` entry with:
 - `TrainName` from the manifest's `Name` (the canonical interface name, e.g. `MyApp.Trains.IProcessOrderTrain`)
 - `Input` / `InputTypeName` from the manifest's `Properties` / `PropertyTypeName`
 - `ManifestId` linking back to the source manifest
-- `Priority` set from `ManifestGroup.Priority` (the group's priority, not an individual manifest priority)
+- `Priority` set from the manifest's own `Priority`, as a manual trigger or a dead-letter requeue is (the dispatcher orders by the group's priority first)
 - `Status = Queued`
 
-For dependent manifests, `DependentPriorityBoost` is still added on top of the group priority at dispatch time.
+For dependent manifests, `DependentPriorityBoost` is added on top of the manifest priority.
 
 Each entry is saved individually. If one fails (e.g., a serialization issue for a specific manifest), the others still get queued. Errors are logged per-manifest.
 

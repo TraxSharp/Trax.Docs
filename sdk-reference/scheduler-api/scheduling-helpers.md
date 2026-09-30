@@ -189,10 +189,10 @@ public class ManifestOptions
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `IsEnabled` | `bool` | `true` | Whether the manifest is enabled. When `false`, ManifestManager skips it during polling. |
-| `MaxRetries` | `int` | `3` | Maximum retry attempts before the job is dead-lettered. Each retry creates a new Metadata record. |
+| `IsEnabled` | `bool` | `true` | Whether the manifest is enabled. When `false`, ManifestManager skips it during polling. Written to an existing manifest only when set, so a re-seed that leaves it unset keeps a runtime disable. |
+| `MaxRetries` | `int` | `DefaultMaxRetries` (3) | Maximum retry attempts before the job is dead-lettered. Each retry creates a new Metadata record. Unset, the manifest takes the scheduler's `DefaultMaxRetries`; inside `configureEach` it reads the batch's resolved value. |
 | `Timeout` | `TimeSpan?` | `null` | Per-job timeout override. `null` falls back to the global `DefaultJobTimeout`. If a job exceeds this duration, it may be considered stuck. |
-| `Priority` | `int` | `0` | Manifest-level priority stored on the manifest record. Note: dispatch ordering is primarily determined by **ManifestGroup.Priority** (set from the dashboard). This manifest-level priority is used as the work queue entry's priority when the manifest is queued. For dependent manifests, `DependentPriorityBoost` (default 16) is added on top at dispatch time. Can also be set via the `priority` parameter on scheduling methods. |
+| `Priority` | `int` | `0` | Manifest-level priority stored on the manifest record. The dispatcher orders by **ManifestGroup.Priority** first, then by the entry's priority, and every entry for the manifest (scheduled, triggered or requeued) is queued at this priority. For dependent manifests, `DependentPriorityBoost` (default 16) is added on top at dispatch time. Can also be set via the `priority` parameter on scheduling methods. |
 | `MisfirePolicy` | `MisfirePolicy?` | `null` | Per-manifest misfire policy override. `null` uses the global `DefaultMisfirePolicy`. Only applies to Cron and Interval schedule types. See [Misfire Policies](/docs/scheduler/scheduling-options#misfire-policies). |
 | `MisfireThreshold` | `TimeSpan?` | `null` | Per-manifest misfire threshold override. `null` uses the global `DefaultMisfireThreshold` (60 seconds). |
 | `Exclusions` | `List<Exclusion>` | `[]` | Exclusion windows for this manifest. When any exclusion matches the current time, the manifest is skipped. Excluded periods are "intentionally skipped", not misfires. See [Exclusion Windows](/docs/scheduler/exclusions). |
