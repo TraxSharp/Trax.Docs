@@ -159,7 +159,7 @@ So a manifest or group disabled from the dashboard as a kill switch stays disabl
 
 ## Management Operations
 
-`ITraxScheduler` includes methods for runtime job control: `DisableAsync`, `EnableAsync`, `TriggerAsync`, `CancelAsync`, `CancelGroupAsync`, `ScheduleDependentAsync`, and `ScheduleOnceAsync`. Disabled jobs remain in the database but are skipped by the ManifestManager until re-enabled. Work a disabled job had already queued waits as well, a retry waiting out its backoff included, and is dispatched once the job is re-enabled; a dead-letter requeue runs either way. `CancelAsync` and `CancelGroupAsync` cancel all in-progress executions of a manifest or group using dual-layer cancellation (database flag + same-server CTS).
+`ITraxScheduler` includes methods for runtime job control: `DisableAsync`, `EnableAsync`, `TriggerAsync`, `CancelAsync`, `CancelGroupAsync`, `ScheduleDependentAsync`, and `ScheduleOnceAsync`. Disabled jobs remain in the database but are skipped by the ManifestManager until re-enabled. Work a disabled job had already queued waits as well, a retry waiting out its backoff included, and is dispatched once the job is re-enabled; a run someone asked for by name (`TriggerAsync`, `TriggerGroupAsync`, a dead-letter requeue) runs either way. `CancelAsync` and `CancelGroupAsync` cancel all in-progress executions of a manifest or group using dual-layer cancellation (database flag + same-server CTS).
 
 `TriggerAsync` accepts an optional `TimeSpan delay` parameter to schedule a delayed execution of an existing manifest. `ScheduleOnceAsync` creates a new one-off manifest with `ScheduleType.Once` that fires after a delay and auto-disables on success. See [Delayed / One-Off Jobs](delayed-jobs.md) for usage patterns.
 
@@ -171,7 +171,7 @@ Disabling a manifest (`DisableAsync`, the dashboard, or `IsEnabled = false`) sto
 - A dormant dependent is not activated by its parent. `IDormantDependentContext.ActivateAsync` logs a warning and skips it, as it does for a disabled manifest group.
 - Work the manifest already has queued (a retry waiting out its backoff, say) is held by the dispatcher. It stays `Queued` and is dispatched once the manifest is re-enabled.
 
-A dead-letter requeue is the exception: an operator asked for that run by name, so it runs whether or not the manifest is enabled. An entry queued by `TriggerAsync` for a disabled manifest is held like any other until the manifest is re-enabled. Cancel it with `CancelAsync` if it should not run at all.
+A run someone asked for by name is the exception, because the operator asked for exactly that run: an entry queued by `TriggerAsync`, `TriggerGroupAsync` or a dead-letter requeue runs whether or not the manifest is enabled, after its delay if it has one. A trigger that finds the manifest's scheduled entry already waiting releases that entry the same way. The manifest stays disabled, so its schedule does not resume. A disabled manifest group still holds everything, explicit or not.
 
 ## Manifest Options
 

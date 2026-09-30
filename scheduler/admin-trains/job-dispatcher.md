@@ -23,7 +23,7 @@ LoadQueuedJobsJunction → LoadDispatchCapacityJunction → ApplyCapacityLimitsJ
 Loads `WorkQueue` entries with `Status = Queued`, filtering out:
 
 - entries whose `ManifestGroup` has `IsEnabled = false`
-- entries whose manifest has `IsEnabled = false`, unless the entry is a dead-letter requeue. The entry stays `Queued` and is dispatched once the manifest is re-enabled (see [Disabling a job](/docs/scheduler/scheduling-options#disabling-a-job))
+- entries whose manifest has `IsEnabled = false`, unless the entry is an explicit trigger (`WorkQueue.IsExplicitTrigger`: queued by `TriggerAsync`, `TriggerGroupAsync` or a dead-letter requeue). The entry stays `Queued` and is dispatched once the manifest is re-enabled (see [Disabling a job](/docs/scheduler/scheduling-options#disabling-a-job))
 - entries whose `ScheduledAt` is in the future
 - unconfirmed entries (`ConfirmedAt` is null), staged by a train with [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable) and not yet promoted
 - manual entries whose [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) already has a run in flight (a dispatched entry whose metadata is `Pending` or `InProgress`)

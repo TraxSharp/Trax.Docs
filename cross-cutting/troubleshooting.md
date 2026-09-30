@@ -148,7 +148,7 @@ If you're using `ShortCircuit`, remember that throwing an exception means "conti
 ## Scheduled jobs don't execute (no errors)
 
 Possible causes:
-- The manifest's `IsEnabled` is `false`. Check via `ITraxScheduler` or the database. A disabled manifest's already-queued entries also wait, `Queued`, until it is re-enabled. A restart does not re-enable a manifest or group that was disabled at runtime unless the code states `.Enabled(true)` (see [What a Restart Rewrites](/docs/scheduler/scheduling-options#what-a-restart-rewrites))
+- The manifest's `IsEnabled` is `false`. Check via `ITraxScheduler` or the database. A disabled manifest's already-queued scheduled entries also wait, `Queued`, until it is re-enabled; only a trigger or a dead-letter requeue runs it while disabled. A restart does not re-enable a manifest or group that was disabled at runtime unless the code states `.Enabled(true)` (see [What a Restart Rewrites](/docs/scheduler/scheduling-options#what-a-restart-rewrites))
 - A new cron schedule has not reached its first occurrence yet. It first runs at its first occurrence after it was scheduled, not on the next poll, and cron times are UTC: `Cron.Daily(hour: 3)` is 03:00 UTC. The manifest's `NextScheduledRun` shows when that is
 - `ManifestManagerPollingInterval` or `JobDispatcherPollingInterval` is set too high and the job hasn't been picked up yet
 - The train's input type doesn't implement `IManifestProperties`

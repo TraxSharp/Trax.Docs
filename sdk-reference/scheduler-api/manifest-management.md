@@ -194,7 +194,7 @@ public class SchedulerController(ITraxScheduler scheduler) : ControllerBase
 
 ## Remarks
 
-- `DisableAsync` sets `IsEnabled = false` on the manifest. The ManifestManager skips disabled manifests during polling.
+- `DisableAsync` sets `IsEnabled = false` on the manifest. The ManifestManager skips disabled manifests during polling, and the dispatcher holds their scheduled entries until they are re-enabled. `TriggerAsync`, `TriggerGroupAsync` and a dead-letter requeue still run a disabled manifest (see [Disabling a job](/docs/scheduler/scheduling-options#disabling-a-job)).
 - `TriggerAsync` creates a new execution independent of the regular schedule. The job's normal schedule continues, measured like any run's from when the triggered run succeeds or is cancelled. The work queue entry inherits the manifest's stored priority (no `DependentPriorityBoost` is applied for manual triggers). The `delay` overload sets `ScheduledAt` on the work queue entry; the JobDispatcher skips entries with a future `ScheduledAt`.
 - `ScheduleOnceAsync` creates a manifest with `ScheduleType.Once`. The manifest auto-disables (`IsEnabled = false`) after its first successful execution. If no `externalId` is provided, one is generated as `once-{guid}`. Uses upsert semantics, so it is safe to call with the same `externalId` without creating duplicates.
 - `CancelAsync` uses dual-layer cancellation: a database flag (`CancellationRequested = true`) for cross-server support, plus `ICancellationRegistry.TryCancel()` for same-server instant cancellation. Cancelled trains are **not retried** and **do not create dead letters**; the schedule resumes at the occurrence after the cancelled run.
