@@ -127,7 +127,7 @@ Task<RunTrainResult> RunAsync(
 |-----------|------|----------|---------|-------------|
 | `trainName` | `string` | Yes | N/A | Train name (matched by canonical name, then friendly name) |
 | `inputJson` | `string` | Yes | N/A | JSON-serialized input matching the train's `InputType`. Blank is read the way `QueueAsync` reads a missing input |
-| `ct` | `CancellationToken` | No | `default` | Cancellation token forwarded to `ITrainBus.RunAsync` |
+| `ct` | `CancellationToken` | No | `default` | Cancellation token forwarded to the train's `Run` |
 
 **Returns**: `RunTrainResult`
 
@@ -151,7 +151,7 @@ Task<RunTrainResult> RunAsync(
 3. Deserializes `inputJson` to the train's `InputType`, reading blank, casing and repeated properties as `QueueAsync` does.
 4. Creates a `Metadata` record with a generated external ID.
 5. Persists the metadata via the data context.
-6. Calls the typed `ITrainBus.RunAsync<TOut>(input, ct, metadata)` via reflection, using the train's `OutputType` from its registration.
+6. Calls the typed `ITrainBus.RunByNameAsync<TOut>(trainName, input, ct, metadata)` via reflection, with the canonical name of the train found in step 1 and its `OutputType`. The train that runs is the one that was authorized, even when another train takes the same input type.
 7. Returns the metadata ID and the train's output (or `null` for `Unit` trains).
 
 ## PrepareAsync
