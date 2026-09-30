@@ -92,7 +92,7 @@ CREATE UNIQUE INDEX ix_work_queue_unique_queued_manifest
 
 If the advisory lock is somehow bypassed (e.g., a bug, a code path that doesn't go through the polling service), this index causes a constraint violation on the second insert. The existing per-entry `try/catch` in `CreateWorkQueueEntriesJunction` catches the error and logs it. No crash, no corruption.
 
-Manual WorkQueue entries (from the dashboard or `TriggerAsync`) have `manifest_id IS NULL` and are excluded from this index. Multiple manual triggers for different purposes are always allowed.
+Entries queued for a train rather than a manifest (the dashboard's Queue action, `ITrainExecutionService.QueueAsync`) have `manifest_id IS NULL` and are excluded from this index, so any number of them can be queued. `TriggerAsync` and `TriggerGroupAsync` entries carry the manifest's id, so the index does apply to them: while a manifest has an entry `Queued`, including a delayed one that is not yet due, a second trigger for that manifest is refused.
 
 ## JobDispatcher: Row-Level Locking
 
@@ -184,7 +184,7 @@ Each entry is dispatched within its own DI scope, following the same pattern as 
 
 1. **Clean change tracker**: each entry gets a fresh `IDataContext` with no stale tracked entities from previous iterations.
 2. **Transaction isolation**: if one entry fails, its transaction is rolled back without affecting others.
-3. **Commit-then-enqueue**: the claim transaction (Metadata creation + WorkQueue status update) is committed before calling `EnqueueAsync` on the job submitter. This makes the Metadata record visible to the job submitter when it begins execution, necessary because the `InMemoryJobSubmitter` executes trains synchronously within `EnqueueAsync`. If the enqueue fails after commit, the WorkQueue entry is already `Dispatched` with a valid Metadata record; the next dispatch cycle won't re-process it, but the Metadata's `Pending` state can be detected for recovery.
+3. **Commit-then-enqueue**: the claim transaction (Metadata creation + WorkQueue status update) is committed before calling `EnqueueAsync` on the job submitter. This makes the Metadata record visible to the job submitter when it begins execution, necessary because the `InMemoryJobSubmitter` executes trains synchronously within `EnqueueAsync`. If the enqueue fails after commit, the dispatcher marks that Metadata `Failed` and, while the entry has dispatch attempts left (`MaxDispatchAttempts`, default 5), resets the WorkQueue entry to `Queued` so a later cycle dispatches it again with a new Metadata. Once the attempts are used up, the entry stays `Dispatched`.
 
 ### Capacity Limit Approximation
 

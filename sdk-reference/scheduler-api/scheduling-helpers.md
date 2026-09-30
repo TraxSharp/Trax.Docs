@@ -181,7 +181,7 @@ See [Exclusion Windows](/docs/scheduler/exclusions) for usage patterns and examp
 
 ## ManifestOptions
 
-Per-job configuration passed via the `configure` callback in scheduling methods.
+Per-item configuration passed to the `configureEach` callback of the batch scheduling methods (`ScheduleMany`, `IncludeMany`, `ThenIncludeMany`, `ScheduleManyAsync`, `ScheduleManyDependentAsync`), which receives each source item and its `ManifestOptions`. A single manifest, and settings shared by a whole batch, are configured through the [`ScheduleOptions`](/docs/sdk-reference/scheduler-api/schedule#scheduleoptions) builder instead.
 
 ```csharp
 public class ManifestOptions
@@ -192,7 +192,7 @@ public class ManifestOptions
 | `IsEnabled` | `bool` | `true` | Whether the manifest is enabled. When `false`, ManifestManager skips it during polling. |
 | `MaxRetries` | `int` | `3` | Maximum retry attempts before the job is dead-lettered. Each retry creates a new Metadata record. |
 | `Timeout` | `TimeSpan?` | `null` | Per-job timeout override. `null` falls back to the global `DefaultJobTimeout`. If a job exceeds this duration, it may be considered stuck. |
-| `Priority` | `int` | `0` | Manifest-level priority stored on the manifest record. Note: dispatch ordering is primarily determined by **ManifestGroup.Priority** (set from the dashboard). This manifest-level priority is used as the work queue entry's priority when the manifest is queued. For dependent manifests, `DependentPriorityBoost` (default 16) is added on top at dispatch time. Can also be set via the `priority` parameter on scheduling methods. |
+| `Priority` | `int` | `0` | Manifest-level priority stored on the manifest record. Note: dispatch ordering is primarily determined by **ManifestGroup.Priority** (set from the dashboard). This manifest-level priority is used as the work queue entry's priority when the manifest is queued. For dependent manifests, `DependentPriorityBoost` (default 16) is added on top at dispatch time. Can also be set with `ScheduleOptions.Priority(...)`. |
 | `MisfirePolicy` | `MisfirePolicy?` | `null` | Per-manifest misfire policy override. `null` uses the global `DefaultMisfirePolicy`. Only applies to Cron and Interval schedule types. See [Misfire Policies](/docs/scheduler/scheduling-options#misfire-policies). |
 | `MisfireThreshold` | `TimeSpan?` | `null` | Per-manifest misfire threshold override. `null` uses the global `DefaultMisfireThreshold` (60 seconds). |
 | `Exclusions` | `List<Exclusion>` | `[]` | Exclusion windows for this manifest. When any exclusion matches the current time, the manifest is skipped. Excluded periods are "intentionally skipped", not misfires. See [Exclusion Windows](/docs/scheduler/exclusions). |
@@ -200,23 +200,22 @@ public class ManifestOptions
 ### Example
 
 ```csharp
-// Priority can be set via the configure callback...
-await scheduler.ScheduleAsync<IMyTrain, MyInput, Unit>(
-    "my-job",
-    new MyInput(),
+// Per item, through configureEach on a batch...
+await scheduler.ScheduleManyAsync<ISyncTableTrain, SyncTableInput, Unit, string>(
+    tables,
+    table => ($"sync-{table}", new SyncTableInput { TableName = table }),
     Every.Minutes(5),
-    configure: opts =>
+    configureEach: (table, opts) =>
     {
-        opts.IsEnabled = true;
-        opts.MaxRetries = 5;
+        opts.MaxRetries = table == "orders" ? 5 : 3;
         opts.Timeout = TimeSpan.FromMinutes(30);
         opts.Priority = 20;
     });
 
-// ...or directly via the priority parameter (simpler for most cases)
+// ...or for a single manifest, through the ScheduleOptions builder
 await scheduler.ScheduleAsync<IMyTrain, MyInput, Unit>(
     "my-job",
     new MyInput(),
     Every.Minutes(5),
-    priority: 20);
+    options => options.MaxRetries(5).Timeout(TimeSpan.FromMinutes(30)).Priority(20));
 ```

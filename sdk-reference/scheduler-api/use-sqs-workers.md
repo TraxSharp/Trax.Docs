@@ -70,8 +70,8 @@ services.AddTrax(trax => trax
         .UseSqsWorkers(
             sqs => sqs.QueueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/trax-jobs",
             routing => routing.ForTrain<IBatchProcessTrain>())
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
-        .Schedule<IBatchProcessTrain, BatchInput>("batch", new BatchInput(), Every.Hours(1))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IBatchProcessTrain>("batch", new BatchInput(), Every.Hours(1))
     )
 );
 ```
@@ -229,7 +229,7 @@ The API process needs `sqs:SendMessage`. The Lambda function needs `sqs:ReceiveM
 
 - **Message size limit:** SQS messages are limited to 256 KB. If your serialized train input exceeds this, the send will fail. For large inputs, store the data externally and pass a reference.
 - **No synchronous return:** SQS is fire-and-forget. For mutations that need a return value, continue using [`UseRemoteRun()`](/docs/sdk-reference/scheduler-api/use-remote-run) alongside `UseSqsWorkers()`.
-- **Cancellation is process-local:** Same limitation as other remote execution models. Dashboard "Cancel" only affects trains on the same process.
+- **Cancellation reaches the function through the database:** Dashboard "Cancel" sets the run's cancel flag, which the train sees at its next junction boundary when the function registers `CancellationCheckProvider` (via `AddJunctionProgress()`). A junction already running is not interrupted. See [Remote Execution](/docs/scheduler/remote-execution#limitations).
 
 ## See Also
 

@@ -62,7 +62,7 @@ builder.Services.AddTrax(trax => trax
     .AddMediator(typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
         // Local workers enabled automatically with Postgres. No extra call needed
-        .Schedule<IMyTrain, MyInput>(
+        .Schedule<IMyTrain>(
             "my-job", new MyInput(), Every.Minutes(5))
     )
 );
@@ -175,7 +175,7 @@ builder.Services.AddTrax(trax => trax
     .AddEffects(effects => effects.UseInMemory())
     .AddMediator(typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -269,7 +269,7 @@ public class MyJobSubmitter : IJobSubmitter
       .AddScheduler(scheduler => scheduler
 -         .UseHangfire(connectionString)
 +         // Local workers are now the default. No call needed
-          .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+          .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
       )
   );
 

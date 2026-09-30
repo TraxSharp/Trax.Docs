@@ -18,7 +18,7 @@ builder.Services.AddTrax(trax => trax
     .AddEffects(effects => effects.UsePostgres(connectionString))
     .AddMediator(typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
-        .Schedule<ISyncTrain, SyncInput>(ScheduledJob.Sync, input, Every.Seconds(30))
+        .Schedule<ISyncTrain>(ScheduledJob.Sync, input, Every.Seconds(30))
     )
 );
 

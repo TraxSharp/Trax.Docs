@@ -171,5 +171,5 @@ services.AddTrax(trax => trax
     )
     .AddMediator(assemblies)
     .AddScheduler(scheduler => scheduler
-        .Schedule<ISyncTrain, SyncInput>("sync", new SyncInput(), Every.Hours(1))));
+        .Schedule<ISyncTrain>("sync", new SyncInput(), Every.Hours(1))));
 ```

@@ -51,7 +51,7 @@ services.AddTrax(trax => trax
     )
     .AddMediator(typeof(Program).Assembly)
     .AddScheduler(scheduler => scheduler
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -74,7 +74,7 @@ services.AddTrax(trax => trax
             options.VisibilityTimeout = TimeSpan.FromMinutes(15);
             options.ShutdownTimeout = TimeSpan.FromMinutes(1);
         })
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
     )
 );
 ```
@@ -96,8 +96,8 @@ services.AddTrax(trax => trax
             routing => routing
                 .ForTrain<IHeavyComputeTrain>()
                 .ForTrain<IAiInferenceTrain>())
-        .Schedule<IMyTrain, MyInput>("my-job", new MyInput(), Every.Minutes(5))
-        .Schedule<IHeavyComputeTrain, HeavyInput>("heavy-compute", new HeavyInput(), Every.Hours(1))
+        .Schedule<IMyTrain>("my-job", new MyInput(), Every.Minutes(5))
+        .Schedule<IHeavyComputeTrain>("heavy-compute", new HeavyInput(), Every.Hours(1))
     )
 );
 ```
