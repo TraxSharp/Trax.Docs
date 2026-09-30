@@ -9,7 +9,7 @@ nav_order: 3
 
 ## Handling Dead Letters
 
-When a job's counted failures exceed `MaxRetries` (the retries allowed after the first run, so the default of 3 dead-letters on the fourth failure), it enters the dead letter queue with status `AwaitingIntervention`. Failures count only while they started within `FailureCountWindow` (default: 24 hours), so failures spread over weeks do not dead-letter a manifest. The ManifestManager will skip these manifests until they're resolved.
+When a job's counted failures exceed `MaxRetries` (the retries allowed after the first run, so the default of 3 dead-letters on the fourth failure), it enters the dead letter queue with status `AwaitingIntervention`. Failures count only while they started within the manifest's failure window (`FailureCountWindow`, default 24 hours, unless the manifest states its own `FailureWindow`), so failures spread over weeks do not dead-letter a manifest. The ManifestManager will skip these manifests until they're resolved.
 
 To resolve a dead letter, use the **Dashboard UI**, the **GraphQL API**, or the **ITraxScheduler** service directly.
 
@@ -150,7 +150,7 @@ All dead letter operations filter by `status = 'awaiting_intervention'` at query
 
 ## Retry Delay & Backoff
 
-When a manifest has counted failures but hasn't exceeded `MaxRetries`, the scheduler applies an exponential backoff delay before retrying. `failureCount` is the number of failures inside `FailureCountWindow` since the latest resolved dead letter, so a failure older than the window no longer delays the next run:
+When a manifest's latest finished run failed and its counted failures have not exceeded `MaxRetries`, the scheduler delays the next run, the retry, by an exponential backoff. `failureCount` is the number of failures inside the manifest's failure window (its `FailureWindow`, or the scheduler's `FailureCountWindow`) since the latest resolved dead letter, so a failure older than the window no longer lengthens the delay:
 
 ```
 delay = min(DefaultRetryDelay * RetryBackoffMultiplier ^ (failureCount - 1), MaxRetryDelay)
@@ -165,6 +165,8 @@ With defaults (`DefaultRetryDelay: 5m`, `RetryBackoffMultiplier: 2.0`, `MaxRetry
 | 3 | 20 minutes |
 | 4 | 40 minutes |
 | 5+ | 1 hour (capped) |
+
+Only a retry waits. Once a run succeeds or is cancelled, the next occurrence runs on time, however many failures are still inside the window; those failures still set the length of the next retry's delay and still count toward the dead letter. A requeued dispatch attempt is not a finished run and does not count either way.
 
 The delay is implemented by setting `ScheduledAt` on the WorkQueue entry. The JobDispatcher skips entries where `ScheduledAt > now`, so the retry won't be dispatched until the delay has elapsed.
 
