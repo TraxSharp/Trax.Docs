@@ -280,7 +280,7 @@ Trax.Core supports two complementary cancellation paths: **same-server** (instan
 
 ### Same-Server: ICancellationRegistry
 
-When the scheduler is configured, `LocalWorkerService` registers each in-flight train's `CancellationTokenSource` with `ICancellationRegistry`. Calling `TryCancel(metadataId)` fires the CTS immediately, interrupting the train mid-junction:
+When the scheduler is configured, `LocalWorkerService` registers each in-flight train's `CancellationTokenSource` with `ICancellationRegistry`. Calling `TryCancel(metadataId)` fires the CTS immediately, interrupting the train mid-junction. The first registration for a run holds it until that worker removes it with `Unregister(metadataId, cts)`, so a second delivery of the same job on the same host (which does not run the train) cannot take the registration from the job that is running:
 
 ```
 Dashboard "Cancel" button

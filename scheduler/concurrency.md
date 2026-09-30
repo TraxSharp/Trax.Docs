@@ -255,7 +255,8 @@ These are `Debug`-level messages. In production, set the log level to `Informati
 | Two servers run metadata cleanup concurrently | Both succeed, no side effects | Idempotent deletes |
 | A server crashes mid-ManifestManager cycle | Transaction rolls back, lock released, no partial state | Transaction-scoped advisory lock |
 | A server crashes mid-dispatch of a WorkQueue entry | Transaction rolls back, entry remains `Queued` for next cycle | Per-entry transaction |
-| A worker crashes mid-execution of a BackgroundJob | Visibility timeout expires, job reclaimed by another worker | `fetched_at` timestamp |
+| A worker crashes mid-execution of a BackgroundJob | Visibility timeout expires, job reclaimed by another worker | `fetched_at` timestamp, refreshed only while the job runs |
+| One job is delivered twice (SQS redelivery, retried dispatch, re-claimed job) | Only one delivery runs the train; the other completes without running it or recording anything | Conditional `Pending` → `InProgress` claim on the run's row |
 
 ## SDK Reference
 
