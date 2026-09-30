@@ -136,7 +136,7 @@ scheduler.Schedule<IMyTrain>(
             .Enabled(true)));
 ```
 
-**MaxActiveJobs** limits concurrent active jobs within a single group. When a group hits its cap, the [JobDispatcher](admin-trains/job-dispatcher.md) skips it and moves on to the next group, so other groups can still dispatch normally. This prevents a single high-throughput group from monopolizing all capacity. The global `MaxActiveJobs` (configured in code) still applies as an overall ceiling across all groups.
+**MaxActiveJobs** limits concurrent active jobs within a single group. When a group hits its cap, the [JobDispatcher](admin-trains/job-dispatcher.md) skips it and moves on to the next group, so other groups can still dispatch normally. This prevents a single high-throughput group from monopolizing all capacity. The global `MaxActiveJobs` (configured in code) still applies as an overall ceiling across all groups. Both limits are counted by each dispatching host on its own, so with N hosts dispatching the total can reach N times either one (see [Capacity Limit Approximation](/docs/scheduler/concurrency#capacity-limit-approximation)).
 
 **Priority** determines the order in which groups are considered during dispatch. The JobDispatcher processes groups from highest priority (31) to lowest (0). If a high-priority group continually re-queues work, it is dispatched first, but because `MaxActiveJobs` caps how many jobs it can have active at once, lower-priority groups still get their fair share of capacity. This solves the starvation problem: priority controls *ordering*, while `MaxActiveJobs` controls *capacity*.
 
