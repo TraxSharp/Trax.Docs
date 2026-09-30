@@ -20,10 +20,15 @@ public interface ISnapshotEffect
 ```
 
 `Run` performs the side effect and returns a receipt, the downstream id (a message-log id, a charge id) that
-proves it happened. Throwing means the effect did not complete: the transition is not applied, and the client
-can retry from the same state. So honour the cancellation token only before the effect has happened: an
-`OperationCanceledException` after it releases the claim just as any other throw does, and a retry runs the
-effect again.
+proves it happened. Throwing means the effect did not complete: the claim is released, the transition is not
+applied, and the client can retry from the same state.
+
+An `OperationCanceledException` is different: a charge can land and its response time out, so a cancellation
+does not say whether the effect happened. The claim stays in flight until its lease passes, and a send before then
+is refused as `effect-in-progress` instead of running the effect again. The send reports it as `delivery-failed`
+unless the request itself was cancelled. The send passes `Run` `CancellationToken.None`, not the request's token:
+a client that disconnects mid-charge does not cancel the charge. Bound a slow downstream call with its own
+timeout, and never after the irreversible step.
 
 ## Binding it
 
@@ -46,7 +51,7 @@ public sealed class StripeCharge(IPaymentGateway gateway) : ICharge
 {
     public async Task<string> Run(Snapshot snapshot, CancellationToken ct)
     {
-        var chargeId = await gateway.Charge(snapshot.Context, ct);
+        var chargeId = await gateway.Charge(snapshot.Context);
         return chargeId;                            // becomes the receipt
     }
 }
@@ -63,12 +68,17 @@ services.AddScoped<ICharge, StripeCharge>();
 
 The effect runs through the persistence layer's idempotent path: a claim is taken before the effect, held
 under a lease with a fence token, and a crash mid-flight replays without re-running a completed effect. The
-key is `{keyPrefix}:{userKey}:{id}`, so it is scoped per draft per user. A reset to the initial state, and a
-draft deleted by the draft TTL, release the key, so the next draft under that id runs its effect afresh.
+key is `{keyPrefix}:{userKey}:{id}`, so it is scoped per draft per user. A draft deleted by the draft TTL releases
+the key, and so does a reset to the initial state once the effect's outcome is settled on the draft: a reset while
+the effect runs, or after a receipt that never reached the draft, keeps the claim, and the next send replays its
+receipt. See [what each path may write](/docs/sdk-reference/statemachine-api/persistence-ports#what-each-path-may-write).
 
 Once the effect has returned, its receipt is recorded and the draft advanced on a token the request cannot
 cancel. A client that disconnects right after a charge still leaves the draft showing the charge, and the next
-send replays it instead of charging again.
+send replays it instead of charging again. The receipt is recorded only on the draft exactly as the effect loaded
+it: if the draft was saved, reset or advanced while the effect ran, the send reports `conflict` and records
+nothing, and the claim keeps the receipt. Sending again replays that receipt on the draft as it is then, without
+running the effect.
 
 The transition itself is fired only by the send. An advance of its trigger is refused as `effect-bound`, and an
 autosave cannot put a draft into its destination state; see
