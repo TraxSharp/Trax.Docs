@@ -15,7 +15,7 @@ Schedules trains that run only after a parent manifest completes successfully. T
 
 At runtime, `ScheduleDependentAsync` and `ScheduleManyDependentAsync` take an explicit parent external ID.
 
-Dependent manifests are evaluated during polling. When a parent's `LastSuccessfulRun` is later than the start of the dependent's latest successful run (or than its latest cancelled run, when that is later), the dependent is queued for execution, so a parent success that lands while the dependent runs earns it another run. See [Dependent Trains](/docs/scheduler/dependent-trains).
+Dependent manifests are evaluated during polling. When a parent's `LastSuccessfulRun` is later than the start of the dependent's latest run (successful or cancelled), both read from the database's clock, the dependent is queued for execution, so a parent success that lands while the dependent runs earns it another run. Several such successes collapse into one re-run. See [Dependent Trains](/docs/scheduler/dependent-trains).
 
 ## Signatures
 
