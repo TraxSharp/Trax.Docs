@@ -147,7 +147,7 @@ If you're using `ShortCircuit`, remember that throwing an exception means "conti
 ## Scheduled jobs don't execute (no errors)
 
 Possible causes:
-- The manifest's `IsEnabled` is `false`. Check via `ITraxScheduler` or the database. A disabled manifest's already-queued entries also wait, `Queued`, until it is re-enabled
+- The manifest's `IsEnabled` is `false`. Check via `ITraxScheduler` or the database. A disabled manifest's already-queued entries also wait, `Queued`, until it is re-enabled. A restart does not re-enable a manifest or group that was disabled at runtime unless the code states `.Enabled(true)` (see [What a Restart Rewrites](/docs/scheduler/scheduling-options#what-a-restart-rewrites))
 - A new cron schedule has not reached its first occurrence yet. It first runs at its first occurrence after it was scheduled, not on the next poll, and cron times are UTC: `Cron.Daily(hour: 3)` is 03:00 UTC. The manifest's `NextScheduledRun` shows when that is
 - `ManifestManagerPollingInterval` or `JobDispatcherPollingInterval` is set too high and the job hasn't been picked up yet
 - The train's input type doesn't implement `IManifestProperties`
@@ -156,6 +156,18 @@ Possible causes:
 ## `FormatException` or `ArgumentOutOfRangeException` from `Cron` or `Every`
 
 `Schedule.FromCron`, which every `Cron` helper goes through, parses the expression and throws `FormatException` when it cannot fire: `Cron.Daily(hour: 25)`, `Cron.Hourly(minute: 60)`, a seven-field expression. `Schedule.FromInterval`, and so every `Every` helper, throws `ArgumentOutOfRangeException` for an interval shorter than one second, including `Every.Seconds(0)`. Fix the value at the call the stack trace names; earlier versions accepted these and stored a schedule that never ran, or ran once.
+
+## "Manifest group 'X' is given two different MaxActiveJobs values"
+
+Two schedules that share a group each state the same group setting (`MaxActiveJobs`, `Priority` or `Enabled`) with different values. Every start writes a stated group setting, so the value in force would depend on which manifest was seeded last, and `AddScheduler` refuses it. The message names both schedules.
+
+**Fix:** state the setting on one member of the group, or the same value on each. A member that says only `.Group("name")` leaves the group's settings alone.
+
+## "Batch 'X' prunes manifests whose external ID starts with ..."
+
+One batch's prune prefix starts another batch's, so the first would delete the second's manifests at every start. A name-based `ScheduleMany(name, ...)` prunes only within its own group, so this is raised only when the groups do not keep the two apart: an explicit `PrunePrefix`, or two name-based batches moved into one group.
+
+**Fix:** rename one batch so neither name plus `-` starts the other, or keep the batches in separate groups.
 
 ## "Ambiguous reference" between Cron types
 

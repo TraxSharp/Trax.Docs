@@ -105,6 +105,8 @@ await scheduler.ScheduleManyAsync<ISyncTableTrain, SyncTableInput, Unit, (string
 
 When the source collection shrinks between deployments, tables removed, slices reduced, old manifests stick around in the database. The name-based overload handles this automatically (its prune prefix is `"{name}-"`). With the explicit overload, set one with `options => options.PrunePrefix("...")`. After upserting the batch, any existing manifests whose `ExternalId` starts with the prefix but weren't in the current batch are deleted, keeping the manifest table in sync with your source data.
 
+A name-based batch prunes only manifests in its own group, so `ScheduleMany("sync", ...)` never deletes the manifests of `ScheduleMany("sync-users", ...)`. An explicit `prunePrefix` has no such scope, so `AddScheduler` fails at startup when one batch's prefix starts another batch's (for example `"sync-"` and `"sync-users-"`), unless the shorter one is a name-based batch in a different group. A manifest with a pending or running run is never pruned; it goes at a later prune, once the run has finished.
+
 Pruning runs in a **separate database context** after the main transaction commits. This means a prune failure (e.g., a transient database error) does not roll back successfully upserted manifests. The failure is logged as a warning and retried on the next startup or scheduling cycle.
 
 ## Per-Group Dispatch Controls
@@ -117,7 +119,9 @@ Each ManifestGroup has three configurable properties that govern how its manifes
 | `Priority` | `int` (0–31) | `0` | Dispatch ordering between groups. higher values are dispatched first |
 | `IsEnabled` | `bool` | `true` | When `false`, all manifests in the group are skipped during queuing and dispatch |
 
-These settings can be configured both from code via the `.Group(...)` builder on `ScheduleOptions`, and from the dashboard's **Manifest Group detail page**. Code-level configuration is applied during scheduling (upsert semantics), while the dashboard allows operators to adjust settings at runtime without redeployment.
+These settings can be configured both from code via the `.Group(...)` builder on `ScheduleOptions`, and from the dashboard's **Manifest Group detail page**. The dashboard allows operators to adjust settings at runtime without redeployment, and code writes only the settings it states (see [What a Restart Rewrites](#what-a-restart-rewrites)).
+
+Several manifests can share one group. A setting only one member states applies to the whole group; members that say nothing leave it alone. Two members that state different values for the same setting fail `AddScheduler` at startup, with an error naming both, because each start would otherwise overwrite one with the other.
 
 ```csharp
 scheduler.Schedule<IMyTrain>(
@@ -136,7 +140,22 @@ scheduler.Schedule<IMyTrain>(
 
 **Priority** determines the order in which groups are considered during dispatch. The JobDispatcher processes groups from highest priority (31) to lowest (0). If a high-priority group continually re-queues work, it is dispatched first, but because `MaxActiveJobs` caps how many jobs it can have active at once, lower-priority groups still get their fair share of capacity. This solves the starvation problem: priority controls *ordering*, while `MaxActiveJobs` controls *capacity*.
 
+The manifest's own `.Priority(...)` orders work within a group: each scheduled run is queued at its manifest's priority, as a manual trigger or a dead-letter requeue is. When a manifest has a group of its own (no group name), or a name-based batch uses its own group, the manifest's stated priority is also the group's. In a shared group, a new group starts at the priority of the first manifest seeded into it, and after that changes only when a member states `.Group(..., g => g.Priority(...))`.
+
 **IsEnabled** acts as a kill switch for an entire group. Disabling a group prevents its manifests from being queued or dispatched until re-enabled. This is useful during maintenance windows or when a downstream system is unavailable.
+
+### What a Restart Rewrites
+
+Every host start schedules its manifests again (an upsert by `ExternalId`). The schedule, input and train always come from code. The settings an operator can change at runtime are written only when the code states them:
+
+| Setting | Stated in code | Not stated |
+|---|---|---|
+| Manifest `Enabled(...)` | Written at every start | New manifest: enabled. Existing: keeps its value, including a runtime disable |
+| Group `MaxActiveJobs(...)` | Written at every start | New group: no limit. Existing: keeps its value |
+| Group `Priority(...)` | Written at every start | New group: the manifest's priority. Existing: keeps its value |
+| Group `Enabled(...)` | Written at every start | New group: enabled. Existing: keeps its value |
+
+So a manifest or group disabled from the dashboard as a kill switch stays disabled across deploys, crashes and scale-outs, unless the code says `.Enabled(true)`. To hand a setting back to code, state it; removing a stated value from code leaves the last value in place.
 
 ## Management Operations
 
@@ -164,8 +183,8 @@ await scheduler.ScheduleAsync<IMyTrain, MyInput, Unit>(
     new MyInput { ... },
     Every.Hours(1),
     options => options
-        .Enabled(true)                              // Default: true
-        .MaxRetries(5)                              // Default: 3
+        .Enabled(true)                              // Unstated: new manifests enabled, existing ones unchanged
+        .MaxRetries(5)                              // Unstated: DefaultMaxRetries (3)
         .Timeout(TimeSpan.FromMinutes(30))          // Null uses global default
         .Priority(10));                             // Default: 0
 ```
@@ -365,7 +384,7 @@ Key options to know:
 
 - **`ManifestManagerPollingInterval`** (default: 5 seconds) / **`JobDispatcherPollingInterval`** (default: 2 seconds), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
 - **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Each dispatching host counts on its own, so with N hosts the total can reach N times the cap (see [Capacity Limit Approximation](/docs/scheduler/concurrency#capacity-limit-approximation)). Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
-- **`DefaultMaxRetries`** (default: 3), retries after the first run before dead-lettering (the default allows four attempts)
+- **`DefaultMaxRetries`** (default: 3), retries after the first run before dead-lettering (the default allows four attempts), for a manifest whose options do not set `MaxRetries`. A change at runtime applies to manifests seeded after it, which includes every manifest at the next start
 - **`FailureCountWindow`** (default: 24 hours), how far back a manifest's failed runs count toward its retry backoff and its `MaxRetries`. A failure older than the window no longer delays the next run or counts toward a dead letter, so occasional failures weeks apart do not dead-letter a healthy manifest. A success does not reset the count inside the window. Set with `FailureCountWindow(TimeSpan)`; must be between one second and ten years
 - **`DefaultRetryDelay`** (default: 5 minutes), base delay between retry attempts. Combined with `RetryBackoffMultiplier` for exponential backoff
 - **`RetryBackoffMultiplier`** (default: 2.0), multiplier applied to each subsequent retry delay (e.g., 5m, 10m, 20m). Set to `1.0` for constant delay
@@ -373,7 +392,7 @@ Key options to know:
 - **`DeadLetterRetentionPeriod`** (default: 30 days), how long resolved dead letters are kept before auto-purge
 - **`AutoPurgeDeadLetters`** (default: true), enable automatic deletion of resolved dead letters past the retention period
 - **`DefaultJobTimeout`** (default: 20 minutes), runs whose manifest sets no timeout, and runs with no manifest, are actively cancelled after this long (see [Timeout Enforcement](#timeout-enforcement))
-- **`DefaultMisfirePolicy`** (default: `FireOnceNow`), how missed runs are handled
+- **`DefaultMisfirePolicy`** (default: `FireOnceNow`), how missed runs are handled, for a manifest whose options do not call `OnMisfire`. Like `DefaultMaxRetries`, a runtime change applies to manifests seeded after it
 - **`DefaultMisfireThreshold`** (default: 60 seconds), grace period for misfire detection
 
 ## SDK Reference
