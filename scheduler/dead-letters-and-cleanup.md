@@ -260,7 +260,7 @@ Configure via the scheduler builder:
 )
 ```
 
-Runtime settings can be adjusted via the Dashboard at `/trax/data/settings`.
+Both settings can also be changed at runtime, from the dashboard's Server Settings page or the [`updateScheduler`](/docs/sdk-reference/graphql-api/mutations#config-nested-namespace) mutation. The purge reads them on every run, so turning auto-purge off keeps resolved dead letters from the next run on, without a restart, and the cleanup service stays registered so it can be turned back on the same way.
 
 ## Testing
 
