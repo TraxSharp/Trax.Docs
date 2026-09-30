@@ -353,7 +353,13 @@ Misfire policies only apply to `Cron` and `Interval` schedule types. Dependent m
 
 ## Timeout Enforcement
 
-The ManifestManager actively cancels jobs that exceed their configured timeout. Each polling cycle, the `CancelTimedOutJobsJunction` checks every InProgress run and cancels any where the elapsed time exceeds its manifest's `TimeoutSeconds`, or the global `DefaultJobTimeout` when the manifest sets none. That includes runs with no manifest (queued or run through the operations surface, which get `DefaultJobTimeout`) and runs of a manifest that was disabled while they ran: disabling a manifest stops new runs, it does not exempt a running one. The scheduler's own trains are not timed out.
+The ManifestManager actively cancels jobs that exceed their configured timeout. Each polling cycle, the `CancelTimedOutJobsJunction` checks every InProgress run and cancels any that has run longer than its timeout. A run's timeout is resolved from the run at the root of its `ParentId` chain:
+
+- The root's manifest `TimeoutSeconds`, when it sets one. A train nested inside a scheduled run (a sub-train with a `ParentId` and no manifest of its own) shares that run's timeout, so a 30-minute sub-train of a manifest with a two-hour `Timeout` is not cut off at 20 minutes.
+- Otherwise `DefaultJobTimeout`, but only when a scheduler dispatched the root: it has a manifest, a work queue entry names it (a queued train), or a `background_job` row runs it (a local-worker job).
+- Otherwise none. A train run directly on the train bus by any host that shares the database is not timed out; the stale in-progress reaper remains its safety net. So is a chain nested deeper than 16 levels, or one whose parent row is missing, since the canceller never cancels on a guess.
+
+Runs of a manifest that was disabled while they ran are still timed out: disabling a manifest stops new runs, it does not exempt a running one. The scheduler's own trains, and trains excluded with `ExcludeFromMaxActiveJobs`, are not timed out, and neither is a train nested inside one.
 
 **Per-manifest timeout**: Set via `Timeout()` on `ScheduleOptions`:
 
@@ -374,7 +380,7 @@ Timed-out jobs are cancelled using the same dual-layer mechanism as manual cance
 
 A cancelled run, whether it timed out or an operator cancelled it, **consumes the occurrence it ran for**. The ManifestManager evaluates a schedule from whichever is later, the last successful run or the last cancelled one, so an hourly job whose run is cancelled at 10:20 next runs at 11:20, not on the next polling cycle. A job that always exceeds its timeout therefore runs once per occurrence rather than back to back. A `Once` manifest whose run was cancelled is not run again (trigger it to run it), and a dependent whose run was cancelled waits for its parent's next success.
 
-The stale in-progress reaper, the safety net for workers that died mid-run, respects a manifest timeout longer than the default: such a run is failed only at its timeout plus the grace between `DefaultJobTimeout` and `StaleInProgressTimeout` (40 minutes with the defaults), never while it is still inside its timeout. See [ManifestManager](/docs/scheduler/admin-trains/manifest-manager#reapstaleinprogressmetadatajunction).
+The stale in-progress reaper, the safety net for workers that died mid-run, resolves each run's timeout the same way and fails it only at the later of `StaleInProgressTimeout` and that timeout plus the grace between `DefaultJobTimeout` and `StaleInProgressTimeout` (40 minutes with the defaults), never while it is still inside its timeout. That holds for a nested run, which is kept as long as the scheduled run it belongs to, and for a `DefaultJobTimeout` set longer than `StaleInProgressTimeout`. See [ManifestManager](/docs/scheduler/admin-trains/manifest-manager#reapstaleinprogressmetadatajunction).
 
 A scheduler job timeout is a cancellation the scheduler asked for. A timeout inside your train is not: when an `HttpClient` gives up on a slow upstream it throws `TaskCanceledException`, and the run is recorded `Failed`, classified `Transient` (unless your `IFailureClassifier` says otherwise). That failure counts toward the manifest's `MaxRetries`, so the manifest runs it again and dead-letters it once the retries are used up.
 
@@ -393,7 +399,7 @@ Key options to know:
 - **`MaxRetryDelay`** (default: 1 hour), maximum retry delay cap, prevents unbounded backoff growth
 - **`DeadLetterRetentionPeriod`** (default: 30 days), how long resolved dead letters are kept before auto-purge
 - **`AutoPurgeDeadLetters`** (default: true), enable automatic deletion of resolved dead letters past the retention period
-- **`DefaultJobTimeout`** (default: 20 minutes), runs whose manifest sets no timeout, and runs with no manifest, are actively cancelled after this long (see [Timeout Enforcement](#timeout-enforcement))
+- **`DefaultJobTimeout`** (default: 20 minutes), runs a scheduler dispatched whose manifest sets no timeout, and trains nested in them, are actively cancelled after this long; a train run directly on the train bus is not (see [Timeout Enforcement](#timeout-enforcement))
 - **`DefaultMisfirePolicy`** (default: `FireOnceNow`), how missed runs are handled, for a manifest whose options do not call `OnMisfire`. Like `DefaultMaxRetries`, a runtime change applies to manifests seeded after it
 - **`DefaultMisfireThreshold`** (default: 60 seconds), grace period for misfire detection
 

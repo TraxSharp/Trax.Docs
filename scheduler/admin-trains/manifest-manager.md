@@ -22,7 +22,7 @@ The timeout and stale-run junctions come first and work on runs directly, not on
 
 ### CancelTimedOutJobsJunction
 
-Finds every InProgress run past its timeout and requests cooperative cancellation. A run's timeout is its manifest's `TimeoutSeconds`, or `DefaultJobTimeout` when the manifest sets none or the run has no manifest. Runs of disabled manifests are included, and the scheduler's own trains are not. Sets `CancellationRequested = true` in the database (picked up by `CancellationCheckProvider` at the next junction boundary) and attempts same-server instant cancellation via the `CancellationRegistry`.
+Finds every InProgress run past its timeout and requests cooperative cancellation. A run's timeout is resolved from the run at the root of its `ParentId` chain: that run's manifest `TimeoutSeconds`, or `DefaultJobTimeout` when it sets none, which applies only when a scheduler dispatched the root (a manifest, a work queue entry or a `background_job` row). A nested train shares its root's timeout; a train run directly on the train bus, or whose chain cannot be resolved within 16 levels, is not timed out. Runs of disabled manifests are included; the scheduler's own trains, trains in `ExcludedTrainTypeNames`, and trains nested in either are not. See [Timeout Enforcement](/docs/scheduler/scheduling-options#timeout-enforcement). Sets `CancellationRequested = true` in the database (picked up by `CancellationCheckProvider` at the next junction boundary) and attempts same-server instant cancellation via the `CancellationRegistry`.
 
 ### ReapStalePendingMetadataJunction
 
@@ -32,7 +32,7 @@ Fails Pending metadata that has not been picked up within `StalePendingTimeout` 
 
 Fails InProgress metadata that has not completed within `StaleInProgressTimeout` (default: 60 minutes). Acts as a safety net for hard crashes. Lambda hard-kills, OOM events, or process crashes where the worker dies without reaching `FinishServiceTrain`. This timeout should be longer than `DefaultJobTimeout` to allow cooperative cancellation (via `CancelTimedOutJobsJunction`) to propagate before force-failing.
 
-A run whose manifest sets a `Timeout` longer than `DefaultJobTimeout` gets as much longer: it is failed at the later of `StaleInProgressTimeout` and its manifest's timeout plus the same grace (`StaleInProgressTimeout - DefaultJobTimeout`, 40 minutes with the defaults). A manifest with a three hour timeout therefore has its run failed as stale at 3 h 40 min, not at 60 minutes while it is still working.
+A run whose own timeout, resolved as `CancelTimedOutJobsJunction` resolves it, is longer gets as much longer: it is failed at the later of `StaleInProgressTimeout` and that timeout plus the same grace (`StaleInProgressTimeout - DefaultJobTimeout`, 40 minutes with the defaults). A manifest with a three hour timeout therefore has its run failed as stale at 3 h 40 min, not at 60 minutes while it is still working.
 
 Newly-failed metadata from both stale reapers is counted by `LoadManifestsJunction` in the same ManifestManager cycle, enabling dead-lettering if retries are exhausted.
 

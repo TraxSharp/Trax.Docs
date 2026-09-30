@@ -334,7 +334,7 @@ Cancelled trains transition to `TrainState.Cancelled`, are **not retried**, and 
 
 ## Automatic Timeout Cancellation
 
-The ManifestManager automatically cancels jobs that exceed their configured timeout. Each polling cycle, the `CancelTimedOutJobsJunction` checks every InProgress run and cancels any where the elapsed time exceeds its manifest's `TimeoutSeconds`, or the global `DefaultJobTimeout` when the manifest sets none or the run has no manifest. Runs of a manifest disabled while they run are still timed out.
+The ManifestManager automatically cancels jobs that exceed their configured timeout. Each polling cycle, the `CancelTimedOutJobsJunction` checks every InProgress run and cancels any that has run longer than its timeout: the `TimeoutSeconds` of the manifest of the run at the root of its `ParentId` chain, so a nested train shares its scheduled run's timeout, or the global `DefaultJobTimeout` when that manifest sets none. `DefaultJobTimeout` applies only to runs a scheduler dispatched; a train run directly on the train bus is not timed out. Runs of a manifest disabled while they run are still timed out. See [Timeout Enforcement](/docs/scheduler/scheduling-options#timeout-enforcement).
 
 This is distinct from dead-lettering. Timeout cancellation actively interrupts the running train rather than waiting for it to fail and then moving it to the dead letter queue. The job transitions to `TrainState.Cancelled` and is not retried: an hourly job that times out runs again at its next hourly occurrence, so a job that always exceeds its timeout runs once an hour rather than continuously.
 

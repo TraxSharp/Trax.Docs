@@ -666,7 +666,7 @@ Or at runtime via the Dashboard under **Server Settings > Job Settings > Stale P
 
 ### 4. Stale InProgress Reaper
 
-The ManifestManager also runs a `ReapStaleInProgressMetadataJunction` on every polling cycle. Any Metadata that has been in `InProgress` state longer than `StaleInProgressTimeout` (default: 60 minutes) is automatically marked as `Failed`. A run whose manifest sets a longer `Timeout` is given its timeout plus the grace between `DefaultJobTimeout` and `StaleInProgressTimeout` instead, so a long job is never failed as stale while it is still inside its own timeout. This catches hard crashes where the worker dies without reaching `FinishServiceTrain`: Lambda hard-kills, OOM events, or process crashes that bypass all .NET exception handling.
+The ManifestManager also runs a `ReapStaleInProgressMetadataJunction` on every polling cycle. Any Metadata that has been in `InProgress` state longer than `StaleInProgressTimeout` (default: 60 minutes) is automatically marked as `Failed`. A run whose own timeout is longer (the `Timeout` of the manifest at the root of its `ParentId` chain, or a longer `DefaultJobTimeout`) is given that timeout plus the grace between `DefaultJobTimeout` and `StaleInProgressTimeout` instead, so a long job is never failed as stale while it is still inside its own timeout. This catches hard crashes where the worker dies without reaching `FinishServiceTrain`: Lambda hard-kills, OOM events, or process crashes that bypass all .NET exception handling.
 
 ```csharp
 .AddScheduler(scheduler => scheduler
