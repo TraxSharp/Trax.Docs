@@ -161,8 +161,8 @@ The `Schedule` record defines the timing for a scheduled manifest. Create instan
 | Property | Type | Description |
 |----------|------|-------------|
 | `Type` | `ScheduleType` | `Interval` or `Cron`. |
-| `Interval` | `TimeSpan?` | The interval between runs (Interval type only). |
-| `CronExpression` | `string?` | The cron expression (Cron type only). |
+| `Interval` | `TimeSpan?` | The interval between runs (Interval type only). At least one second: `Schedule.FromInterval` throws `ArgumentOutOfRangeException` for anything shorter. |
+| `CronExpression` | `string?` | The cron expression, evaluated in UTC (Cron type only). `Schedule.FromCron` parses it and throws `FormatException` when it is invalid. A new cron first runs at its first occurrence after it is scheduled. |
 | `Variance` | `TimeSpan?` | Optional random jitter added after each successful run. |
 
 ### Methods

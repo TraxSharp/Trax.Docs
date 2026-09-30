@@ -23,11 +23,12 @@ LoadQueuedJobsJunction → LoadDispatchCapacityJunction → ApplyCapacityLimitsJ
 Loads `WorkQueue` entries with `Status = Queued`, filtering out:
 
 - entries whose `ManifestGroup` has `IsEnabled = false`
+- entries whose manifest has `IsEnabled = false`, unless the entry is a dead-letter requeue. The entry stays `Queued` and is dispatched once the manifest is re-enabled (see [Disabling a job](/docs/scheduler/scheduling-options#disabling-a-job))
 - entries whose `ScheduledAt` is in the future
 - unconfirmed entries (`ConfirmedAt` is null), staged by a train with [`DeferQueuePromotion`](/docs/core/trains-and-junctions#making-the-side-effect-durable) and not yet promoted
 - manual entries whose [subject key](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) already has a run in flight (a dispatched entry whose metadata is `Pending` or `InProgress`)
 
-Both load paths apply these filters, the group-fair SQL and the load-all path used when `MaxQueuedJobsPerCycle` is `null`. After loading, the batch keeps only the **first queued entry per subject key**, in dispatch order; the rest are loaded again on a later cycle. The claim would refuse all of these anyway, but a candidate the claim refuses still takes a capacity slot in the cycle that loaded it, so without the filtering a backlog for one subject, or a few stranded staged entries, could fill `MaxActiveJobs` while ready work waited.
+Both load paths apply these filters, the group-fair SQL and the load-all path used when `MaxQueuedJobsPerCycle` is `null`. The group-fair SQL filters on the group only, so the disabled-manifest filter is applied to what it returns. After loading, the batch keeps only the **first queued entry per subject key**, in dispatch order; the rest are loaded again on a later cycle. The claim would refuse all of these anyway, but a candidate the claim refuses still takes a capacity slot in the cycle that loaded it, so without the filtering a backlog for one subject, or a few stranded staged entries, could fill `MaxActiveJobs` while ready work waited.
 
 #### Group-Fair Batching
 

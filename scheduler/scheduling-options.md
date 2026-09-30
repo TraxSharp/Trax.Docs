@@ -140,9 +140,19 @@ scheduler.Schedule<IMyTrain>(
 
 ## Management Operations
 
-`ITraxScheduler` includes methods for runtime job control: `DisableAsync`, `EnableAsync`, `TriggerAsync`, `CancelAsync`, `CancelGroupAsync`, `ScheduleDependentAsync`, and `ScheduleOnceAsync`. Disabled jobs remain in the database but are skipped by the ManifestManager until re-enabled. `CancelAsync` and `CancelGroupAsync` cancel all in-progress executions of a manifest or group using dual-layer cancellation (database flag + same-server CTS).
+`ITraxScheduler` includes methods for runtime job control: `DisableAsync`, `EnableAsync`, `TriggerAsync`, `CancelAsync`, `CancelGroupAsync`, `ScheduleDependentAsync`, and `ScheduleOnceAsync`. Disabled jobs remain in the database but stay stopped until re-enabled (see [Disabling a job](#disabling-a-job)). `CancelAsync` and `CancelGroupAsync` cancel all in-progress executions of a manifest or group using dual-layer cancellation (database flag + same-server CTS).
 
 `TriggerAsync` accepts an optional `TimeSpan delay` parameter to schedule a delayed execution of an existing manifest. `ScheduleOnceAsync` creates a new one-off manifest with `ScheduleType.Once` that fires after a delay and auto-disables on success. See [Delayed / One-Off Jobs](delayed-jobs.md) for usage patterns.
+
+### Disabling a job
+
+Disabling a manifest (`DisableAsync`, the dashboard, or `IsEnabled = false`) stops it until it is re-enabled:
+
+- The ManifestManager does not queue it on its schedule, and a dependent is not queued after its parent succeeds.
+- A dormant dependent is not activated by its parent. `IDormantDependentContext.ActivateAsync` logs a warning and skips it, as it does for a disabled manifest group.
+- Work the manifest already has queued (a retry waiting out its backoff, say) is held by the dispatcher. It stays `Queued` and is dispatched once the manifest is re-enabled.
+
+A dead-letter requeue is the exception: an operator asked for that run by name, so it runs whether or not the manifest is enabled. An entry queued by `TriggerAsync` for a disabled manifest is held like any other until the manifest is re-enabled. Cancel it with `CancelAsync` if it should not run at all.
 
 ## Manifest Options
 
@@ -290,7 +300,9 @@ If the scheduler comes back at 13:00:30 instead:
 - Most recent boundary: **13:00**
 - Time since boundary: 30 seconds ≤ 60-second threshold → **fire**
 
-For cron-based schedules, the scheduler uses precise next-occurrence calculation (via the Cronos library) to find the most recent cron boundary before now and checks if the current time is within the misfire threshold of that boundary. Both 5-field and 6-field (seconds) cron expressions are supported.
+For cron-based schedules, the scheduler uses the Cronos library to find the latest cron occurrence at or before now, in UTC, and checks if the current time is within the misfire threshold of that occurrence. The search takes the same few dozen evaluations however long the scheduler was down, so a secondly cron that missed two days, or a minutely cron that missed a year, fires at its next occurrence like any other. Both 5-field and 6-field (seconds) cron expressions are supported.
+
+A cron that has never succeeded counts from its first occurrence after it was scheduled, not from when it was scheduled.
 
 > **Seconds-granularity cron:** When using 6-field cron expressions with second-level precision, verify the `ManifestManagerPollingInterval` is set appropriately. The default 5-second polling interval means the scheduler checks for due manifests every 5 seconds. For "every 10 seconds" cron (`*/10 * * * * *`), the default polling is adequate. For "every second" cron (`* * * * * *`), reduce the polling interval accordingly.
 
