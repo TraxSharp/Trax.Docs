@@ -22,6 +22,7 @@ dotnet add package Trax.Core
 - **Memory**: a type-keyed store that wires junction outputs to junction inputs automatically
 - **Railway error propagation**: if any junction fails, the train switches to the left track and skips the rest
 - **Declared chains**: a chain declared in `Junctions()` is readable without running it. Trax.Mediator's startup check (registered by `AddMediator`) uses that to refuse to start a host whose chains cannot run
+- **Decisions**: a chain can declare several tracks and let a decider (a typed decision model, a rule table, a test double) choose one per run, with every track verified at startup. See [Decisions](/docs/core/decisions)
 - **IDE extensions**: inlay hints showing cargo types at each junction
 
 ## The Railway

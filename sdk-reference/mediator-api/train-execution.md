@@ -91,6 +91,30 @@ Task<QueueTrainResult> QueueAsync(
 - `QueueHookTimeoutException` (an `InvalidOperationException`, carrying `TrainName` and `Limit`) from Trax.Mediator 1.23.0, when a train that does not defer promotion runs its `OnQueue` hook longer than `MaxQueueHookDuration` (30 seconds by default; `AddMediator(m => m.WithMaxQueueHookDuration(TimeSpan))` changes it, and `Timeout.InfiniteTimeSpan` removes it). The hook's token is cancelled at the limit and the enqueue stops waiting whether or not the hook stops: it rolls back, so no entry is written and nothing the hook wrote on `IEnqueueContextAccessor.Current` is kept, even a write the hook had already saved, and the connection goes back to the pool. A hook that ignores its token keeps running, but an enqueue it starts after that is refused rather than committed on its own. `Trax.Mediator/docs/adr/0004` records the reasoning.
 - `QueuedWorkCancelledException` (an `InvalidOperationException`, carrying `WorkQueueId` and `TrainName`) for a train that defers promotion, when its staged entry was cancelled while the hook ran (by an operator, or by the stale staged entry sweep because the hook outlived `StaleStagedEntryTimeout`). If the sweep promoted it instead (`PromoteStaleStagedEntries()`), the entry will run and `QueueAsync` succeeds. When it throws, the work will not run, but the hook's side-effect may already have been applied, and the message says so.
 
+### QueueAsync with QueueTrainOptions
+
+```csharp
+Task<QueueTrainResult> QueueAsync(
+    string trainName,
+    string? inputJson,
+    QueueTrainOptions options,
+    CancellationToken ct = default
+)
+```
+
+Queues exactly as the overload above does, with the options it has no parameter for. It reads the
+input, authorizes, and throws the same exceptions for the same reasons.
+
+| `QueueTrainOptions` property | Type | Default | Description |
+|---|---|---|---|
+| `Priority` | `int` | `0` | Dispatch priority (0-31, higher runs first) |
+| `ScheduledAt` | `DateTime?` | `null` | Earliest dispatch time, read as `scheduledAt` above |
+| `ReplayDecisionsOf` | `long?` | `null` | The metadata id of an earlier run whose recorded [decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) the new run replays, so it takes the tracks that run took instead of asking its deciders again. A re-queue sets it. |
+
+An `ITrainExecutionService` written before this overload existed gets a default implementation
+that queues through the overload above, and throws `NotSupportedException` when
+`ReplayDecisionsOf` is set rather than queue a run that would ask afresh.
+
 ### What it does
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.

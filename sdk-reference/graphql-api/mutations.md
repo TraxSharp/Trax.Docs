@@ -451,6 +451,12 @@ button). It goes through the same path as [`queueTrain`](#queuetrain), so a call
 run the train gets a GraphQL error with code `TRAX_AUTHORIZATION` (`"Not authorized."`) rather
 than `success: false`.
 
+The new run replays the decisions the execution recorded with
+[`AddDecisionRecording`](/docs/sdk-reference/configuration/add-decision-recording), so it takes the
+[tracks](/docs/core/decisions) the execution took instead of asking its deciders again. An
+execution that recorded none is re-run asking afresh. See
+[Re-queued runs replay their decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions).
+
 An execution with no saved input is refused with `success: false` and a message saying inputs are
 saved only when [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters)
 is on. So is one whose input was too large to save in full and was stored as the truncation
