@@ -91,10 +91,11 @@ public class GuardEdgeCaseTests
             );
         repo.Index(index);
 
-        IndexGuards
-            .FullList(AdrCorpus.Discover(repo.Options()), repo.Options())
-            .Passed.Should()
-            .BeFalse();
+        var result = IndexGuards.FullList(AdrCorpus.Discover(repo.Options()), repo.Options());
+
+        result.Passed.Should().BeFalse();
+        result.Offenders.Should().Contain(o => o.Contains($"{spec.FileName} is listed 2 times"));
+        result.Offenders.Should().Contain(o => o.Contains("A title nobody wrote"));
     }
 
     /// <summary>
