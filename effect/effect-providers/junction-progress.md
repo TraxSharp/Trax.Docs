@@ -17,11 +17,13 @@ dotnet add package Trax.Effect.JunctionProvider.Progress
 ```
 
 ```csharp
+using Trax.Effect.Data.Postgres.Extensions;
 using Trax.Effect.Extensions;
 using Trax.Effect.JunctionProvider.Progress.Extensions;
 
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
+        .UsePostgres(connectionString)
         .AddJunctionProgress()
     )
 );

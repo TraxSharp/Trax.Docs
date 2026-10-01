@@ -28,7 +28,7 @@ The scheduler automatically selects the right job submitter based on your effect
 | `UseInMemory()` (no database) | Built-in in-memory submitter | Executes jobs inline, synchronously. No database needed. Good for testing and prototyping. |
 | `OverrideSubmitter(...)` | Custom | Your own `IJobSubmitter` implementation takes priority over both defaults. |
 
-> **Validation:** The scheduler validates configuration at build time. `AddScheduler()` requires a data provider (`UsePostgres()` or `UseInMemory()`), without one, it throws a clear `InvalidOperationException` with a message showing the fix. Similarly, `AddJunctionProgress()` without a data provider fails fast at build time.
+> **Validation:** The scheduler validates configuration at build time. `AddScheduler()` requires a data provider (`UsePostgres()`, `UseSqlite()` or `UseInMemory()`); without one, it throws a clear `InvalidOperationException` with a message showing the fix. Similarly, `AddJunctionProgress()` without a data provider fails fast at build time.
 
 ### Configuration
 
