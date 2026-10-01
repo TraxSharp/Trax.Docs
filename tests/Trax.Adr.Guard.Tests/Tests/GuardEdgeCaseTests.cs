@@ -221,4 +221,192 @@ public class GuardEdgeCaseTests
 
         Markdown.Section(text, "Exemplars").Should().BeNull();
     }
+
+    /// <summary>
+    /// A preprocessor line is prose, not code. An apostrophe in a region name read as an
+    /// opening character literal blanked the rest of the file, and every declaration and
+    /// citation after it disappeared from the scan.
+    /// </summary>
+    [Test]
+    public void Blanking_AnApostropheInARegionName_DoesNotSwallowTheFile()
+    {
+        const string source = """
+            #region The connection's operations
+            public class LaterTests { }
+            #endregion
+            """;
+
+        CSharp.WithoutCommentsAndLiterals(source).Should().Contain("public class LaterTests");
+    }
+
+    #region A claimed guard must run, and its message must carry the ADR
+
+    private const string ProbePath = "tests/Some.Tests.Meta/ProbeTests.cs";
+
+    private static TempAdrRepo WithClaimedProbe(string body, string classAttributes = "")
+    {
+        var repo = TempAdrRepo.Valid();
+        var file = Sample.DefaultSpec.FileName;
+        repo.Adr(file, Sample.Adr(exemplars: "- `ProbeTests` holds it up."));
+        repo.Write(
+            ProbePath,
+            $$"""
+            namespace Some.Tests.Meta;
+
+            /// <summary>Enforces docs/adr/{{file}}.</summary>
+            [Property("adr", "docs/adr/{{file}}")]
+            [TestFixture{{classAttributes}}]
+            public class ProbeTests
+            {
+            {{body}}
+            }
+            """
+        );
+        return repo;
+    }
+
+    private static GuardResult Resolve(TempAdrRepo repo) =>
+        ExemplarGuards.NamedGuardsResolve(AdrCorpus.Discover(repo.Options()), repo.Options());
+
+    private static GuardResult CiteBack(TempAdrRepo repo) =>
+        ExemplarGuards.NamedGuardsCiteBack(AdrCorpus.Discover(repo.Options()), repo.Options());
+
+    /// <summary>
+    /// The probe from the audit: an explicit fixture with no tests, whose only "citation" is a
+    /// constant nothing reads. It satisfied both resolution and cite-back.
+    /// </summary>
+    [Test]
+    public void ExplicitClassWithOnlyAConstant_FailsResolutionAndCiteBack()
+    {
+        using var repo = WithClaimedProbe(
+            $"    private const string Adr = \"docs/adr/{Sample.DefaultSpec.FileName}\";",
+            ", Explicit"
+        );
+
+        Resolve(repo).Offenders.Should().ContainSingle().Which.Should().Contain("[Explicit]");
+        CiteBack(repo)
+            .Offenders.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain("does not name it in a failure message");
+    }
+
+    [Test]
+    public void ClassWithNoTestMethod_FailsResolution()
+    {
+        using var repo = WithClaimedProbe(
+            $"    public void Check() => Assert.Fail(\"docs/adr/{Sample.DefaultSpec.FileName}\");"
+        );
+
+        Resolve(repo)
+            .Offenders.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain("declares no [Test]");
+    }
+
+    [Test]
+    public void ClassWhoseEveryTestIsIgnored_FailsResolution()
+    {
+        using var repo = WithClaimedProbe(
+            $$"""
+                [Test, Ignore("later")]
+                public void Check() => Assert.Fail("docs/adr/{{Sample.DefaultSpec.FileName}}");
+            """
+        );
+
+        Resolve(repo)
+            .Offenders.Should()
+            .ContainSingle()
+            .Which.Should()
+            .Contain("every test it declares is marked");
+    }
+
+    [Test]
+    public void TestWhoseFailureMessageNamesTheAdr_Passes()
+    {
+        using var repo = WithClaimedProbe(
+            $$"""
+                [Test]
+                public void Check() => Assert.Fail("docs/adr/{{Sample.DefaultSpec.FileName}}");
+            """
+        );
+
+        Resolve(repo).Offenders.Should().BeEmpty();
+        CiteBack(repo).Passed.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The shape most real guards use: the citation held in a constant the assertion's
+    /// 'because' reads, directly or through an interpolation hole.
+    /// </summary>
+    [TestCase("result.Should().BeTrue(\"it holds, per \" + Adr);")]
+    [TestCase("result.Should().BeTrue($\"it holds ({Adr})\");")]
+    public void ConstantAnAssertionReads_CountsAsTheCitation(string assertion)
+    {
+        using var repo = WithClaimedProbe(
+            $$"""
+                private const string Adr = "docs/adr/{{Sample.DefaultSpec.FileName}}";
+
+                [Test]
+                public void Check()
+                {
+                    var result = true;
+                    {{assertion}}
+                }
+            """
+        );
+
+        CiteBack(repo).Passed.Should().BeTrue();
+    }
+
+    [Test]
+    public void ConstantNoAssertionReads_DoesNotCount()
+    {
+        using var repo = WithClaimedProbe(
+            $$"""
+                private const string Adr = "docs/adr/{{Sample.DefaultSpec.FileName}}";
+
+                [Test]
+                public void Check() => true.Should().BeTrue("it holds");
+            """
+        );
+
+        CiteBack(repo).Passed.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// csharpier wraps a long attribute one argument per line, which left the ADR path alone
+    /// on a line that read as code and stood in for the failure message.
+    /// </summary>
+    [Test]
+    public void WrappedAttributeArgument_IsNotAFailureMessage()
+    {
+        using var repo = TempAdrRepo.Valid();
+        var file = Sample.DefaultSpec.FileName;
+        repo.Adr(file, Sample.Adr(exemplars: "- `ProbeTests` holds it up."));
+        repo.Write(
+            ProbePath,
+            $$"""
+            namespace Some.Tests.Meta;
+
+            /// <summary>Enforces docs/adr/{{file}}.</summary>
+            [Property(
+                "adr",
+                "docs/adr/{{file}}"
+            )]
+            [TestFixture]
+            public class ProbeTests
+            {
+                [Test]
+                public void Check() => true.Should().BeTrue("it holds");
+            }
+            """
+        );
+
+        Resolve(repo).Offenders.Should().BeEmpty();
+        CiteBack(repo).Passed.Should().BeFalse();
+    }
+
+    #endregion
 }

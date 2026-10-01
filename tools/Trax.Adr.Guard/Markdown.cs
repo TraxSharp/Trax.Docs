@@ -270,6 +270,19 @@ public static class CSharp
                 continue;
             }
 
+            // A preprocessor directive runs to the end of its line and holds no literal. Its
+            // text is free prose, so '#region the connection's operations' must not open a
+            // character literal and blank the rest of the file.
+            if (c == '#' && AtLineStart(source, i))
+            {
+                var end = source.IndexOf('\n', i);
+                end = end < 0 ? source.Length : end;
+                if (blankComments)
+                    Blank(i, end);
+                i = end;
+                continue;
+            }
+
             if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
             {
                 var end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
@@ -358,6 +371,17 @@ public static class CSharp
         }
 
         return new string(output);
+    }
+
+    /// <summary>Whether only whitespace precedes <paramref name="index"/> on its line.</summary>
+    private static bool AtLineStart(string source, int index)
+    {
+        for (var k = index - 1; k >= 0 && source[k] != '\n'; k--)
+        {
+            if (!char.IsWhiteSpace(source[k]))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>Which kind of line a citation was found on.</summary>

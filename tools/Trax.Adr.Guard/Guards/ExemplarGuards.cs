@@ -167,7 +167,16 @@ public static class ExemplarGuards
                     .ToList();
 
                 if (answering.Count == 1)
+                {
+                    var idle = WhyItRunsNothing(File.ReadAllText(answering[0].File), claim);
+                    if (idle is not null)
+                        offenders.Add(
+                            $"{AdrCorpus.Relative(answering[0].File, options)}: '{claim}' is named by "
+                                + $"{adr.RelativePath} but {idle} A guard that never runs holds "
+                                + "nothing up, so the claim would be enforcement in name only."
+                        );
                     continue;
+                }
 
                 if (answering.Count > 1)
                 {
@@ -277,51 +286,176 @@ public static class ExemplarGuards
     }
 
     /// <summary>
-    /// Null when the source cites the ADR the way the standard asks: once in a documentation
-    /// comment, and once outside one, which in practice is the assertion failure message.
+    /// Null when the source names the ADR in what an assertion prints on failure: an argument
+    /// to an assertion, or a value one uses (the <c>private const string Adr = "..."</c> a
+    /// message interpolates, or a <c>because</c> built from it).
     ///
     /// <para>
-    /// Checking only that the name appeared somewhere was too weak to mean anything. A stray
-    /// comment or an unrelated string literal satisfied it, while the message the guard
-    /// prints told the reader to put it in two specific places.
+    /// Checking only that the name appeared on a code line was too weak to mean anything. A
+    /// constant nothing reads satisfied it, so a class with no assertions at all cited its ADR
+    /// "back" while the person who trips the guard would never see the authority.
     /// </para>
     /// </summary>
     private static string? CitationProblem(string source, string fileName)
     {
-        var inDoc = false;
-        var inCode = false;
+        var text = source.Replace("\r\n", "\n");
+        var code = CSharp.WithoutCommentsAndLiterals(text);
+        var literals = CSharp.WithoutLiterals(text);
+        var followed = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var line in source.Replace("\r\n", "\n").Split('\n'))
+        // A citation is text inside a string literal. In a comment or a docstring it is not
+        // what an assertion prints, and the attribute is never an assertion either.
+        var citations = new List<int>();
+        for (
+            var at = text.IndexOf(fileName, StringComparison.Ordinal);
+            at >= 0;
+            at = text.IndexOf(fileName, at + 1, StringComparison.Ordinal)
+        )
         {
-            if (!line.Contains(fileName, StringComparison.Ordinal))
-                continue;
-
-            // The attribute names the ADR too, and it is Code. Letting it answer here would
-            // mean tagging a class also satisfied the message requirement, which is the half
-            // the person who trips the guard actually reads.
-            if (IsAdrAttribute(line))
-                continue;
-
-            switch (CSharp.Classify(line))
-            {
-                case CSharp.LineKind.Documentation:
-                    inDoc = true;
-                    break;
-                case CSharp.LineKind.Code:
-                    inCode = true;
-                    break;
-                // An ordinary // comment is neither. The standard asks for the docstring and
-                // the failure message, and a comment is not the message anybody reads when
-                // the guard goes red.
-            }
+            if (literals[at] == ' ')
+                citations.Add(at);
         }
 
-        return (inDoc, inCode) switch
+        bool ReachesAnAssertion(int position, int depth)
         {
-            (_, true) => null,
-            (_, false) =>
-                "does not name it in a failure message, only in the attribute or the docstring.",
-        };
+            var statement = Statement(code, position);
+            if (Assertion.IsMatch(statement))
+                return true;
+
+            // A value holding the citation counts when an assertion uses it. Followed a few
+            // steps (a constant, then a 'because' built from it) and no further.
+            var name = DeclaredName(statement);
+            if (name is null || depth >= 3 || !followed.Add(name))
+                return false;
+
+            return References(text, code, literals, name)
+                .Any(r => ReachesAnAssertion(r, depth + 1));
+        }
+
+        return citations.Any(c => ReachesAnAssertion(c, 0))
+            ? null
+            : "does not name it in a failure message: not in an assertion's arguments, nor in a "
+                + "value an assertion uses. The attribute, a comment and the docstring do not count.";
+    }
+
+    /// <summary>A call that asserts: NUnit, FluentAssertions, or a helper named for it.</summary>
+    private static readonly Regex Assertion = new(
+        @"\b\w*Assert\w*\s*\.\s*\w+\s*[<(]|\bAssert\w*\s*\(|\.\s*Should\w*\s*\(|\bFailWith\s*\("
+            + @"|\bAssertionScope\b|\bthrow\s+new\s+\w*Assertion\w*Exception\b",
+        RegexOptions.Compiled
+    );
+
+    /// <summary>
+    /// The member or local a statement declares: <c>Name(...) =&gt;</c>, <c>Name =&gt;</c> or
+    /// <c>Name = ...</c>. Read from blanked code, so nothing inside a literal is mistaken for one.
+    /// </summary>
+    private static readonly Regex Declaration = new(
+        @"(?<name>[A-Za-z_]\w*)\s*(?:\([^()]*\)\s*)?=>|(?<name>[A-Za-z_]\w*)\s*=(?![=>])",
+        RegexOptions.Compiled
+    );
+
+    private static string? DeclaredName(string statement)
+    {
+        var match = Declaration.Match(statement);
+        return match.Success ? match.Groups["name"].Value : null;
+    }
+
+    /// <summary>
+    /// The statement around a position in blanked code: from the last <c>;</c>, <c>{</c> or
+    /// <c>}</c> before it to the next one after it. Literals and comments are blanked, so a
+    /// brace inside one does not cut the statement short.
+    /// </summary>
+    private static string Statement(string code, int position)
+    {
+        char[] ends = [';', '{', '}'];
+        var start = position == 0 ? 0 : code.LastIndexOfAny(ends, position - 1) + 1;
+        var end = code.IndexOfAny(ends, position);
+        return code[start..(end < 0 ? code.Length : end)];
+    }
+
+    /// <summary>
+    /// Where a name is used: as code, or as an interpolation hole (<c>{Adr}</c>), which the
+    /// blanking pass hides inside its string.
+    /// </summary>
+    private static IEnumerable<int> References(
+        string text,
+        string code,
+        string literals,
+        string name
+    ) =>
+        Regex
+            .Matches(text, $@"\b{Regex.Escape(name)}\b")
+            .Select(m => m.Index)
+            .Where(at => code[at] != ' ' || (literals[at] == ' ' && at > 0 && text[at - 1] == '{'));
+
+    /// <summary>
+    /// Null when the class declares at least one test that runs; otherwise why it does not.
+    ///
+    /// <para>
+    /// Resolution checked only that the class exists and names the ADR. A
+    /// <c>[TestFixture, Explicit]</c> class with no tests passed, and so did one whose every
+    /// test was ignored, so an ADR could claim enforcement from a class CI never executes.
+    /// </para>
+    /// </summary>
+    public static string? WhyItRunsNothing(string source, string className)
+    {
+        var code = CSharp.WithoutCommentsAndLiterals(source.Replace("\r\n", "\n"));
+        var declaration = Regex.Match(code, $@"\bclass\s+{Regex.Escape(className)}\b");
+        if (!declaration.Success)
+            return null; // resolution reports a missing class on its own
+
+        char[] ends = [';', '{', '}'];
+        var headerStart = code.LastIndexOfAny(ends, declaration.Index) + 1;
+        if (Skipped(code[headerStart..declaration.Index]))
+            return "it is marked [Explicit] or [Ignore], so CI never runs it.";
+
+        var open = code.IndexOf('{', declaration.Index);
+        var close = open < 0 ? -1 : MatchingBrace(code, open);
+        var body = open < 0 ? string.Empty : code[(open + 1)..(close < 0 ? code.Length : close)];
+
+        var tests = TestAttribute.Matches(body).Select(t => TestHeader(body, t.Index)).ToList();
+        if (tests.Count == 0)
+            return "it declares no [Test], [TestCase], [TestCaseSource], [Theory] or [Fact] method.";
+
+        return tests.All(Skipped)
+            ? "every test it declares is marked [Explicit], [Ignore] or Skip, so CI never runs one."
+            : null;
+    }
+
+    private static readonly Regex TestAttribute = new(
+        @"(?<=[\[,]\s*)(?:Test|TestCase|TestCaseSource|Theory|Fact)(?:Attribute)?(?=\s*[(\],])",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex SkipAttribute = new(
+        @"(?<=[\[,]\s*)(?:Explicit|Ignore)(?:Attribute)?(?=\s*[(\],])|\bSkip\s*=",
+        RegexOptions.Compiled
+    );
+
+    private static bool Skipped(string header) => SkipAttribute.IsMatch(header);
+
+    /// <summary>A test method's attributes and signature, up to where its body starts.</summary>
+    private static string TestHeader(string body, int attribute)
+    {
+        char[] ends = [';', '{', '}'];
+        var start = body.LastIndexOfAny(ends, attribute) + 1;
+        var brace = body.IndexOf('{', attribute);
+        var arrow = body.IndexOf("=>", attribute, StringComparison.Ordinal);
+        var end = new[] { brace, arrow, body.Length }.Where(i => i >= 0).Min();
+        return body[start..end];
+    }
+
+    private static int MatchingBrace(string code, int open)
+    {
+        var depth = 0;
+        for (var i = open; i < code.Length; i++)
+        {
+            if (code[i] == '{')
+                depth++;
+            else if (code[i] == '}' && --depth == 0)
+                return i;
+        }
+        return -1;
     }
 
     /// <summary>
