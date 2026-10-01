@@ -33,6 +33,7 @@ public class PackagesPageTests
         "Trax.Effect.Data.Postgres",
         "Trax.Effect.Data.Sqlite",
         "Trax.Effect.Data.Testing",
+        "Trax.Effect.Decisions.SystemOne",
         "Trax.Effect.JunctionProvider.Logging",
         "Trax.Effect.JunctionProvider.Progress",
         "Trax.Effect.Provider.Json",

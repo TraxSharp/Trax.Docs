@@ -1,0 +1,82 @@
+---
+layout: default
+title: Decide
+description: Reference for Decide, which asks a decider several typed questions about one value in Memory in a single call and stores each answer as a typed decision.
+parent: Train Methods
+grand_parent: SDK Reference
+nav_order: 10
+---
+
+# Decide
+
+Asks a decider several typed questions about one value in Memory, in a single call, and puts
+each answer in Memory as a typed decision. Later [Switch](/docs/sdk-reference/train-methods/switch),
+[Gate](/docs/sdk-reference/train-methods/gate) and [Scale](/docs/sdk-reference/train-methods/scale)
+steps route on those decisions without asking again, and a junction can take one as its input.
+See [Decisions](/docs/core/decisions) for the concepts.
+
+## Decide\<TState\>(questions)
+
+```csharp
+protected MonadTask<TInput, TReturn> Decide<TState>(
+    Func<Questions<TState>, Questions<TState>> questions
+)
+```
+
+| Type Parameter | Description |
+|---|---|
+| `TState` | The value in Memory the questions are about. It is sent to the decider as the state. |
+
+### Questions\<TState\>
+
+| Method | Asks | Puts in Memory |
+|---|---|---|
+| `Choice<TTrack>(string? asking = null)` | which member of the enum `TTrack` applies | `ChoiceDecision<TTrack>` |
+| `Score<TLevel>(string? asking = null)` | where the state falls on the levels of `TLevel`, lowest value first | `ScoreDecision<TLevel>` |
+| `YesNo<TQuestion>(string? asking = null, string? yes = null, string? no = null)` | how likely the answer to `TQuestion` is yes | `YesNoDecision<TQuestion>` |
+| `DecidedBy<TDecider>()` | asks `TDecider` instead of the registered `IDecider` | |
+| `Shadow<TDecider>()` | also asks `TDecider` every question, records whether it agrees, never acts on it | |
+
+`asking` defaults to the `[Asks]` attribute on the type, and `yes` and `no` to the attribute's
+`Yes` and `No`. Each question may be asked once per `Decide`.
+
+### Decisions
+
+| Type | Properties |
+|---|---|
+| `ChoiceDecision<TTrack>` | `Choice`, `Confidence`, `Probabilities` (per member, when given), `Model` |
+| `ScoreDecision<TLevel>` | `Score` (0 to the top level), `Nearest` (the level it rounds to, halves up), `Confidence`, `Probabilities`, `Model` |
+| `YesNoDecision<TQuestion>` | `Probability` of yes, `Model` |
+
+## Example
+
+```csharp
+protected override Task<Either<Exception, ModerationOutcome>> Junctions() =>
+    Decide<Post>(q => q.YesNo<ContainsThreat>().Choice<Verdict>().Score<Severity>())
+        .Gate<ContainsThreat>(gate => gate
+            .Yes(t => t.Chain<TakeDownPost>(), atLeast: 0.7)
+            .No(t => t.Switch<Verdict>(...), below: 0.3)
+            .Unsure(t => t.Chain<PageTrustAndSafety>()))
+        .Resolve();
+```
+
+## Behavior
+
+1. Skipped if the train is already on the left track; no decider is asked.
+2. Takes `TState` from Memory, then the decider (`IDecider`, or the `DecidedBy` type) from Memory or the container.
+3. For each question, asks the registered `IDecisionReplay` for an earlier run's answer. Questions it answers are not sent.
+4. Asks the decider the rest in one `DecisionRequest`. Shadows are asked every question at the same time.
+5. Checks every answer against its question and puts the typed decision in Memory.
+6. Tells the registered `IDecisionObserver` about each decision, with any shadows' answers.
+
+The run fails, naming the step and classified `Permanent`, when an answer does not fit its
+question (an option that is not a member, a confidence or probability outside 0 to 1, a score off
+the scale, the wrong kind of answer) or a question goes unanswered. A decider that throws fails
+the run with its own exception and failure class. A shadow that fails is recorded, not thrown.
+
+## Remarks
+
+- The startup check records one step per question, verifies the state and every decider and
+  shadow are supplied, and counts each decision as available to the steps after it.
+- A decider handed to `AddServices` is passed as an interface; for `DecidedBy` or `Shadow` from
+  Memory, declare an interface of your own that extends `IDecider`.

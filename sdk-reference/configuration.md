@@ -100,10 +100,10 @@ Inside the `AddEffects()` callback, data provider methods return a more specific
 
 | Type | Returned By | Exposes |
 |------|-------------|---------|
-| `TraxEffectBuilder` | `AddEffects()` lambda | `SkipMigrations()`, `UsePostgres()`, `UseSqlite()`, `UseInMemory()`, `AddJson()`, `SaveTrainParameters()`, `AddJunctionLogger()`, `AddJunctionProgress()`, `SetEffectLogLevel()`, `UseBroadcaster()` |
-| `TraxEffectBuilderWithData` | `UsePostgres()`, `UseSqlite()`, `UseInMemory()` | Everything on `TraxEffectBuilder` plus `AddDataContextLogging()` |
+| `TraxEffectBuilder` | `AddEffects()` lambda | `SkipMigrations()`, `UsePostgres()`, `UseSqlite()`, `UseInMemory()`, `AddJson()`, `SaveTrainParameters()`, `AddJunctionLogger()`, `AddJunctionProgress()`, `SetEffectLogLevel()`, `UseBroadcaster()`, `AddSystemOneDecider()` |
+| `TraxEffectBuilderWithData` | `UsePostgres()`, `UseSqlite()`, `UseInMemory()` | Everything on `TraxEffectBuilder` plus `AddDataContextLogging()` and `AddDecisionRecording()` |
 
-Generic effect methods (`AddJson`, `SaveTrainParameters`, `AddJunctionLogger`, `AddJunctionProgress`, `SetEffectLogLevel`, `UseBroadcaster`) preserve the concrete builder type through chaining. If you start with `TraxEffectBuilderWithData`, it stays `TraxEffectBuilderWithData`.
+Generic effect methods (`AddJson`, `SaveTrainParameters`, `AddJunctionLogger`, `AddJunctionProgress`, `SetEffectLogLevel`, `UseBroadcaster`, `AddSystemOneDecider`) preserve the concrete builder type through chaining. If you start with `TraxEffectBuilderWithData`, it stays `TraxEffectBuilderWithData`.
 
 ## Ordering Enforcement
 

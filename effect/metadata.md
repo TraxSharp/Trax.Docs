@@ -28,6 +28,7 @@ Every train execution produces a metadata record. It captures everything about t
 | `FailureClass` | `FailureClass` | `Unclassified` / `Transient` / `Conflict` / `Permanent`, from the registered [failure classifier](/docs/core/trains-and-junctions#classifying-failures). `Unclassified` when the run did not fail or nothing classified it |
 | `ParentId` | `long?` | The parent run's metadata id. Nothing in Trax sets it at present, so it is null for every run, including a train dispatched from a junction; see [Nested Trains](#nested-trains) |
 | `ManifestId` | `long?` | Links to manifest for scheduled trains |
+| `ReplayDecisionsOf` | `long?` | The run whose recorded [decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) this run replays. Set by a re-queue; null for a run that asks its deciders afresh |
 | `ScheduledTime` | `DateTime?` | Scheduled execution time |
 | `CancellationRequested` | `bool` | Cross-server cancellation flag |
 | `JunctionStartedAt` | `DateTime?` | Current junction start timestamp (requires `AddJunctionProgress`) |
