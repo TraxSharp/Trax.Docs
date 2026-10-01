@@ -27,7 +27,7 @@ app.UseTraxGraphQL(); // default: /trax/graphql (named schema, won't conflict wi
 app.Run();
 ```
 
-Navigate to the endpoint URL in a browser to open [Banana Cake Pop](https://chillicream.com/docs/bananacakepop), the built-in GraphQL IDE. It provides schema exploration, autocompletion, and query execution without any extra tooling.
+In Development, navigate to the endpoint URL in a browser to open Nitro, HotChocolate's built-in GraphQL IDE, for schema exploration, autocompletion and query execution. The IDE follows the same per-request decision as introspection and the schema download: allowed in Development, a 404 elsewhere, unless `AllowIntrospection(predicate)` on the builder says otherwise.
 
 ## Pages
 

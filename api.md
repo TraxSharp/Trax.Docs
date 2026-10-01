@@ -51,7 +51,7 @@ builder.Services.AddHealthChecks().AddTraxHealthCheck();
 
 var app = builder.Build();
 
-app.UseTraxGraphQL();  // maps at /trax/graphql, opens Banana Cake Pop IDE in browser
+app.UseTraxGraphQL();  // maps at /trax/graphql; the Nitro IDE opens there in a browser, in Development
 app.MapHealthChecks("/trax/health");
 
 app.Run();
