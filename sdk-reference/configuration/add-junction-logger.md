@@ -8,7 +8,7 @@ nav_order: 6
 
 # AddJunctionLogger
 
-Adds per-junction execution logging as a junction-level effect. Records individual junction metadata (name, duration, input/output types) for each junction in the train.
+Adds per-junction execution logging as a junction-level effect. Writes each junction's metadata (name, duration, input/output types) to `ILogger` before and after the junction runs, at the [effect log level](/docs/sdk-reference/configuration/set-effect-log-level). Nothing is written to the database.
 
 ## Signature
 
