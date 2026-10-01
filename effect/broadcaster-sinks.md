@@ -44,6 +44,10 @@ This is the canonical multi-process layout: workers and the UI host share a Rabb
 **Worker (Program.cs):**
 
 ```csharp
+using Trax.Effect.Broadcaster.RabbitMQ.Extensions;
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+
 builder.Services.AddTrax(trax =>
     trax.AddEffects(effects =>
         effects

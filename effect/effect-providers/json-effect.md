@@ -19,6 +19,9 @@ dotnet add package Trax.Effect.Provider.Json
 ```
 
 ```csharp
+using Trax.Effect.Extensions;
+using Trax.Effect.Provider.Json.Extensions;
+
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .AddJson()

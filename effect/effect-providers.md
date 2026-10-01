@@ -15,6 +15,10 @@ Effect providers handle side effects as a train runs: database writes, logging, 
 **Use when:** You need to query train history, audit execution, or debug production issues.
 
 ```csharp
+using Trax.Effect.Data.InMemory.Extensions;
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+
 // Production
 services.AddTrax(trax => trax
     .AddEffects(effects => effects

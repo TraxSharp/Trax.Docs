@@ -37,6 +37,9 @@ Everything in [Core](core.md), plus:
 - `IServiceProvider` access for junction instantiation
 
 ```csharp
+using LanguageExt;
+using Trax.Effect.Services.ServiceTrain;
+
 public class CreateUserTrain : ServiceTrain<CreateUserRequest, User>, ICreateUserTrain
 {
     protected override Task<Either<Exception, User>> Junctions() =>

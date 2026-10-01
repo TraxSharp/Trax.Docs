@@ -29,6 +29,13 @@ dotnet add package Trax.Api.GraphQL
 ```
 
 ```csharp
+using Trax.Api.Extensions;
+using Trax.Api.GraphQL.Extensions;
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+using Trax.Effect.Provider.Json.Extensions;
+using Trax.Mediator.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddTrax(trax => trax

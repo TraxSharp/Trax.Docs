@@ -54,6 +54,12 @@ If you see a 404, your csproj is missing the property. Set it and rebuild.
 Two lines in `Program.cs`, and a decision about who may use it:
 
 ```csharp
+using Trax.Dashboard.Extensions;
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+using Trax.Mediator.Extensions;
+using Trax.Scheduler.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddTrax(trax => trax

@@ -36,6 +36,9 @@ Left Track:              Exception  ->   [Skip]    ->   [Skip]    -> Exception
 Trax.Core uses `Either<Exception, T>` from [LanguageExt](https://github.com/louthy/language-ext) to represent this. A value is either `Left` (an exception on the left track) or `Right` (successful delivery on the right track):
 
 ```csharp
+using LanguageExt;
+using Trax.Core.Train;
+
 public class CreateUserTrain : Train<CreateUserRequest, User>
 {
     protected override Task<Either<Exception, User>> Junctions() =>

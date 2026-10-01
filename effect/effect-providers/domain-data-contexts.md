@@ -15,6 +15,9 @@ Trax's own `DataContext<T>` is the framework metadata store (it holds the `trax`
 A domain context derives `DomainDataContext<TSelf>`, declares its single schema, and configures its owned entities. The base seals `OnModelCreating` so the cross-cutting conventions cannot be skipped or reordered: it applies the default schema (on PostgreSQL; schema-less providers like SQLite and the in-memory provider are left alone), runs your `ConfigureModel`, and applies a UTC datetime converter.
 
 ```csharp
+using Microsoft.EntityFrameworkCore;
+using Trax.Effect.Data.Services.DomainContext;
+
 public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     : DomainDataContext<CatalogDbContext>(options), ICatalogDbContext
 {

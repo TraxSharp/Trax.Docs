@@ -19,6 +19,9 @@ dotnet add package Trax.Effect.Data.Postgres
 ```
 
 ```csharp
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .UsePostgres("Host=localhost;Database=app;Username=postgres;Password=pass")
