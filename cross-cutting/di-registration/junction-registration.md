@@ -54,8 +54,8 @@ services.AddTransientTraxJunction<IProcessPaymentJunction, ProcessPaymentJunctio
 ## Remarks
 
 - These methods delegate directly to the train registration equivalents. They exist for semantic clarity. `AddTraxJunction` communicates intent better than `AddTraxRoute` when registering junctions.
-- Junctions typically don't need manual DI registration unless they use `[Inject]` properties. Most junctions are created by the train's `Chain<TJunction>()` method using Memory-based constructor injection.
+- Registration only matters for a junction the train reaches through `IChain<TInterface>()`, which resolves the registered service from the container, `[Inject]` properties included. `Chain<TJunction>()` never consults the registration: it calls the junction's public constructor with arguments taken from Memory and the container, and does not populate `[Inject]` properties, so on a junction built that way they stay `null` even when the junction is registered. Give a `Chain<T>()` junction its dependencies as constructor parameters, or register it under an interface and reach it with `IChain`.
 
 ## SDK Reference
 
-> [Chain](/docs/sdk-reference/train-methods/chain)
+> [Chain / IChain](/docs/sdk-reference/train-methods/chain)

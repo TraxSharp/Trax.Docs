@@ -124,7 +124,7 @@ The result is the same canonical JSON the [`trax machine` CLI](/docs/reference/c
 writes to `<machine>.ir.json`; the CLI calls `ExportIr()` directly. It requires a declaratively-authored
 machine (`Context`/`When(Rule)`/`Reduce(Reduction)`): it throws `InvalidOperationException` only for a machine
 that made no declarative call at all. A machine that mixes the styles exports without complaint, with each
-delegate edge exported as unconditional (see [Delegate vs declarative](#delegate-vs-declarative)). In practice you rarely call `ExportIr()` by hand: `trax machine
+delegate edge exported as unconditional (see [Delegate vs declarative](/docs/sdk-reference/statemachine-api/fluent-authoring#delegate-vs-declarative)). In practice you rarely call `ExportIr()` by hand: `trax machine
 generate` exports the IR and regenerates every downstream artifact in one command.
 
 ## Result codes
