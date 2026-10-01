@@ -149,4 +149,4 @@ engines then replay it and fail loudly if their hand-written guards or reducers 
 
 ## SDK Reference
 
-> [AddStateMachines](/docs/sdk-reference/statemachine-api/add-trax-state-machines) | [Machine authoring](/docs/sdk-reference/statemachine-api/fluent-authoring) | [AddMediator](/docs/sdk-reference/mediator-api/add-service-train-bus)
+> [AddStateMachines](/docs/sdk-reference/statemachine-api/add-trax-state-machines) | [Machine authoring](/docs/sdk-reference/statemachine-api/fluent-authoring) | [AddMediator](/docs/sdk-reference/configuration/add-mediator)

@@ -103,4 +103,4 @@ The metadata detail page shows an "Execution Host" card with hostname, environme
 
 ## SDK Reference
 
-> [Host Tracking](/docs/sdk-reference/configuration/host-tracking) | [AddTrax / AddEffects](/docs/sdk-reference/configuration) | [UsePostgres](/docs/sdk-reference/configuration/add-postgres-effect) | [AddMediator](/docs/sdk-reference/mediator-api/add-service-train-bus)
+> [Host Tracking](/docs/sdk-reference/configuration/host-tracking) | [AddTrax / AddEffects](/docs/sdk-reference/configuration) | [UsePostgres](/docs/sdk-reference/configuration/add-postgres-effect) | [AddMediator](/docs/sdk-reference/configuration/add-mediator)

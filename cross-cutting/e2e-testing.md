@@ -232,4 +232,4 @@ All E2E tests share one database. Add `[assembly: NonParallelizable]` to prevent
 
 ## SDK Reference
 
-> [AddTrax / AddEffects](/docs/sdk-reference/configuration) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [AddMediator](/docs/sdk-reference/mediator-api/add-service-train-bus) | [RunAsync](/docs/sdk-reference/mediator-api/train-bus) | [IWorkQueuePromotion](/docs/sdk-reference/scheduler-api/i-work-queue-promotion)
+> [AddTrax / AddEffects](/docs/sdk-reference/configuration) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [AddMediator](/docs/sdk-reference/configuration/add-mediator) | [RunAsync](/docs/sdk-reference/mediator-api/train-bus) | [IWorkQueuePromotion](/docs/sdk-reference/scheduler-api/i-work-queue-promotion)

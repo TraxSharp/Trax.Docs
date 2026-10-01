@@ -148,4 +148,4 @@ order in memory and asserts the one error it produces, and compiles each right o
 
 ## SDK Reference
 
-> [Configuration](/docs/sdk-reference/configuration) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [AddServiceTrainBus](/docs/sdk-reference/mediator-api/add-service-train-bus)
+> [Configuration](/docs/sdk-reference/configuration) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [AddMediator](/docs/sdk-reference/configuration/add-mediator) | [MediatorConfiguration](/docs/sdk-reference/mediator-api/mediator-configuration)
