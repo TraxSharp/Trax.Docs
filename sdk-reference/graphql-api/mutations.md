@@ -465,6 +465,34 @@ mutation {
 
 ---
 
+### setEffectEnabled
+
+Turns an observational effect on or off in the API process, through the effect registry, the same calls the dashboard's [Effects page](/docs/dashboard#effects-page) makes. The change is in memory: it does not reach the scheduler or worker processes where trains usually run, and a restart restores the configured state.
+
+```graphql
+mutation {
+  operations {
+    setEffectEnabled(
+      fullName: "Trax.Effect.Provider.Json.Services.JsonEffectFactory.JsonEffectProviderFactory"
+      enabled: false
+    ) {
+      success
+      count
+      message
+    }
+  }
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `fullName` | `String!` | Yes | The effect factory's full type name, as [`operations.effects`](/docs/sdk-reference/graphql-api/queries#effects) reports it in `fullName`. Matched exactly. |
+| `enabled` | `Boolean!` | Yes | `true` to turn the effect on, `false` to turn it off |
+
+**Returns**: `OperationResponse`. `success` is false, and nothing changes, when no effect has that name or the effect was registered as not toggleable. On success `count` is 1.
+
+---
+
 ### config (nested namespace)
 
 The `operations.config` namespace patches scheduler runtime settings. A save writes only the fields it sets to the persisted `trax.scheduler_config` row, so it never rewrites a setting it did not name, and applies them to the host that received it at once. Every running scheduler host reads the row every few seconds and applies a new or changed one without a restart, so a save made on an API-only host, or on one of several scheduler hosts, reaches all of them. A scheduler applies a change from its next polling cycle, including a new polling or cleanup interval; `localWorkerCount` is the exception and applies when the worker pool next starts. The row also survives restarts: each scheduler applies it at startup over the settings configured in code.

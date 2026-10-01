@@ -272,7 +272,7 @@ query {
 
 Lists the observational effects registered in the API process, with their enabled and toggleable state and, for an effect whose factory exposes runtime settings, those settings. Backs the dashboard's effects list.
 
-Read-only by design. The effect registry is an in-memory, per-process singleton with no persistence or cross-process broadcast, so this reflects the API host only, not the scheduler/worker processes where effects actually run, and there is no toggle mutation. Changing effect state at runtime across a distributed deployment would need a shared store plus a change-broadcast, which is not built.
+The effect registry is an in-memory, per-process singleton with no persistence or cross-process broadcast, so this reflects the API host only, not the scheduler/worker processes where effects actually run. [`setEffectEnabled`](/docs/sdk-reference/graphql-api/mutations#seteffectenabled) toggles an effect in this same process. Changing effect state across a distributed deployment would need a shared store plus a change broadcast, which is not built.
 
 ```graphql
 query {
