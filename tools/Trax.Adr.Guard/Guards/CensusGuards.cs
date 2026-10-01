@@ -22,10 +22,10 @@ public static class CensusGuards
 
     /// <summary>
     /// A citation of any ADR, local or central: <c>docs/adr/0003-x.md</c> or
-    /// <c>Trax.Docs/adr/0003-x.md</c>.
+    /// <c>Trax.Docs/adr/0003-x.md</c>. The <c>central</c> group marks the second.
     /// </summary>
     private static readonly Regex AdrCitation = new(
-        @"adr/\d{4}-[a-z0-9-]+\.md",
+        @"(?<central>Trax\.Docs/)?adr/(?<file>\d{4}-[a-z0-9-]+\.md)",
         RegexOptions.Compiled
     );
 
@@ -53,10 +53,16 @@ public static class CensusGuards
                 rule
             );
 
-        var claimed = adrs.Select(a => a.Section(ExemplarGuards.Heading))
-            .Where(s => s is not null)
-            .SelectMany(s => ExemplarGuards.Claims(s!))
-            .ToHashSet(StringComparer.Ordinal);
+        // Each claim with the ADR making it, because a claim is answered by the class that
+        // names that ADR back, not by every class sharing the claimed name.
+        var claims = adrs.Select(a => (Adr: a, Section: a.Section(ExemplarGuards.Heading)))
+            .Where(x => x.Section is not null)
+            .SelectMany(x =>
+                ExemplarGuards.Claims(x.Section!).Select(c => (Name: c, x.Adr.FileName))
+            )
+            .ToList();
+
+        var local = adrs.Select(a => a.FileName).ToHashSet(StringComparer.Ordinal);
 
         var offenders = new List<string>();
         var classified = 0;
@@ -70,13 +76,26 @@ public static class CensusGuards
         {
             var path = AdrCorpus.Relative(file, options);
 
-            foreach (var (guard, docstring) in GuardClasses(File.ReadAllText(file)))
+            var source = File.ReadAllText(file);
+            var declarations = ExemplarGuards.Declarations(source);
+
+            foreach (var (guard, docstring) in GuardClasses(source))
             {
                 // A guard is credited either because a local ADR names it, or because it names
                 // an ADR itself. The second case is what makes the census usable in a repo whose
                 // shared guards enforce decisions recorded in the central corpus: that corpus is
                 // not present here, so nothing local can name them.
-                var credited = claimed.Contains(guard) || AdrCitation.IsMatch(docstring);
+                //
+                // A claim credits only the class that answers it: the one in this file carrying
+                // the claiming ADR's attribute. Crediting by bare name let a second class sharing
+                // the name ride on the first's claim, neither named by a decision nor opted out.
+                var answersAClaim = claims.Any(c =>
+                    c.Name == guard
+                    && declarations.Any(d =>
+                        d.Name == guard && d.Adr.EndsWith(c.FileName, StringComparison.Ordinal)
+                    )
+                );
+                var credited = answersAClaim || CitesAnAdr(docstring, local, options);
                 var reason = OptOutReason(docstring);
 
                 if (credited && reason is not null)
@@ -197,6 +216,30 @@ public static class CensusGuards
 
         return -1;
     }
+
+    /// <summary>
+    /// Whether a docstring cites an ADR that can be credited.
+    ///
+    /// <para>
+    /// A local citation (<c>docs/adr/0003-x.md</c>) must name an ADR in this corpus. Any
+    /// well-formed path used to count, so a guard citing a file that was renumbered, renamed
+    /// or never written stayed credited to a decision nobody can read. A central citation
+    /// (<c>Trax.Docs/adr/...</c>) cannot be checked from a consumer repo, whose checkout holds
+    /// no central corpus, so it is taken as written there; in the central corpus itself it is
+    /// local and is checked like one.
+    /// </para>
+    /// </summary>
+    private static bool CitesAnAdr(
+        string docstring,
+        IReadOnlySet<string> local,
+        GuardOptions options
+    ) =>
+        AdrCitation
+            .Matches(docstring)
+            .Any(m =>
+                local.Contains(m.Groups["file"].Value)
+                || (m.Groups["central"].Success && !options.RequireReposKey)
+            );
 
     private static string? OptOutReason(string docstring)
     {

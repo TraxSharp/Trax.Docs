@@ -404,70 +404,83 @@ public static class ExemplarGuards
                 )
                     map.TryAdd(match.Groups["name"].Value, file);
 
-                // Line-based, because the attribute's value is a string literal: it does not
-                // survive the blanking pass the class scan uses. Classify is what keeps a
-                // commented-out attribute from counting. An attribute left open at the end of a
-                // line, as csharpier leaves a long one with an argument per line, is joined with
-                // the lines that close it and read as one.
-                var pending = new List<string>();
-                string? open = null;
-                var openLines = 0;
-                foreach (var rawLine in raw.Replace("\r\n", "\n").Split('\n'))
-                {
-                    if (CSharp.Classify(rawLine) != CSharp.LineKind.Code)
-                        continue;
-
-                    var line = rawLine;
-                    if (open is not null)
-                    {
-                        open += " " + line.Trim();
-                        openLines++;
-                        if (!Closed(open))
-                        {
-                            // An attribute that never closes is malformed; stop joining rather
-                            // than swallow the rest of the file.
-                            if (openLines >= MaxAttributeLines)
-                                open = null;
-                            continue;
-                        }
-
-                        line = open;
-                        open = null;
-                    }
-                    else if (line.TrimStart().StartsWith('[') && !Closed(line))
-                    {
-                        open = line.Trim();
-                        openLines = 1;
-                        continue;
-                    }
-
-                    if (IsAdrAttribute(line))
-                    {
-                        // Every ADR the attributes above a class name belongs to that class. Keeping
-                        // only the last let a second attribute silently cancel the first.
-                        pending.AddRange(
-                            GuardProperty.Matches(line).Select(m => m.Groups["adr"].Value)
-                        );
-                        continue;
-                    }
-
-                    var declaration = ClassDeclaration.Match(line);
-                    if (declaration.Success)
-                    {
-                        foreach (var adr in pending)
-                            declared.Add((declaration.Groups["name"].Value, adr, file));
-                        pending.Clear();
-                        continue;
-                    }
-
-                    // Anything else between the attribute and a class ends the pairing, so a
-                    // class declaration quoted in a fixture string cannot inherit it.
-                    if (!line.TrimStart().StartsWith('[') && line.Trim().Length > 0)
-                        pending.Clear();
-                }
+                foreach (var (name, adr) in Declarations(raw))
+                    declared.Add((name, adr, file));
             }
         }
 
         return (map, declared);
+    }
+
+    /// <summary>
+    /// Every class in one source file that carries an ADR attribute, paired with each ADR it
+    /// names. Public because the census must credit a class by its declaration, not by a name
+    /// another class may share.
+    /// </summary>
+    public static List<(string Name, string Adr)> Declarations(string raw)
+    {
+        var declared = new List<(string, string)>();
+
+        // Line-based, because the attribute's value is a string literal: it does not
+        // survive the blanking pass the class scan uses. Classify is what keeps a
+        // commented-out attribute from counting. An attribute left open at the end of a
+        // line, as csharpier leaves a long one with an argument per line, is joined with
+        // the lines that close it and read as one.
+        var pending = new List<string>();
+        string? open = null;
+        var openLines = 0;
+        foreach (var rawLine in raw.Replace("\r\n", "\n").Split('\n'))
+        {
+            if (CSharp.Classify(rawLine) != CSharp.LineKind.Code)
+                continue;
+
+            var line = rawLine;
+            if (open is not null)
+            {
+                open += " " + line.Trim();
+                openLines++;
+                if (!Closed(open))
+                {
+                    // An attribute that never closes is malformed; stop joining rather
+                    // than swallow the rest of the file.
+                    if (openLines >= MaxAttributeLines)
+                        open = null;
+                    continue;
+                }
+
+                line = open;
+                open = null;
+            }
+            else if (line.TrimStart().StartsWith('[') && !Closed(line))
+            {
+                open = line.Trim();
+                openLines = 1;
+                continue;
+            }
+
+            if (IsAdrAttribute(line))
+            {
+                // Every ADR the attributes above a class name belongs to that class. Keeping
+                // only the last let a second attribute silently cancel the first.
+                pending.AddRange(GuardProperty.Matches(line).Select(m => m.Groups["adr"].Value));
+                continue;
+            }
+
+            var declaration = ClassDeclaration.Match(line);
+            if (declaration.Success)
+            {
+                foreach (var adr in pending)
+                    declared.Add((declaration.Groups["name"].Value, adr));
+                pending.Clear();
+                continue;
+            }
+
+            // Anything else between the attribute and a class ends the pairing, so a
+            // class declaration quoted in a fixture string cannot inherit it.
+            if (!line.TrimStart().StartsWith('[') && line.Trim().Length > 0)
+                pending.Clear();
+        }
+
+        return declared;
     }
 }
