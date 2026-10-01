@@ -37,6 +37,24 @@ public class GuardEdgeCaseTests
             .Contain("already used");
     }
 
+    /// <summary>
+    /// A check that throws must not take the report with it. The run fails either way; what
+    /// matters is that the other checks, one of which usually names the real problem, still
+    /// print.
+    /// </summary>
+    [Test]
+    public void Guarded_ACheckThatThrows_FailsUnderItsOwnName()
+    {
+        var result = GuardRunner.Guarded(
+            "index/full-list",
+            () => throw new InvalidOperationException("boom")
+        );
+
+        result.Passed.Should().BeFalse();
+        result.Name.Should().Be("index/full-list");
+        result.Offenders.Should().ContainSingle().Which.Should().Contain("boom");
+    }
+
     [Test]
     public void TagTable_SameFileNameInASubfolder_ReportsIt_InsteadOfThrowing()
     {

@@ -77,7 +77,10 @@ public static class IndexGuards
         }
 
         // Index -> frontmatter.
-        var byFile = adrs.ToDictionary(a => a.FileName, a => a, StringComparer.Ordinal);
+        // The same file name twice (an ADR and its copy in a subfolder) is frontmatter/file-names'
+        // failure to report; the first one answers here rather than the check throwing.
+        var byFile = adrs.GroupBy(a => a.FileName, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         foreach (var (tag, files) in listed)
         {
             foreach (var file in files)
