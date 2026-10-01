@@ -55,6 +55,7 @@ type TrainLifecycleEvent {
   failureReason: String
   hostName: String
   hostEnvironment: String
+  sequence: Long!
   output: Any
 }
 ```
@@ -70,6 +71,21 @@ type TrainLifecycleEvent {
 | `failureReason` | The failure message (only present on failed trains; masked outside the operations view unless the train raised a `TrainException`) |
 | `hostName` / `hostEnvironment` | The host that ran the train (operations view only) |
 | `output` | The train's output as JSON |
+| `sequence` | This event's position in the subscription: 1 for the first event, one more for each after it, and a skipped number after events were lost. See [Lost events](#lost-events) |
+
+## Lost events
+
+The lifecycle subscriptions are a live feed, not a log. HotChocolate keeps a bounded buffer for each subscriber (64 events), and when a subscriber falls behind, for example a slow socket while many trains change state at once, the oldest buffered events are dropped. The newest event always arrives.
+
+Every lifecycle event carries `sequence`, numbered per subscription. It counts up by one, and after a loss it skips one number, whatever was lost:
+
+```text
+sequence: 1, 2, 3, 5, 6   # something was lost between 3 and 5
+```
+
+A client that sees a number other than the previous one plus one has missed state changes, and should refetch what it shows (for an admin view, `operations.executions`; otherwise its own queries) and carry on reading the feed. The skip is always one number, so a subscriber outside the operations view does not learn how much activity there was in trains it cannot see. A loss of an event the subscriber would not have received is reported too, since the subscription cannot tell whose event was dropped; the refetch then changes nothing.
+
+Events a host sends through HotChocolate's `ITopicEventSender` itself, rather than through Trax's hooks, are not numbered and never cause a skip. Numbers are per API node. `Trax.Api/docs/adr/0032` records the decision.
 
 ## Examples
 
