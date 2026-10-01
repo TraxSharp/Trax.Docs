@@ -23,6 +23,10 @@ A hosted service with a timer works fine for simple recurring tasks. The Schedul
 A `Manifest` is the scheduling equivalent of a shipping manifest. It describes what train to run, when to dispatch it, how to handle failures, and what cargo (input) to load. The `ITraxScheduler` handles the boilerplate, so you don't need to worry about assembly-qualified names or JSON serialization:
 
 ```csharp
+using LanguageExt;
+using Trax.Scheduler.Services.Scheduling;
+using Trax.Scheduler.Services.TraxScheduler;
+
 await scheduler.ScheduleAsync<ISyncCustomersTrain, SyncCustomersInput, Unit>(
     "sync-customers-us-east",
     new SyncCustomersInput { Region = "us-east", BatchSize = 500 },

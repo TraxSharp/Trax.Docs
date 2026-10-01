@@ -17,6 +17,10 @@ dotnet add package Trax.Effect.Provider.Parameter
 ```
 
 ```csharp
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+using Trax.Effect.Provider.Parameter.Extensions;
+
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .UsePostgres(connectionString)

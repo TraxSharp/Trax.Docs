@@ -17,6 +17,9 @@ There is no per-machine registration and no effect wiring in the composition roo
 to: the guard that admits it, the reducer that computes the next context, and the effect it fires.
 
 ```csharp
+using Trax.Effect.StateMachine.Persistence;
+using Trax.Effect.StateMachine;
+
 public sealed class CheckoutMachine : Machine<CheckoutState, CheckoutTrigger>
 {
     protected override void Configure(IMachineBuilder<CheckoutState, CheckoutTrigger> m)

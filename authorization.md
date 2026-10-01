@@ -52,6 +52,10 @@ A field added this way must declare its own posture when the parent gives it not
 `[TraxAuthorize]` and `[TraxAllowAnonymous]` both apply to a method, so a resolver declares its posture directly and Trax emits the matching `@authorize` directive for it. The combinator semantics are the same as on a train or an entity: policies AND, roles union and OR.
 
 ```csharp
+using HotChocolate;
+using HotChocolate.Types;
+using Trax.Effect.Attributes;
+
 [ExtendObjectType(typeof(Article))]     // Article is [TraxAllowAnonymous]
 public sealed class ArticleExtensions
 {

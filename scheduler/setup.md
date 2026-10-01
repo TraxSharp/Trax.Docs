@@ -13,9 +13,10 @@ nav_order: 1
 
 ```bash
 dotnet add package Trax.Scheduler
+dotnet add package Trax.Effect.Data.Postgres
 ```
 
-The scheduler includes built-in local workers backed by PostgreSQL. No additional packages needed.
+`AddScheduler()` requires a data provider, and each provider is its own package: `Trax.Effect.Data.Postgres` for `UsePostgres`, `Trax.Effect.Data.Sqlite` for `UseSqlite`, `Trax.Effect.Data.InMemory` for `UseInMemory`. Use Postgres when several servers share the work. The local workers that run jobs are built into `Trax.Scheduler`, so they need no further package. [Packages](/docs/reference/packages) lists the rest.
 
 ### Default Job Submitter
 
@@ -23,7 +24,7 @@ The scheduler automatically selects the right job submitter based on your effect
 
 | Effect Configuration | Job Submitter | Behavior |
 |---------------------|---------------|----------|
-| `UsePostgres(...)` | `PostgresJobSubmitter` | Inserts into `trax.background_job` table. Local workers are started automatically. |
+| `UsePostgres(...)` or `UseSqlite(...)` | `PostgresJobSubmitter` | Inserts into `trax.background_job` table. Local workers are started automatically. |
 | `UseInMemory()` (no database) | Built-in in-memory submitter | Executes jobs inline, synchronously. No database needed. Good for testing and prototyping. |
 | `OverrideSubmitter(...)` | Custom | Your own `IJobSubmitter` implementation takes priority over both defaults. |
 
@@ -34,6 +35,11 @@ The scheduler automatically selects the right job submitter based on your effect
 Jobs can be scheduled directly in startup configuration. The scheduler creates or updates manifests when the app starts:
 
 ```csharp
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+using Trax.Mediator.Extensions;
+using Trax.Scheduler.Extensions;
+using Trax.Scheduler.Services.Scheduling;
 using Trax.Scheduler.Services.TraxScheduler;
 
 var builder = WebApplication.CreateBuilder(args);

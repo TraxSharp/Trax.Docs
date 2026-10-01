@@ -17,6 +17,9 @@ dotnet add package Trax.Effect.JunctionProvider.Logging
 ```
 
 ```csharp
+using Trax.Effect.Extensions;
+using Trax.Effect.JunctionProvider.Logging.Extensions;
+
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .AddJunctionLogger(serializeJunctionData: true)

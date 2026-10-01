@@ -19,6 +19,8 @@ dotnet add package Trax.Mediator
 Without the mediator, controllers inject each train directly:
 
 ```csharp
+using Microsoft.AspNetCore.Mvc;
+
 public class UsersController(ICreateUserTrain createUserTrain) : ControllerBase
 {
     [HttpPost]

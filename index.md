@@ -26,7 +26,7 @@ The type names in the API follow a train metaphor:
 | **Memory** | The cargo the train carries between junctions, wired automatically by type |
 | **ServiceTrain** | A Train with equipment bolted on: execution tracking, logging, lifecycle management |
 
-A train never leaves the rails. It always reaches a destination, either the intended output (right) or an exception (left). You'll see these terms throughout the docs and the API surface.
+A train never leaves the rails. It always reaches a destination, either the intended output (right) or an exception (left). You'll see these terms throughout the docs and the API surface. The [Glossary](/docs/reference/glossary) defines the rest: Effect, Metadata, Manifest, the work queue, dead letters and the other names the docs use.
 
 ## Use only what you need
 
@@ -44,5 +44,6 @@ Each package adds one layer of capability. Stop at whatever layer solves your pr
 ## Where to go
 
 - [**Getting Started**](/docs/getting-started): hands-on code from Core-only to full stack
+- [**Packages**](/docs/reference/packages): every package, what it is for, and which ones to install
 - [**Samples & Deployment**](/docs/samples): project structure and deployment topologies
 - [**SDK Reference**](/docs/sdk-reference): method-level documentation for every public API

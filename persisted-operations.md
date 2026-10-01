@@ -59,6 +59,9 @@ A request names an id, a document, or both. With the id alone, the server runs t
 The minimum configuration enforces persisted-only requests on a host that runs one node:
 
 ```csharp
+using Trax.Api.GraphQL.Extensions;
+using Trax.Api.GraphQL.PersistedOperations.Extensions;
+
 builder.Services.AddTraxGraphQL(graphql => graphql
     .AddDbContext<ClientDataContext>()
     .UsePersistedOperations(opts => opts

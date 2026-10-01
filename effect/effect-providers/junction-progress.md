@@ -17,6 +17,9 @@ dotnet add package Trax.Effect.JunctionProvider.Progress
 ```
 
 ```csharp
+using Trax.Effect.Extensions;
+using Trax.Effect.JunctionProvider.Progress.Extensions;
+
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .AddJunctionProgress()

@@ -28,6 +28,8 @@ Multiple schemes can coexist in a single host. Every `AddTrax*Auth` call contrib
 Static key set (the common case):
 
 ```csharp
+using Trax.Api.Auth.ApiKey;
+
 if (builder.Environment.IsDevelopment())
 {
     services.AddTraxApiKeyAuth(keys => keys
