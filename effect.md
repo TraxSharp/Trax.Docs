@@ -53,7 +53,7 @@ Effects are operations that happen as the train passes through its route, provid
 
 - On both tracks, effect providers run `SaveChanges`, and metadata (state, timing, errors) is always persisted
 - If the train reaches the right track (success), output is recorded alongside the metadata
-- If any junction takes the left track (failure), the exception and failure details are recorded. User-tracked models added via custom effect providers are not committed.
+- If any junction takes the left track (failure), the exception and failure details are recorded, and the same `SaveChanges` runs on every provider. Nothing rolls back: whatever the train tracked before it failed, including entities added to the train's `DataContext` and models a custom provider holds, is committed with the failure record.
 
 This gives you full audit trails on every outcome and modularity (add/remove providers without changing train code).
 

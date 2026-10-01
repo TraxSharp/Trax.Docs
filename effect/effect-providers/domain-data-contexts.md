@@ -35,9 +35,17 @@ Each context ships a companion `I{Name}DbContext` interface deriving `IDomainDat
 // One pooled factory + a scoped resolver bound to the interface.
 services.AddDomainDataContext<ICatalogDbContext, CatalogDbContext>(o => o.UseNpgsql(connectionString));
 
-// Create the schema and tables idempotently at startup (demo convenience; use migrations in production).
+// Create the schema and tables at startup (demo convenience; use migrations in production).
 await app.Services.EnsureSchemaCreatedAsync<CatalogDbContext>();
 ```
+
+`EnsureSchemaCreatedAsync` creates the default schema with `IF NOT EXISTS`, then runs the model's
+whole create script and swallows any `DbException` it throws. On a second start the script fails
+on its first statement because the tables exist, and that is the steady state. The same swallow
+also hides everything else: a table added to the model later is never created (the script stops at
+the first table that exists), and any other DDL error, such as a permission failure, passes
+silently and surfaces later as a missing table. Once the model changes after its first deployment,
+move the context to migrations.
 
 ## PostgreSQL enum columns
 

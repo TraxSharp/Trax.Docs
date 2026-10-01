@@ -20,7 +20,7 @@ Tunables for the audit pipeline, passed through `AddAudit<TSink>(opts => ...)`.
 | `SkipIntrospection` | `true` | Drop introspection operations: the executed operation's top-level selections are all `__schema`, `__type` or `__typename`. |
 | `SkipSubscriptions` | `true` | Drop subscription operations. They don't fit a request/response audit model. |
 | `DefaultPrincipalId` | `"<anonymous>"` | Used when the request has no `trax:principal-id` claim. |
-| `MaxRetries` | `3` | Retries a failing sink gets before the batch is dropped. Each dropped entry increments `trax.audit.dropped`. |
+| `MaxRetries` | `3` | Retries a failing sink gets after its first attempt before the batch is dropped, so the default makes 4 attempts in all. Each dropped entry increments `trax.audit.dropped`. |
 | `RetryBackoff` | `100ms` | Initial backoff between sink retries. Doubles on each attempt. |
 
 ## Tuning Guidance

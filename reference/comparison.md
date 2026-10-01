@@ -52,14 +52,14 @@ The dependency system is unique to Trax. A manifest can declare that it depends 
 
 | Feature | Trax | Quartz.NET | Hangfire |
 |---|---|---|---|
-| Database backends | PostgreSQL, InMemory | RAM, SQL Server, PostgreSQL, MySQL, Oracle, SQLite | SQL Server (core), Redis/PostgreSQL/MongoDB (community) |
+| Database backends | PostgreSQL, SQLite (single server), InMemory | RAM, SQL Server, PostgreSQL, MySQL, Oracle, SQLite | SQL Server (core), Redis/PostgreSQL/MongoDB (community) |
 | Execution history | Built-in, every run records input, output, timing, exceptions | Via plugins (`LoggingJobHistoryPlugin`) | Built-in, full state transition history |
 | Dead-lettering | Built-in, `dead_letters` table with `AwaitingIntervention` status | No | No (failed jobs stay in `FailedState`) |
 | Metadata per execution | Automatic: input JSON, output JSON, duration, stack trace | Manual: `JobDataMap` for custom data | Automatic: state data, exception details |
 
 Trax records more per execution than either alternative. Every train run automatically captures serialized input, output, execution time, and full exception details in a `Metadata` row. This comes from the effect system's `ServiceTrain` base class, not from the scheduler. Quartz requires opting in via history plugins, and while Hangfire tracks state transitions well, it doesn't serialize job inputs and outputs into queryable columns.
 
-Trax is PostgreSQL-only for production persistence. Quartz supports six database backends. Hangfire's core targets SQL Server with community packages for Redis and others.
+Trax persists to PostgreSQL or SQLite. SQLite suits a single-server deployment; coordinating several servers needs PostgreSQL. Quartz supports six database backends. Hangfire's core targets SQL Server with community packages for Redis and others.
 
 ### Distributed Execution
 

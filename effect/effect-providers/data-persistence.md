@@ -26,7 +26,7 @@ services.AddTrax(trax => trax
 );
 ```
 
-On first startup, the Postgres provider runs automatic migrations to create the `trax` schema and its tables (`metadata`, `logs`, `manifests`, `dead_letters`). Subsequent startups apply any pending migrations.
+On first startup, the Postgres provider runs automatic migrations to create the `trax` schema and its tables (`metadata`, `log`, `manifest`, `dead_letter`, among others). Subsequent startups apply any pending migrations.
 
 The provider uses Entity Framework Core with Npgsql. Train states and dead letter statuses are mapped to PostgreSQL enum types. Input and output fields use `jsonb` columns. All timestamps are stored in UTC.
 

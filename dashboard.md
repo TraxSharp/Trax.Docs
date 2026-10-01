@@ -201,25 +201,15 @@ Because Run writes no work queue entry, `QueueSubjectKey` does not apply to it. 
 
 A field whose text does not read as its type is refused by name, saying what was expected, and nothing is sent. The JSON tab takes up to 1,048,576 characters. The browser sends a long input to the server in small pieces, so pasting one does not trip the SignalR hub's 32 KB message limit or require raising it.
 
-#### Real-Time Metrics on Home Page
+#### Home Page
 
-The dashboard home page includes real-time operational metrics that update on each polling cycle:
+The home page (`/trax`) reads its numbers through `IOperationsService.GetDashboardMetricsAsync`, the same data the GraphQL `operations.metrics.dashboard` query returns, and refreshes on each polling cycle. It leaves out administration trains when **Hide Administration Trains** is on. Its panels, each of which can be hidden from the User Settings page:
 
-- **Queue Depth** - number of work items waiting to be dispatched
-- **Completed/min** - jobs completed per minute (5-minute rolling window)
-- **Failed/min** - jobs failed per minute (5-minute rolling window)
-- **Throughput Chart** - per-minute completed/failed chart for the last 60 minutes
-- **Throughput Sparkline** - 7-day throughput broken down by the top 3 trains (plus "Other"), with one data point per 6-hour block. Shows which trains are driving volume over the past week.
-
-These complement the existing summary cards (executions today, success rate, currently running, dead letters, active manifests, registered trains).
-
-#### Cancellation Metrics on Home Page
-
-The dashboard home page includes:
-- A **Cancelled** slice in the train state donut chart
-- A **Cancelled** column series in the 24-hour execution chart
-
-Cancelled trains are excluded from the success rate calculation. Cancellation is an operator action, not a failure.
+- **Server Health**: CPU, working set, GC heap and uptime of the process hosting the dashboard (not the workers).
+- **Summary Cards**: executions started today (UTC, any state), success rate, currently running, and dead letters awaiting intervention. The success rate is completed / (completed + failed), so cancelled runs do not count against it; cancellation is an operator action, not a failure.
+- **Executions Chart**: completed, failed and cancelled executions per hour over the last 24 hours, or per minute over the last 60.
+- **Avg Execution Duration (7d)**: the trains with the longest average completed run time.
+- **Failures**: **Top Failing Trains (7d)**, and **Throughput (7d)**, completed runs per train for the top 3 trains plus "Other".
 
 ### Effects Page
 
@@ -306,7 +296,7 @@ The **User Settings** page (`/trax/settings/user`) lets each user customize thei
 |---------|---------|-------------|
 | **Polling Interval** | 5 seconds | How often dashboard pages re-query for fresh data. Range: 1–300 seconds. |
 | **Hide Administration Trains** | `true` | Exclude scheduler internals (ManifestManager, JobDispatcher, JobRunner, MetadataCleanup, DeadLetterCleanup) from statistics, charts, the Trains page and the Metadata and Manifests lists. A train is hidden only when its name is one of theirs exactly, as the API's `hideAdminTrains` filter matches, so a train of your own whose name merely ends the same way stays visible. |
-| **Dashboard Components** | All visible | Toggle visibility of individual home page sections (summary cards, charts, real-time metrics, throughput chart, throughput sparkline). |
+| **Dashboard Components** | All visible | Toggle visibility of the home page panels: Server Health, Summary Cards, Executions Chart, Failures (which also holds the throughput chart) and Avg Execution Duration. |
 
 ## Integration with Existing Blazor Apps
 

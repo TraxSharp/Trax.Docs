@@ -21,5 +21,4 @@ Pages:
 - [PersistedOperationException](/docs/sdk-reference/persisted-operations/persisted-operation-exceptions)
 - [Management mutations and queries](/docs/sdk-reference/persisted-operations/management-mutations)
 - [PersistedOperation](/docs/sdk-reference/persisted-operations/persisted-operation)
-- [PersistedOperationsDbContext](/docs/sdk-reference/persisted-operations/persisted-operations-db-context)
 - [ShapeFingerprintComputer](/docs/sdk-reference/persisted-operations/shape-fingerprint-computer)
