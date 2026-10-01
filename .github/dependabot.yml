@@ -21,7 +21,8 @@ updates:
       # it formats: bump it and run `dotnet csharpier format .` in one commit.
       - dependency-name: "csharpier"
   - package-ecosystem: "github-actions"
-    directory: "/"
+    # "/" covers .github/workflows only; the composite action this repo publishes pins its own steps.
+    directories: ["/", "/.github/actions/adr-guard"]
     schedule: { interval: "weekly" }
     groups:
       actions: { patterns: ["*"] }
