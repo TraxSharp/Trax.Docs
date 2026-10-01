@@ -44,7 +44,7 @@ This gives you a log of what changed during train execution without needing a da
 - **Debugging**: When a train produces unexpected results, the JSON logs show exactly what each model looked like at `SaveChanges` time.
 - **Lightweight setups**: Pair it with `UseInMemory()` for a no-infrastructure development environment.
 
-In production, you'll typically replace this with (or supplement it by) the [Data Persistence](data-persistence.md) provider.
+In production, you'll typically replace this with (or supplement it by) the [Data Persistence](/docs/effect/effect-providers/data-persistence) provider.
 
 ## SDK Reference
 

@@ -157,4 +157,4 @@ All follow the [trains library pattern](/docs/samples). Trains live in a shared 
 
 ## Next Layer
 
-When you need a monitoring UI for inspecting trains, browsing execution history, and managing manifests from a browser, add [Trax.Dashboard](dashboard.md).
+When you need a monitoring UI for inspecting trains, browsing execution history, and managing manifests from a browser, add [Trax.Dashboard](/docs/dashboard).

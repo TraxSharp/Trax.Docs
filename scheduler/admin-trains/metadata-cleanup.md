@@ -63,7 +63,7 @@ A batch that still fails (for example an unexpected foreign-key reference or a d
 
 Only metadata in a **terminal state** (`Completed`, `Failed`, or `Cancelled`) is eligible for deletion. `Pending` and `InProgress` metadata is never deleted regardless of age, so cleanup cannot interfere with in-flight executions.
 
-See [Multi-Server Concurrency](../concurrency.md) for the full cross-service concurrency model.
+See [Multi-Server Concurrency](/docs/scheduler/concurrency) for the full cross-service concurrency model.
 
 ## Configuration
 

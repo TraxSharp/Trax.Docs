@@ -44,7 +44,7 @@ Two goldens, both committed, both replayed by each runtime independently:
 - The **migration golden** (`migration.json`) pins schema evolution: a set of stored older-version snapshots
   and the exact canonical wire each must become. A migration that drops or reorders a surviving field fails.
 
-Because both are byte-exact comparisons over the [canonical wire](/docs/statemachine#the-canonical-wire), a
+Because both are byte-exact comparisons over the [canonical wire](/docs/statemachine#two-runtimes-one-behavior), a
 divergence is a hard failure, not a judgement call.
 
 ## What you write vs what is generated

@@ -25,8 +25,21 @@ kramdown inline attribute lists. All four are leftovers from the site's Jekyll e
 as literal text now. The lint names them precisely; this page does not spell them out, because
 writing one would trip the lint it describes.
 
-Every `/docs/` link must resolve to a real file. A broken one is a 404 on the live site and
-reads exactly like a working link in a diff, which is why it is machine-checked.
+Every `/docs/` link must resolve to a real file, and its `#anchor`, if it has one, to a heading
+on that page. A broken one is a 404 on the live site and reads exactly like a working link in a
+diff, which is why `InternalLinksResolveTests` checks it:
+
+- A link is `/docs/...`, a same-page `#anchor`, or a full URL with a scheme. A relative link such
+  as `delayed-jobs.md` is rejected: the site resolves it against the page URL, so it lands on raw
+  markdown or a 404.
+- `/docs/foo/bar` resolves to `foo/bar.md` only. A `foo/index.md` is served at `/docs/foo/index`,
+  not `/docs/foo`.
+- An anchor is the heading's id as the site generates it (github-slugger): lowercased, punctuation
+  dropped, spaces turned into hyphens, and `-1`, `-2` appended to repeats. `## 1. Retry with
+  Exponential Backoff` is `#1-retry-with-exponential-backoff`.
+
+A link that cannot be fixed yet goes in the test's `KnownBrokenLinks`, keyed by page and target
+with a reason. An entry whose link has been fixed fails the test until it is deleted.
 
 ## SDK reference blocks
 
