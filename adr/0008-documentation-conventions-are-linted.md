@@ -8,8 +8,9 @@ status: accepted
 # Documentation conventions are enforced by lint, not by review
 
 The conventions governing `Trax.Docs` (no em-dashes, internal links that resolve, an SDK
-reference block on every concept page with code, no leftover Jekyll syntax) are checked by
-tests in CI rather than left to a reviewer.
+reference block on every concept page with code, no leftover Jekyll syntax, C# examples marked
+to compile that do compile against the published packages) are checked by tests in CI rather
+than left to a reviewer.
 
 ## Status
 
@@ -57,12 +58,20 @@ these lints the moment they touch a page.
   the exempt-folder list.
 - `NoEmDashesTests` and `NoJekyllSyntaxTests` pin the house style and the migration away
   from Jekyll link syntax.
+- `CompiledSnippetsTests` compiles every fence marked `csharp compile` against the published
+  Trax packages pinned in `tests/Trax.Docs.Snippets.Tests`, warnings included, and names the
+  page and line of each diagnostic. `DocsPackageVersionsTests` holds a Trax version written on a
+  page to the pin the snippets compiled against, and refuses a floating `1.*`.
 
-Not covered: nothing checks that a page is *correct*, only that it is well formed. A code
-example that no longer compiles, or a described parameter that was renamed, passes every
-one of these.
+Not covered: compiling is opt in, and most fences are not marked. An unmarked example that no
+longer compiles, a described parameter that was renamed, or a compiled example whose prose says
+something the code does not do, passes every one of these. A compiled snippet proves the API
+exists in the pinned release, not that the example behaves as the page says.
 
 ## Changelog
 
+- **2026-10-01**: Added the compiled-snippet and package-version guards. "Nothing checks that
+  an example compiles" was the gap that let the getting-started page ship code that failed on
+  its first line; marked fences now close it, and the gap that remains is the unmarked ones.
 - **2026-09-11**: Recorded. The census asked which decision these four guards enforced, and
   there was no answer.

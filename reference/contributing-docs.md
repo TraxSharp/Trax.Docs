@@ -7,7 +7,7 @@ nav_order: 14
 
 # Contributing to the Docs
 
-These pages are rendered by a Next.js site, not Jekyll. Four lints run in CI and fail the
+These pages are rendered by a Next.js site, not Jekyll. Six lints run in CI and fail the
 build, so the conventions below are checked rather than requested.
 
 ## Links
@@ -72,3 +72,41 @@ Do not paste whole method bodies or class implementations. They drift from reali
 code changes and are denser than a reader needs: show the five lines that make the point, not
 the forty-line method. When documenting a model's fields, use a table rather than pasting the
 class.
+
+## Compiled examples
+
+A C# fence whose info string carries `compile` after the language is compiled in CI against the
+published Trax packages pinned in `tests/Trax.Docs.Snippets.Tests/Trax.Docs.Snippets.Tests.csproj`:
+
+~~~markdown
+```csharp compile
+var every5Minutes = Every.Minutes(5).WithVariance(TimeSpan.FromMinutes(2));
+```
+~~~
+
+The website ignores the extra word, so readers do not see it. Mark a fence when it is meant to be
+copied as it stands; leave a fragment with `...` in it unmarked.
+
+| Marker | Compiles |
+|---|---|
+| `compile` | this fence on its own |
+| `compile=app` | with every fence on the same page marked `compile=app`, as the files of one project |
+| `compile=app,api` | in each of the named groups, for a file two stages of a walkthrough share |
+
+Each fence is its own source file. The compilation has the implicit usings of a
+`Microsoft.NET.Sdk.Web` project and nullable reference types on, and nothing from Trax is implied:
+a page that shows a whole file shows its `using` lines. A group with top-level statements compiles
+as an executable, so one fence per group can be a `Program.cs`. Warnings fail the build as errors
+do, and each diagnostic names the page and the line on it.
+
+Examples on reference pages often lean on types the page only implies, such as the `ISyncTrain` a
+scheduling example schedules. Declare those in `tests/Trax.Docs.Snippets.Tests/Context/`, at the
+page's path with `.cs` for `.md` (`Context/sdk-reference/scheduler-api/schedule.cs`). That file
+joins every compilation from the page, and can hold `global using` lines for the namespaces the
+examples leave out. `getting-started.md` uses no context file: it is the page a reader copies
+whole.
+
+A Trax `PackageReference` with a `Version` on any page must name the version pinned in that
+project, so a reader installs the release the examples were checked against. When Dependabot bumps
+a pin, update the versions on the pages in the same PR; the lint lists each one.
+
