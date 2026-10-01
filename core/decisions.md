@@ -149,7 +149,8 @@ different one for a single step.
 
 | Decider | Package | For |
 |---|---|---|
-| `SystemOneDecider` | Trax.Effect.Decisions.SystemOne | A typed decision model that speaks the System One request format: Jev, d1, Laya, Kev and others, hosted or self-hosted. See [Decision Recording and Models](/docs/effect/decisions). |
+| `SystemOneDecider`, from `AddNimbleDecider` | Trax.Effect.Decisions.SystemOne | Nimble, Bespoke Labs' open-weights decision model, on a local Ollama or hosted. The default choice. See [Nimble](/docs/effect/decisions#nimble). |
+| `SystemOneDecider`, from `AddSystemOneDecider` | Trax.Effect.Decisions.SystemOne | Any other model that speaks the System One request format: Jev, d1, Laya, Kev and others. |
 | `RuleDecider` | Trax.Core | Policy rather than judgement, written as code. Always certain. |
 | `CascadingDecider` | Trax.Core | A fast decider first, and a slower one only for the questions the first was unsure of. |
 | `ScriptedDecider` | Trax.Core | Answers written in advance, for tests and for running locally before a model is wired up. |
@@ -168,7 +169,7 @@ var policy = new RuleDecider().Choice<LoanApplication, Underwriting>(application
 
 ```csharp
 services.AddSingleton<IDecider>(sp => new CascadingDecider(
-    first: sp.GetRequiredService<SystemOneDecider>(),
+    first: sp.GetRequiredService<SystemOneDecider>(),   // Nimble
     then: sp.GetRequiredService<LargeModelDecider>(),
     escalateBelow: 0.8));
 ```
@@ -230,4 +231,4 @@ fails the run the way a model that skipped one would.
 
 ## SDK Reference
 
-> [Decide](/docs/sdk-reference/train-methods/decide) | [Switch](/docs/sdk-reference/train-methods/switch) | [Gate](/docs/sdk-reference/train-methods/gate) | [Scale](/docs/sdk-reference/train-methods/scale) | [AddServices](/docs/sdk-reference/train-methods/add-services) | [DeclaredChain](/docs/sdk-reference/train-methods/declared-chain) | [AddSystemOneDecider](/docs/sdk-reference/configuration/add-system-one-decider)
+> [Decide](/docs/sdk-reference/train-methods/decide) | [Switch](/docs/sdk-reference/train-methods/switch) | [Gate](/docs/sdk-reference/train-methods/gate) | [Scale](/docs/sdk-reference/train-methods/scale) | [AddServices](/docs/sdk-reference/train-methods/add-services) | [DeclaredChain](/docs/sdk-reference/train-methods/declared-chain) | [AddNimbleDecider](/docs/sdk-reference/configuration/add-nimble-decider)
