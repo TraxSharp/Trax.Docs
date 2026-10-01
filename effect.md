@@ -13,6 +13,8 @@ section: Packages
 ```bash
 dotnet add package Trax.Effect
 dotnet add package Trax.Effect.Data.Postgres  # or Trax.Effect.Data.InMemory
+dotnet add package Trax.Effect.Provider.Parameter  # SaveTrainParameters, in the setup below
+dotnet add package Trax.Effect.JunctionProvider.Logging  # AddJunctionLogger
 ```
 
 ## What It Adds
