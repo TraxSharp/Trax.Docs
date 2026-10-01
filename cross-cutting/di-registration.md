@@ -10,7 +10,7 @@ has_children: true
 
 Helper extension methods for registering Trax trains and junctions with the .NET dependency injection container. These methods wrap the standard `AddScoped`/`AddTransient`/`AddSingleton` registrations and add support for `[Inject]` property injection, a pattern used by `ServiceTrain` to inject services like `IEffectRunner` and `ILogger`.
 
-Use these instead of raw DI registration when your train or junction class uses `[Inject]` properties.
+Use these instead of raw DI registration when your train or junction class uses `[Inject]` properties. For a junction that only holds when the train reaches it through `IChain<TInterface>()`, which resolves the registration; a junction reached with `Chain<TJunction>()` is built by its constructor and its `[Inject]` properties stay `null` (see [Junction Registration](/docs/cross-cutting/di-registration/junction-registration)).
 
 > [Train Registration](/docs/cross-cutting/di-registration/train-registration) | [Junction Registration](/docs/cross-cutting/di-registration/junction-registration)
 

@@ -27,10 +27,12 @@ protected override Task<Either<Exception, User>> Junctions() =>
 
 Under the hood, the chain handles the wrapping. If a junction throws, the chain catches it and returns `Left(exception)`. If everything succeeds, you get `Right(result)`. Inside `Junctions()` this is invisible to you: you name junctions, and the `Either` is what the chain hands back to the caller.
 
-To inspect the result:
+`Run` unwraps it for you: it returns the `User` on the right track and throws the exception on the left. To
+inspect the `Either` yourself, call `RunEither`, which is on the train class (not on the route interface) and
+takes no cancellation token:
 
 ```csharp
-var result = await train.Run(input);
+var result = await train.RunEither(input);
 
 result.Match(
     Left: exception => Console.WriteLine($"Failed: {exception.Message}"),
