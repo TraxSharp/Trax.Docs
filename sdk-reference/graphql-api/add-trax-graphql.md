@@ -62,7 +62,7 @@ builder.Services.AddTraxGraphQL(graphql => graphql
 | `AllowIntrospection(Predicate<HttpContext>)` | Supplies a per-request predicate that decides whether the schema may be read. Default: allowed in Development, denied elsewhere. Once set, the predicate decides in every environment. It is called with the request's `HttpContext` for every operation on every transport (on a socket, the upgrade request). A denied operation that selects `__schema` or `__type` fails validation with `HC0046`. The schema download and the GraphQL IDE on the `UseTraxGraphQL` endpoint follow the same answer and return 404 when denied. An operation executed in-process, with no HTTP request, is answered by the environment alone. |
 | `AllowGetRequests()` | Serves GraphQL queries over HTTP GET. **Off by default**: the endpoint executes only POSTed operations, because a cross-site link carries the user's `SameSite=Lax` cookie and a GET-executable query would run as them. With the opt-in, a GET must still carry the `GraphQL-preflight: 1` header and may run only queries (a mutation over GET is refused). The setting is on the `trax` schema, so it applies however the endpoint is mapped. The IDE page and the SDL download are not affected. |
 | `AllowSocketOrigins(params string[] origins)` | Browser origins, besides the endpoint's own host, from which a WebSocket upgrade is accepted. Each value is a scheme, host and optional port (`https://app.example.com`). Replaces the default, which is the origins of the CORS default policy; with no arguments only the endpoint's own host is allowed. See [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions#allowed-origins). |
-| `MaxOperationsPerRequest(int)` | Overrides the default top-level operation cap (default: 50). Aliased fields and batched operations both count, and so do selections reached through fragment spreads and inline fragments; selections sharing a response name merge at execution and count once. Rejects with code `TRAX_TOO_MANY_OPERATIONS`. |
+| `MaxOperationsPerRequest(int)` | Overrides the default per-request operation cap (default: 50). An operation is a root field or a field under a namespace (`dispatch`, `discover`, `operations`, their nested namespaces, a train's declared `Namespace`); the namespace field itself does not count. Aliased fields and batched operations both count, and so do selections reached through fragment spreads and inline fragments; selections sharing a response path merge at execution and count once. Rejects with code `TRAX_TOO_MANY_OPERATIONS`. |
 | `MaxOperationsPerConnection(int)` | Overrides how many operations one WebSocket connection runs at once (default: 100). An operation started past it gets a GraphQL error with code `TRAX_SOCKET_OPERATION_LIMIT` and takes no place; the connection stays open, and a place frees when one of its operations completes. A non-positive value throws `ArgumentOutOfRangeException`. |
 | `ExposeOperationQueries()` | Adds the `operations` namespace under `RootQuery`, exposing `health`, `trains`, `manifests`, `manifest`, `manifestGroups`, `executions`, `execution`, and the nested `operations.deadLetters` read queries. **Off by default**, since these endpoints reveal the topology and execution history of the deployment: `operations.hosts` reports internal hostnames and per-instance execution counts, `operations.config` the scheduler's settings. Exposing them without a gate fails at startup unless you answer with `GateOperations(policy, roles)`, `RequireAuthorization()` or `AllowAnonymousOperations()`. |
 | `ExposeOperationMutations()` | Adds the `operations` namespace under `RootMutation`, exposing `triggerManifest`, `disableManifest`, `enableManifest`, `cancelManifest`, `triggerGroup`, `cancelGroup`, `triggerManifestDelayed`, and the nested `operations.deadLetters` requeue/acknowledge mutations. **Off by default**, since these mutations call the scheduler directly and an unauthenticated caller could disrupt scheduled work. Because of that, exposing them without a gate fails at startup unless you answer with `GateOperations(policy, roles)`, `RequireAuthorization()` or `AllowAnonymousOperations()`. |
@@ -189,7 +189,9 @@ The two are independent. Use the builder method when you want developers to load
 
 ## Registration order
 
-`AddTraxGraphQL()` needs `AddTrax()` to have run first:
+`AddTraxGraphQL()` needs `AddTrax()` to have run first, and every `[TraxQuery]`, `[TraxMutation]`
+or `[TraxBroadcast]` train registered before it. A train registered afterwards refuses the host at
+startup, naming the train:
 
 ```csharp
 builder.Services.AddTrax(trax => trax.AddEffects(...).AddMediator(...));
@@ -201,6 +203,11 @@ Authentication may come before or after it. The subscription interceptor reads t
 schemes once the container is complete, so earlier versions' failure, where an auth call after
 `AddTraxGraphQL()` left subscriptions accepting every `connection_init` while HTTP stayed gated,
 cannot happen.
+
+The startup checks `AddTraxGraphQL()` registers (an exposed surface missing its services, a posture
+contradiction, a train registered after it) run in the hosted-service `StartingAsync` step, which
+the host finishes for every service before it starts any. A refused host never binds Kestrel or
+starts a worker, even with `HostOptions.ServicesStartConcurrently`.
 
 Everything else is order-independent too. `@authorize` is attached to the schema, so query and
 mutation gating works whichever way round the host is composed, and services the GraphQL
