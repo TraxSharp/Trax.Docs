@@ -123,6 +123,8 @@ var result = await scheduler.RequeueAllDeadLettersAsync();
 var result = await scheduler.AcknowledgeAllDeadLettersAsync("Mass acknowledge");
 ```
 
+The batch methods take 1 to `OperationsService.MaxBatchSize` (1000) ids, the limit every operations-surface batch has. An empty list or a longer one is refused: the result counts nothing and its message says why. `RequeueAllDeadLettersAsync` reads and requeues a page of manifests at a time and sums the counts, so a large backlog is never loaded at once; every dead letter of one manifest is in the same page, so they still fold into one entry.
+
 ### Failure Counter Reset
 
 Resolving a dead letter (either action) resets the manifest's failure counter. The ManifestManager only counts failures that occurred **after** the most recent resolution (and inside `FailureCountWindow`) when comparing against `MaxRetries`. This means a retried manifest starts fresh, it won't be immediately re-dead-lettered based on the same failures that triggered the original dead letter.

@@ -85,11 +85,11 @@ The `ScheduleOptions` fluent builder consolidates all optional scheduling parame
 
 | Method | Description |
 |--------|-------------|
-| `.Priority(int)` | Dispatch priority (0-31) of every entry queued for this manifest. Higher values dispatched first, within the order set by group priority. |
+| `.Priority(int)` | Dispatch priority (0-31) of every entry queued for this manifest. Higher values dispatched first, within the order set by group priority. Unstated, a new manifest takes 0 and an existing one keeps its value. |
 | `.Enabled(bool)` | Whether the manifest is enabled. Unstated, a new manifest is enabled and an existing one keeps its current state, so a runtime disable survives a restart. |
-| `.MaxRetries(int)` | Retries after the first run before dead-lettering: the manifest is dead-lettered when its failures within its failure window (`FailureWindow`, or the scheduler's `FailureCountWindow`) exceed it. `0` runs once and dead-letters on the first failure; the default `3` allows four attempts. Unstated: the scheduler's `DefaultMaxRetries` (3). Throws `ArgumentOutOfRangeException` for a negative value. |
+| `.MaxRetries(int)` | Retries after the first run before dead-lettering: the manifest is dead-lettered when its failures within its failure window (`FailureWindow`, or the scheduler's `FailureCountWindow`) exceed it. `0` runs once and dead-letters on the first failure; the default `3` allows four attempts. Unstated, a new manifest takes the scheduler's `DefaultMaxRetries` (3) and an existing one keeps its value, including a runtime change. Throws `ArgumentOutOfRangeException` for a negative value. |
 | `.FailureWindow(TimeSpan)` | How far back this manifest's failed runs count toward its retry backoff and `MaxRetries`, in place of the scheduler's `FailureCountWindow`. Stored in whole seconds; throws `ArgumentOutOfRangeException` unless between one second and ten years. Written to an existing manifest only when stated, so a manifest that stops stating it keeps the window it has. |
-| `.Timeout(TimeSpan)` | Job execution timeout. `null` uses global default. |
+| `.Timeout(TimeSpan)` | Job execution timeout. Unstated, a new manifest uses the global `DefaultJobTimeout` and an existing one keeps its value. |
 | `.OnMisfire(MisfirePolicy)` | Misfire policy for missed runs. Unstated: the scheduler's `DefaultMisfirePolicy` (`FireOnceNow`). `FireOnceNow` fires immediately; `DoNothing` skips and waits for the next natural occurrence. Only applies to Cron and Interval types. |
 | `.MisfireThreshold(TimeSpan)` | Grace period before the misfire policy takes effect. Overrides the global `DefaultMisfireThreshold`. |
 | `.Variance(TimeSpan)` | Adds random jitter to the schedule. After each successful run, the next execution is delayed by `[0, variance]` seconds. Applies to `Interval` and `Cron` schedules only; on a dependent or one-off manifest it is ignored. If `Schedule.WithVariance()` is also set, the schedule-level value takes precedence. See [Schedule Variance](/docs/scheduler/scheduling-options#schedule-variance). |
@@ -165,7 +165,7 @@ The `Schedule` record defines the timing for a scheduled manifest. Create instan
 |----------|------|-------------|
 | `Type` | `ScheduleType` | `Interval` or `Cron`. |
 | `Interval` | `TimeSpan?` | The interval between runs (Interval type only). At least one second: `Schedule.FromInterval` throws `ArgumentOutOfRangeException` for anything shorter. |
-| `CronExpression` | `string?` | The cron expression, evaluated in UTC (Cron type only). `Schedule.FromCron` parses it and throws `FormatException` when it is invalid. A new cron first runs at its first occurrence after it is scheduled. |
+| `CronExpression` | `string?` | The cron expression, evaluated in UTC (Cron type only). `Schedule.FromCron` parses it and throws `FormatException` when it is invalid or has no occurrence in the next ten years. A new cron first runs at its first occurrence after it is scheduled. |
 | `Variance` | `TimeSpan?` | Optional random jitter added after each successful run. |
 
 ### Methods

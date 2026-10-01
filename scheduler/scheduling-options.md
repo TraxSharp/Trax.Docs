@@ -151,6 +151,10 @@ Every host start schedules its manifests again (an upsert by `ExternalId`). The 
 | Setting | Stated in code | Not stated |
 |---|---|---|
 | Manifest `Enabled(...)` | Written at every start | New manifest: enabled. Existing: keeps its value, including a runtime disable |
+| Manifest `MaxRetries(...)` | Written at every start | New manifest: `DefaultMaxRetries`. Existing: keeps its value, including a runtime change; a later change to `DefaultMaxRetries` does not reach it |
+| Manifest `Timeout(...)` | Written at every start | New manifest: no timeout of its own (`DefaultJobTimeout` applies). Existing: keeps its value |
+| Manifest `Priority(...)` | Written at every start | New manifest: 0. Existing: keeps its value |
+| Manifest `FailureWindow(...)` | Written at every start | New manifest: none (`FailureCountWindow` applies). Existing: keeps its value |
 | Group `MaxActiveJobs(...)` | Written at every start | New group: no limit. Existing: keeps its value |
 | Group `Priority(...)` | Written at every start | New group: the manifest's priority. Existing: keeps its value |
 | Group `Enabled(...)` | Written at every start | New group: enabled. Existing: keeps its value |
@@ -392,7 +396,7 @@ Key options to know:
 
 - **`ManifestManagerPollingInterval`** (default: 5 seconds) / **`JobDispatcherPollingInterval`** (default: 2 seconds), how often the ManifestManager and JobDispatcher poll independently. Use `PollingInterval` to set both to the same value
 - **`MaxActiveJobs`** (default: 10), global concurrent job cap; set to `null` for unlimited. Each dispatching host counts on its own, so with N hosts the total can reach N times the cap (see [Capacity Limit Approximation](/docs/scheduler/concurrency#capacity-limit-approximation)). Per-group limits can be set from code via `.Group(group => group.MaxActiveJobs(...))` or from the dashboard (see [Per-Group Dispatch Controls](#per-group-dispatch-controls))
-- **`DefaultMaxRetries`** (default: 3), retries after the first run before dead-lettering (the default allows four attempts), for a manifest whose options do not set `MaxRetries`. A change at runtime applies to manifests seeded after it, which includes every manifest at the next start
+- **`DefaultMaxRetries`** (default: 3), retries after the first run before dead-lettering (the default allows four attempts), for a new manifest whose options do not set `MaxRetries`. An existing manifest keeps its stored value at a re-seed, so a change, in code or at runtime, applies only to manifests created after it
 - **`FailureCountWindow`** (default: 24 hours), how far back a manifest's failed runs count toward its retry backoff and its `MaxRetries`. A failure older than the window no longer delays the next run or counts toward a dead letter, so occasional failures weeks apart do not dead-letter a healthy manifest. A success does not reset the count inside the window, but it does end the backoff: only a run after a failed one is delayed. Set with `FailureCountWindow(TimeSpan)`; must be between one second and ten years. A manifest that states `.FailureWindow(TimeSpan)` uses its own window instead
 - **`DefaultRetryDelay`** (default: 5 minutes), base delay between retry attempts. Combined with `RetryBackoffMultiplier` for exponential backoff. The delay applies only when the manifest's latest finished run failed; the run after a success or a cancel goes on time
 - **`RetryBackoffMultiplier`** (default: 2.0), multiplier applied to each subsequent retry delay (e.g., 5m, 10m, 20m). Set to `1.0` for constant delay
@@ -400,7 +404,7 @@ Key options to know:
 - **`DeadLetterRetentionPeriod`** (default: 30 days), how long resolved dead letters are kept before auto-purge
 - **`AutoPurgeDeadLetters`** (default: true), enable automatic deletion of resolved dead letters past the retention period
 - **`DefaultJobTimeout`** (default: 20 minutes), runs a scheduler dispatched whose manifest sets no timeout, and trains nested in them, are actively cancelled after this long; a train run directly on the train bus is not (see [Timeout Enforcement](#timeout-enforcement))
-- **`DefaultMisfirePolicy`** (default: `FireOnceNow`), how missed runs are handled, for a manifest whose options do not call `OnMisfire`. Like `DefaultMaxRetries`, a runtime change applies to manifests seeded after it
+- **`DefaultMisfirePolicy`** (default: `FireOnceNow`), how missed runs are handled, for a manifest whose options do not call `OnMisfire`. A runtime change applies to manifests seeded after it, which includes every manifest that does not call `OnMisfire` at the next start
 - **`DefaultMisfireThreshold`** (default: 60 seconds), grace period for misfire detection
 
 ## SDK Reference
