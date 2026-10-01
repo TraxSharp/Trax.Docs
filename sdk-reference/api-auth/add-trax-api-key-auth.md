@@ -46,7 +46,7 @@ if (builder.Environment.IsDevelopment())
 ```
 
 A key written into source is a demo key: give it the `do-not-use-in-production` marker and
-register it only in Development, as above (see [Demo keys start only in Development](#demo-keys-start-only-in-development)).
+register it only in Development, as above (see [Demo keys start only in Development](/docs/sdk-reference/api-auth/add-trax-api-key-auth#demo-keys-start-only-in-development)).
 Real keys come from a secret store, through `AddHashed` or a resolver.
 
 When the principal needs a display name distinct from its id, or custom claims, use the factory overload of `Add`:
