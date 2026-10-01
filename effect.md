@@ -17,7 +17,7 @@ dotnet add package Trax.Effect.Data.Postgres  # or Trax.Effect.Data.InMemory
 
 ## What It Adds
 
-Everything in [Core](core.md), plus:
+Everything in [Core](/docs/core), plus:
 
 - **`ServiceTrain<TIn, TOut>`** - extends `Train` with automatic metadata tracking
 - **Execution metadata** - every train run produces a queryable record (state, timing, input/output, errors)
@@ -79,7 +79,7 @@ Remove any line and the train still runs; it just passes through fewer junctions
 - Services that need execution audit trails
 - Any application where you want observability without building custom logging
 
-When you need decoupled dispatch (callers don't know which train handles a request), add [Trax.Mediator](mediator.md).
+When you need decoupled dispatch (callers don't know which train handles a request), add [Trax.Mediator](/docs/mediator).
 
 ## SDK Reference
 

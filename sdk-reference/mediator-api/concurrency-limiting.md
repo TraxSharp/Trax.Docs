@@ -90,7 +90,7 @@ services.AddTrax(trax => trax
 
 ## Interaction with HTTP retry
 
-Concurrency limiting and [HTTP retry](/docs/scheduler/remote-execution#http-retry) are complementary:
+Concurrency limiting and [HTTP retry](/docs/scheduler/remote-execution#1-retry-with-exponential-backoff) are complementary:
 
 - **Concurrency limiting** prevents oversubscription proactively, so fewer requests hit the backend simultaneously
 - **HTTP retry** handles transient failures reactively, catching 429/502/503 that slip through

@@ -12,7 +12,7 @@ nav_order: 5
 document (`<machine>.ir.json`) that carries identity, structure, per-state context schema, per-trigger input
 schema, and every transition's guard and reducer as data. It is the single artifact the per-language
 generators consume, so the C# machine is the source and the IR is the contract. Output is
-[canonical JSON](/docs/statemachine#the-canonical-wire), so the file is a stable golden.
+[canonical JSON](/docs/statemachine#two-runtimes-one-behavior), so the file is a stable golden.
 
 Export requires a declarative machine: `Export` throws if the machine was authored with delegates only
 (nothing to serialize).
