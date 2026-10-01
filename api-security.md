@@ -241,13 +241,13 @@ Endpoint-level `RequireAuthorization` blanket-gates the route, including the GET
 services.AddTraxGraphQL(graphql => graphql.RequireAuthorization());
 ```
 
-This installs a HotChocolate `IHttpRequestInterceptor` that runs only when the request is an actual GraphQL operation. The IDE's HTML shell, the schema download and CORS preflights are not affected by it; the IDE and the schema download follow `AllowIntrospection` instead, so outside Development they are served only when your predicate allows the request. POST queries and mutations are checked against the policy and rejected with a GraphQL error:
+The policy is checked in HotChocolate's request pipeline, so it applies only when the request is an actual GraphQL operation. The IDE's HTML shell, the schema download and CORS preflights are not affected by it; the IDE and the schema download follow `AllowIntrospection` instead, so outside Development they are served only when your predicate allows the request. POST queries and mutations are checked against the policy and rejected with a GraphQL error, with status 400:
 
 ```json
 { "errors": [{ "message": "Not authorized.", "extensions": { "code": "TRAX_AUTHORIZATION" } }] }
 ```
 
-The error renders inline in the IDE result pane and matches the shape of per-train `[TraxAuthorize]` failures.
+The error renders inline in the IDE result pane and matches the shape of per-train `[TraxAuthorize]` failures. The refusal happens inside execution, so the [audit pipeline](#audit-pipeline) records it as an unsuccessful entry.
 
 The default policy is the combined `TraxAuthClaimTypes.TraxAuthPolicy`, which every `AddTrax*Auth` extension contributes its scheme to. When multiple schemes are registered (API key + JWT, etc.), any one of them is sufficient. To require a specific scheme:
 
@@ -283,7 +283,7 @@ Input is read without JSON reference handling: `$id`, `$ref` and `$values` are n
 
 ## Audit Pipeline
 
-`Trax.Api.GraphQL.Audit` is a HotChocolate `ExecutionDiagnosticEventListener` that captures each request, serializes it into a `TraxAuditEntry`, and enqueues to a bounded channel. A background writer drains the channel in batches and hands them to your `ITraxAuditSink`. The request thread never blocks on the sink.
+`Trax.Api.GraphQL.Audit` is a HotChocolate `ExecutionDiagnosticEventListener` that captures each request, serializes it into a `TraxAuditEntry`, and enqueues to a bounded channel. A background writer drains the channel in batches and hands them to your `ITraxAuditSink`. The request thread never blocks on the sink. A request the endpoint policy refuses is captured too, as an unsuccessful entry with the caller's principal, or `<anonymous>` when it had no credential.
 
 Wiring:
 
@@ -307,14 +307,60 @@ services.AddTraxGraphQL(graphql =>
 | `SkipIntrospection` | true | Drop introspection operations (every top-level selection is `__schema`, `__type` or `__typename`) from the log. |
 | `SkipSubscriptions` | true | Subscriptions don't fit the request/response model. |
 | `DefaultPrincipalId` | `<anonymous>` | Used when the request has no Trax principal. |
-| `MaxRetries` | 3 | Sink retry attempts before dropping a batch. |
+| `MaxRetries` | 3 | Sink retry attempts before dropping a batch. Dropped entries increment `trax.audit.dropped`. |
 | `RetryBackoff` | 100ms | Initial backoff, doubles on each retry. |
 
-Scrub sensitive variables via `ITraxAuditRedactor`:
+### What an Entry Records
+
+An audit store is kept for a long time and read by more people than the API, so an entry records what was called and by whom, not the values the caller sent:
+
+- **The document has its literals replaced.** Every string becomes `""` and every number `0`, wherever it appears: inline arguments, nested input objects, list items, directive arguments and variable defaults. Field names, aliases, input field names, booleans, enum values and `null` are kept. `login(input: { user: "bob", password: "hunter2" })` is recorded as `login(input: { user: "", password: "" })`. This is the same transform Apollo uses for its operation signatures, except that input objects and lists keep their shape.
+- **Variables are not recorded** unless you register an `ITraxAuditRedactor` that returns them. The default, `DefaultAuditRedactor`, returns `null`.
+
+To record variables, register a redactor and keep only what is safe. It receives the variables as a `JsonObject`, with input objects as nested objects and lists as arrays, so it can remove a field at any depth:
 
 ```csharp
-services.AddSingleton<ITraxAuditRedactor, MyRedactor>();
+public sealed class SensitiveFieldRedactor : ITraxAuditRedactor
+{
+    private static readonly HashSet<string> Sensitive = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "password", "token", "apiKey", "secret",
+    };
+
+    public JsonObject? Redact(JsonObject? variables)
+    {
+        Strip(variables);
+        return variables;
+    }
+
+    private static void Strip(JsonNode? node)
+    {
+        switch (node)
+        {
+            case JsonObject obj:
+                foreach (var key in obj.Select(p => p.Key).Where(Sensitive.Contains).ToList())
+                    obj.Remove(key);
+                foreach (var (_, child) in obj)
+                    Strip(child);
+                break;
+            case JsonArray array:
+                foreach (var child in array)
+                    Strip(child);
+                break;
+        }
+    }
+}
+
+services.AddSingleton<ITraxAuditRedactor, SensitiveFieldRedactor>();
 ```
+
+A removal list fails open for a field you did not think of. Where that matters, keep a list of fields to record instead. `ErrorText` is not redacted: a resolver that puts an input value in its error message puts it in the audit.
+
+### Drops and Shutdown
+
+Every entry the listener offers is either handed to the sink or counted in `trax.audit.dropped` (and `TraxAuditChannel.TotalDropped`). An entry is dropped when the channel is full, when the sink refuses its batch after `MaxRetries` retries, or when shutdown runs out of time.
+
+On graceful shutdown the writer stops accepting entries and writes every entry it already accepted. It has until the host's shutdown timeout (`HostOptions.ShutdownTimeout`, 30 seconds by default); the cancellation token the sink receives fires only then. What is still unwritten at that point, including a batch a sink is stuck on, is counted as dropped, and the host finishes stopping.
 
 ## Operational Hygiene
 
@@ -326,7 +372,7 @@ Trax does none of these for you:
 - **Rate limiting:** use ASP.NET Core's rate-limit middleware keyed on `trax:principal-id`.
 - **Introspection:** off outside Development by default. If you open it with `AllowIntrospection`, make the predicate check the caller rather than returning `true`.
 - **Audit dashboards:** alert on non-zero `trax.audit.dropped`. A dropped entry is an invisible operation.
-- **Redaction:** implement `ITraxAuditRedactor` for every payload that could contain tokens, PII, or secrets.
+- **Redaction:** variables are not recorded by default. If you register an `ITraxAuditRedactor` to record them, remove every field that could carry a token, PII, or a secret, at any depth.
 
 ## SDK Reference
 
