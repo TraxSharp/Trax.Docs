@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Writing Migrations
+description: "How to write a migration for Trax's own tables: embedded SQL scripts that rerun safely, Postgres and SQLite dialects, feature packages and test databases."
 parent: Reference
 nav_order: 13
 ---

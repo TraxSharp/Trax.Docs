@@ -1,6 +1,7 @@
 ---
 layout: default
 title: DomainDataContext
+description: Reference for DomainDataContext, AddDomainDataContext, EnsureSchemaCreatedAsync and IEntityReference, the helpers for your own one-schema EF Core contexts.
 parent: Configuration
 grand_parent: SDK Reference
 nav_order: 19

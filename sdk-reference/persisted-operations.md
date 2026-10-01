@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Persisted Operations
+description: "Index of the Trax.Api.GraphQL.PersistedOperations reference: registration, enforcement, the builder, the store, the service and management fields."
 parent: SDK Reference
 nav_order: 9
 has_children: true

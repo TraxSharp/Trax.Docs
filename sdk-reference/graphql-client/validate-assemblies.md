@@ -1,6 +1,7 @@
 ---
 layout: default
 title: ValidateGraphQLClientAssembliesAsync
+description: Reference for ValidateGraphQLClientAssembliesAsync, which checks every request type a client owns against its schema at startup or in a test.
 parent: GraphQL Client
 grand_parent: SDK Reference
 nav_order: 4

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: MediatorConfiguration
+description: Reference for MediatorConfiguration, the read-only singleton holding the settings AddMediator resolved from its builder.
 parent: Mediator API
 grand_parent: SDK Reference
 nav_order: 10

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddServiceTrainBus
+description: Reference for AddServiceTrainBus and RegisterServiceTrains, the registration AddMediator performs, and why it is not a standalone entry point.
 parent: Mediator API
 grand_parent: SDK Reference
 nav_order: 11

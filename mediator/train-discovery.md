@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Train Discovery
+description: "How TrainRegistry scans assemblies and TrainBus routes by input type: input type uniqueness, train name resolution and the train discovery rules."
 parent: Mediator
 nav_order: 1
 ---

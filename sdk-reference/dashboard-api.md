@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Dashboard API
+description: "Index of the Trax.Dashboard reference: the Blazor Server UI as a Razor Class Library, its registration and options, and configurable effect settings."
 parent: SDK Reference
 nav_order: 5
 has_children: true

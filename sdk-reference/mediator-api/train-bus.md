@@ -1,6 +1,7 @@
 ---
 layout: default
 title: TrainBus
+description: "Reference for ITrainBus: RunAsync, RunByNameAsync and InitializeTrain, NoTrainForInputException, nested trains and scope isolation."
 parent: Mediator API
 grand_parent: SDK Reference
 nav_order: 1

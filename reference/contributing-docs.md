@@ -1,14 +1,41 @@
 ---
 layout: default
 title: Contributing to the Docs
+description: "Conventions for writing Trax docs and the lints that enforce them: absolute /docs links, front matter, SDK reference blocks, voice and compiled examples."
 parent: Reference
 nav_order: 14
 ---
 
 # Contributing to the Docs
 
-These pages are rendered by a Next.js site, not Jekyll. Six lints run in CI and fail the
-build, so the conventions below are checked rather than requested.
+These pages are rendered by a Next.js site, not Jekyll. Lints run in CI and fail the build, so
+the conventions below are checked rather than requested.
+
+## Front matter
+
+Every page opens with a YAML front matter block:
+
+```yaml
+---
+layout: default
+title: Delayed / One-Off Jobs
+description: "Running work once, later: TriggerAsync with a delay on an existing manifest, or ScheduleOnceAsync for one-off manifests that disable themselves after running."
+parent: Scheduling
+nav_order: 3
+---
+```
+
+`title` names the page in the sidebar and the browser tab. `parent`, `grand_parent`, `nav_order`
+and `has_children` place it in the navigation tree; `parent` matches the parent page's `title`.
+A top-level page also takes a `section`, the sidebar heading it sits under.
+`layout` is left over from Jekyll and the site ignores it.
+
+`description` is the page's meta description and its line in `llms.txt`, which is what a search
+result or an agent reads to decide whether to open the page. Write one plain-text sentence that
+says what the reader finds on the page, naming the API or concept it covers: no markdown, no
+backticks, no marketing. Keep it to 160 characters, where the site truncates it. Quote the value
+when it contains `: `, as most do. `PageDescriptionTests` fails on a published page with no
+description, or one over 160 characters.
 
 ## Links
 

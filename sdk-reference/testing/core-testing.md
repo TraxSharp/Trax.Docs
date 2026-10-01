@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Trax.Core.Testing
+description: "Reference for Trax.Core.Testing, the base architecture-guard package: ArchitectureGuardOptions, GuardResult, file helpers and the hygiene and convention guards."
 parent: Testing
 grand_parent: SDK Reference
 nav_order: 1

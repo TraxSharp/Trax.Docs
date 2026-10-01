@@ -1,6 +1,7 @@
 ---
 layout: default
 title: IR format
+description: "Reference for the state machine IR, the canonical JSON that IrExporter.Export writes from a declarative machine: top-level fields, transitions and an example."
 parent: State Machine API
 grand_parent: SDK Reference
 nav_order: 5

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Scheduling
+description: "Trax.Scheduler overview: manifests, execution metadata, dead letters, delayed and dependent jobs, manifest groups and how the scheduler is put together."
 nav_order: 6
 has_children: true
 section: Packages

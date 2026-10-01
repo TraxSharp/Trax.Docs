@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Glossary
+description: Definitions of the names Trax uses for trains and junctions, effects and recording, the mediator and scheduling, each with the package that holds it.
 parent: Reference
 nav_order: 6
 ---

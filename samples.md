@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Samples & Deployment
+description: The pattern the Trax samples follow, trains in a library wrapped by thin executables, the data layer pattern, and six deployment models compared.
 nav_order: 10
 section: Guides
 ---

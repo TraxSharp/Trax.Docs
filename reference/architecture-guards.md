@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Architecture Guards
+description: The Trax architecture-guard packages, the conventions they check (schemas, cross-schema reads, train interfaces, test hygiene) and how to consume them.
 parent: Reference
 nav_order: 5
 ---

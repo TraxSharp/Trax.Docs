@@ -1,6 +1,7 @@
 ---
 layout: default
 title: ITraxTrainEventClient
+description: Reference for ITraxTrainEventClient, the typed client surface of the Trax SignalR hub and its single TrainEvent method, with how clients receive events.
 parent: Configuration
 grand_parent: SDK Reference
 nav_order: 17

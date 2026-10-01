@@ -1,6 +1,7 @@
 ---
 layout: default
 title: TraxSensitive
+description: Reference for TraxSensitive, which masks a member of a train's input or output in every stored copy, what is masked, the rules and what it does not cover.
 parent: Attributes
 grand_parent: SDK Reference
 nav_order: 3

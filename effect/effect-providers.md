@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Effect Providers
+description: "The effect providers that run around a train: database persistence, JSON, parameters, junction logger, junction progress, lifecycle hooks, and combining them."
 parent: Effect
 nav_order: 2
 has_children: true

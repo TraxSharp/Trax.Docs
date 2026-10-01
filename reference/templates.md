@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Project Templates
+description: "The trax-api, trax-scheduler and trax-hub dotnet new templates in Trax.Samples.Templates: installing them, what each generates, running it and adding trains."
 parent: Reference
 nav_order: 4
 ---

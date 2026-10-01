@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Database Migrations
+description: The Postgres and SQLite migrations that change something visible, such as columns, indexes or row behaviour, and what each one means for an upgrade.
 parent: Reference
 nav_order: 20
 ---

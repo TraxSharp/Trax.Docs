@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddLifecycleHook
+description: "Reference for AddLifecycleHook and ITrainLifecycleHook: reacting to train start, completion, failure and cancellation, error handling, and per-train hooks."
 parent: Configuration
 grand_parent: SDK Reference
 nav_order: 11

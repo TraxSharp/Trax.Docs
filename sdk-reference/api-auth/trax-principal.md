@@ -1,6 +1,7 @@
 ---
 layout: default
 title: TraxPrincipal
+description: "Reference for TraxPrincipal, the framework-agnostic identity record a resolver returns: its fields, the ClaimsPrincipal round trip and TraxPrincipalId."
 parent: API Auth
 grand_parent: SDK Reference
 ---

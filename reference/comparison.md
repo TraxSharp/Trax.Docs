@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Trax vs Alternatives
+description: How Trax compares with Quartz.NET and Hangfire on scheduling, composition, persistence, distribution, retries, dashboards, and when to choose each.
 parent: Reference
 nav_order: 1
 ---

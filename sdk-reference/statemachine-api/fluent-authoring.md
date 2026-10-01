@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Machine authoring
+description: "Reference for the state machine authoring builders: IMachineBuilder, IStateBuilder, ITransitionBuilder and IDifferentialBuilder, IR export and result codes."
 parent: State Machine API
 grand_parent: SDK Reference
 nav_order: 2

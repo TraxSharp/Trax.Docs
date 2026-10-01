@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Declarative authoring
+description: Declarative state machine authoring, where guards, reducers and context rules are data built from records, so the machine can export its IR.
 parent: State Machines
 nav_order: 2
 ---

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Management mutations and queries
+description: Reference for the operations.persistedOperations GraphQL fields that upload, deactivate, restore, list and show history of persisted operations.
 parent: Persisted Operations
 grand_parent: SDK Reference
 ---

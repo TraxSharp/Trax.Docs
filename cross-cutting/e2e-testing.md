@@ -1,6 +1,7 @@
 ---
 layout: default
 title: E2E Testing
+description: "End-to-end testing a Trax host with WebApplicationFactory: test database, scheduler settings, fixtures, work queue entries, polling for state and API tests."
 parent: Cross-Cutting
 nav_order: 4
 ---

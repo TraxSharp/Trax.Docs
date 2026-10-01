@@ -1,6 +1,7 @@
 ---
 layout: default
 title: State Machine API
+description: "Index of the State Machine API reference: registration, authoring, the declarative data model, IR format, effects, migrations, persistence and result codes."
 parent: SDK Reference
 nav_order: 11
 has_children: true

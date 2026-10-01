@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddKeyedTraxGraphQLClient
+description: Reference for AddKeyedTraxGraphQLClient, which registers a GraphQL client under a DI key so clients for several servers live in one container.
 parent: GraphQL Client
 grand_parent: SDK Reference
 nav_order: 2

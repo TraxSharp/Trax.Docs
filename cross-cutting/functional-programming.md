@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Functional Programming
+description: "The functional programming ideas Trax.Core borrows from LanguageExt: Either for train results, Unit, effects, and the null assertion helpers."
 parent: Cross-Cutting
 nav_order: 5
 ---

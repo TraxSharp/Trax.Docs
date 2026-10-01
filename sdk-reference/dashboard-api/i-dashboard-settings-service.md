@@ -1,6 +1,7 @@
 ---
 layout: default
 title: IDashboardSettingsService
+description: Reference for IDashboardSettingsService, the per-browser dashboard preferences kept in localStorage, its members and how to replace it.
 parent: Dashboard API
 grand_parent: SDK Reference
 nav_order: 4

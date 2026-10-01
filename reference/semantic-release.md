@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Semantic Release
+description: "How Trax repos release with semantic-release: commit types and the bump each cuts, running the release workflow by hand, release order and unreleased work."
 parent: Reference
 nav_order: 5
 ---

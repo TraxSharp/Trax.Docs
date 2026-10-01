@@ -1,6 +1,7 @@
 ---
 layout: default
 title: MetadataCleanup
+description: "The MetadataCleanup train that deletes old Metadata rows for internal and chosen trains: how it runs, deletion order, safety boundary and per-train retention."
 parent: Administrative Trains
 grand_parent: Scheduling
 nav_order: 4

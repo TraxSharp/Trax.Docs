@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Trains & Junctions
+description: "Writing junctions and trains: cancellation tokens, EffectJunction vs Junction, dependency injection, folder layout, startup chain checks and lifecycle hooks."
 parent: Core
 nav_order: 1
 ---

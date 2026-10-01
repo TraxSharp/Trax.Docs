@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Migrations
+description: How to version a state machine and register forward migrations so an older stored draft is upgraded on rehydrate instead of rejected.
 parent: State Machine API
 grand_parent: SDK Reference
 nav_order: 6

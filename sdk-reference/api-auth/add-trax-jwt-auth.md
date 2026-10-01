@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddTraxJwtAuth
+description: "Reference for AddTraxJwtAuth: provider shortcuts, JWKS authority or explicit signing key, custom principal resolvers, JwtBuilder methods and multiple issuers."
 parent: API Auth
 grand_parent: SDK Reference
 ---

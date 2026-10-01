@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddScheduler
+description: "Reference for AddScheduler and SchedulerConfigurationBuilder: execution backends, global options and their value ranges, and startup schedules."
 parent: Scheduler API
 grand_parent: SDK Reference
 nav_order: 1

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Attributes
+description: Index of every attribute Trax reads, in Trax.Effect.Attributes, grouped by authorization, data, execution, GraphQL exposure and framework.
 parent: SDK Reference
 nav_order: 0.6
 has_children: true

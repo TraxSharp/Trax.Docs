@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Train
+description: "Reference for Train, the base class of every train with no persistence or container, for using Trax.Core on its own: type parameters and members."
 parent: Trains and Junctions
 grand_parent: SDK Reference
 nav_order: 1

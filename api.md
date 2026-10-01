@@ -1,6 +1,7 @@
 ---
 layout: default
 title: API
+description: "Trax.Api and Trax.Api.GraphQL: the GraphQL layer for running and queueing trains, its two execution modes, packages, health check, auth and named schema."
 nav_order: 7
 section: Packages
 ---

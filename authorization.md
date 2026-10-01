@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Authorization
+description: "How Trax gates its GraphQL API: endpoint policies, TraxAuthorize on trains and query models, TraxAllowAnonymous, combinator semantics and startup validation."
 nav_order: 9
 section: Guides
 ---

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddTraxDashboard
+description: "Reference for AddTraxDashboard: the WebApplicationBuilder and IServiceCollection overloads, static web assets, what it registers and its prerequisites."
 parent: Dashboard API
 grand_parent: SDK Reference
 nav_order: 1

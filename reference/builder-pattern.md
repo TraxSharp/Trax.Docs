@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Builder Pattern
+description: "The conventions shared by TraxEffectBuilder, TraxMediatorBuilder, SchedulerConfigurationBuilder and TraxGraphQLBuilder: entry point, Build(), state markers."
 parent: Reference
 nav_order: 9
 ---

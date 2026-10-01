@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddTraxApiKeyAuth
+description: "Reference for AddTraxApiKeyAuth: static key sets and DI-scoped resolvers, ApiKeyBuilder methods, hashed key comparison, demo keys and protecting endpoints."
 parent: API Auth
 grand_parent: SDK Reference
 ---

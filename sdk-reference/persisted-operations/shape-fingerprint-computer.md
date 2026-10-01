@@ -1,6 +1,7 @@
 ---
 layout: default
 title: ShapeFingerprintComputer
+description: Reference for ShapeFingerprintComputer, the response-shape hash that lets the store refuse persisted-operation edits that would break shipped clients.
 parent: Persisted Operations
 grand_parent: SDK Reference
 ---

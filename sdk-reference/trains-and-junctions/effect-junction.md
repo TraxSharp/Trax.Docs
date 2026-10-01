@@ -1,6 +1,7 @@
 ---
 layout: default
 title: EffectJunction
+description: Reference for EffectJunction, a Junction that records JunctionMetadata and lets junction effects run around it inside a ServiceTrain.
 parent: Trains and Junctions
 grand_parent: SDK Reference
 nav_order: 4

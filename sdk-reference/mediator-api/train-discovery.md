@@ -1,6 +1,7 @@
 ---
 layout: default
 title: TrainDiscovery
+description: Reference for ITrainDiscoveryService and TrainRegistration, which list every registered service train for the dashboard and the API.
 parent: Mediator API
 grand_parent: SDK Reference
 nav_order: 3

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: IConcurrencyLimiter
+description: Reference for IConcurrencyLimiter, which gates direct runs per train, per principal and globally, waiting rather than rejecting when a limit is reached.
 parent: Mediator API
 grand_parent: SDK Reference
 nav_order: 9

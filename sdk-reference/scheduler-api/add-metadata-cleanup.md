@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddMetadataCleanup
+description: Reference for AddMetadataCleanup, which purges old Metadata rows for the internal scheduler trains and any trains you add, with per-train retention.
 parent: Scheduler API
 grand_parent: SDK Reference
 nav_order: 8

@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Metadata
+description: "The Metadata record every train run produces: its TrainState lifecycle, failure fields, host tracking, nested trains and the execution flow that fills it."
 parent: Effect
 nav_order: 1
 ---

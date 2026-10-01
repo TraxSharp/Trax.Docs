@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Host Tracking
+description: How every Metadata row records the host a train ran on, from auto-detected Lambda, ECS, Kubernetes or server identity, with the builder API and queries.
 parent: Effect
 nav_order: 2
 ---

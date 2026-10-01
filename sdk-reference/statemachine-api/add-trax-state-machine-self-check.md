@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddTraxStateMachineSelfCheck
+description: Reference for AddTraxStateMachineSelfCheck, a health check that replays each machine's committed differential corpus against the deployed engine.
 parent: State Machine API
 grand_parent: SDK Reference
 nav_order: 12

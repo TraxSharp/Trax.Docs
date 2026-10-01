@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Trains and Junctions
+description: Index of the train and junction base classes, the contracts they implement, the exception a failure carries and the helpers that register them.
 parent: SDK Reference
 nav_order: 0.5
 has_children: true

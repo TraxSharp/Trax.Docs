@@ -1,6 +1,7 @@
 ---
 layout: default
 title: JSON Effect
+description: The AddJson effect, a development tool that logs tracked model changes on SaveChanges by comparing JSON snapshots, without persisting anything.
 parent: Effect Providers
 grand_parent: Effect
 nav_order: 2

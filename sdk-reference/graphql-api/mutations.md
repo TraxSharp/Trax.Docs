@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Mutations
+description: "Reference for the Trax GraphQL mutations: dispatch mutations generated for TraxMutation trains, and opt-in operations mutations for manifests and dead letters."
 parent: GraphQL API
 grand_parent: SDK Reference
 nav_order: 3

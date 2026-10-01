@@ -1,6 +1,7 @@
 ---
 layout: default
 title: AddJunctionLogger
+description: Reference for AddJunctionLogger, the junction effect that writes each junction's name, duration and types to ILogger before and after it runs.
 parent: Configuration
 grand_parent: SDK Reference
 nav_order: 6

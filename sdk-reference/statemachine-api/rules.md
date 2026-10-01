@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Rules vocabulary
+description: "Reference for the Rules vocabulary: field selectors, guard predicates, combinators and reductions that author declarative state machine logic as data."
 parent: State Machine API
 grand_parent: SDK Reference
 nav_order: 3

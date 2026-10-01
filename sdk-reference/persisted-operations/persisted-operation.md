@@ -1,6 +1,7 @@
 ---
 layout: default
 title: PersistedOperation
+description: Reference for PersistedOperation and PersistedOperationHistory, the rows of the trax.persisted_operation tables, with their properties and schema.
 parent: Persisted Operations
 grand_parent: SDK Reference
 ---

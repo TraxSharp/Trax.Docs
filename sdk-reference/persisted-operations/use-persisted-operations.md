@@ -1,6 +1,7 @@
 ---
 layout: default
 title: UsePersistedOperations
+description: Reference for UsePersistedOperations, which wires persisted-operation storage, caching, cross-node invalidation, the allowlist and shadow-mode logging.
 parent: Persisted Operations
 grand_parent: SDK Reference
 ---
