@@ -50,23 +50,13 @@ public class InternalLinksResolveTests
     );
 
     /// <summary>
-    /// Pre-existing broken links, keyed by <c>page -> target</c> exactly as the offender list
-    /// prints them, so editing a page does not move its key. Each entry carries a reason. New
+    /// Pre-existing broken links, keyed by <c>page -> target</c> (an offender line without its
+    /// line number and reason), so editing a page does not move its key. Each entry carries a
+    /// comment giving the reason. New
     /// broken links must NOT be added; fix the link instead. An entry that no longer matches a
     /// broken link fails the build, so a fixed link takes its entry with it.
     /// </summary>
-    private static readonly HashSet<string> KnownBrokenLinks = new(StringComparer.Ordinal)
-    {
-        // api-graphql-client.md SDK Reference block points at /docs/sdk-reference/graphql-client/*
-        // pages that have not been written yet.
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/add-trax-graphql-client",
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/add-keyed-trax-graphql-client",
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/builder",
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/validate-assemblies",
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/i-graphql-client-request",
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/graphql-resource-request",
-        "api-graphql-client.md -> /docs/sdk-reference/graphql-client/response-strictness",
-    };
+    private static readonly HashSet<string> KnownBrokenLinks = new(StringComparer.Ordinal) { };
 
     [Test]
     public void Every_InternalLink_ResolvesTo_ExistingPageAndHeading()

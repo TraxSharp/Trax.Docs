@@ -56,6 +56,12 @@ GraphQL schema for Trax using HotChocolate. Exposes train discovery, execution (
 
 Includes: `AddTraxGraphQL`, `UseTraxGraphQL`, `[TraxQuery]`/`[TraxMutation]` attributes, queries, mutations.
 
+### [GraphQL Client](/docs/sdk-reference/graphql-client) (API)
+
+The outbound client: hand-written queries validated against the server's schema before they are sent, with keyed registrations for talking to several servers.
+
+Includes: `AddTraxGraphQLClient`, `AddKeyedTraxGraphQLClient`, `TraxGraphQLClientBuilder`, `ValidateGraphQLClientAssembliesAsync`, `IGraphQLClientRequest`, `GraphQLResourceRequest`, `ResponseStrictness`.
+
 ### [API Auth](/docs/sdk-reference/api-auth) (API)
 
 > NO WARRANTY. Trax auth is plumbing, not a security product. You are solely responsible. See [API Security](/docs/api-security).
