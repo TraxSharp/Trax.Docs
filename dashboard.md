@@ -22,8 +22,11 @@ dotnet add package Trax.Dashboard
 Or in your `.csproj`:
 
 ```xml
-<PackageReference Include="Trax.Dashboard" Version="1.*" />
+<PackageReference Include="Trax.Dashboard" Version="1.16.0" />
 ```
+
+Pin an exact version, the release these docs are checked against or a newer one, rather than a
+floating `1.*`, which restores whatever was published last.
 
 ### Required: `RequiresAspNetWebAssets`
 

@@ -76,7 +76,7 @@ MyCompany.Api/
 - **Trax Effects**: the in-memory data provider and the mediator
 - **Authentication**: API-key auth with a demo key, in Development only (see [Before deploying](#before-deploying))
 - **Application data**: an `AppDbContext` on an in-memory EF Core database, exposed to GraphQL
-- **GraphQL API**: HotChocolate schema at `/trax/graphql` with the Banana Cake Pop IDE
+- **GraphQL API**: HotChocolate schema at `/trax/graphql` with the Nitro IDE in Development
 - **Health check**: `/trax/health`
 
 **Sample trains:** both carry `[TraxAuthorize(Roles = "User")]`, the role the demo key holds,

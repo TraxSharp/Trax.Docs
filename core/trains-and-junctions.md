@@ -46,15 +46,16 @@ Junctions use constructor injection for dependencies. When a junction throws, th
 
 Every junction has a `CancellationToken` property that is set automatically by the train before `Run()` is called. Use it to pass cancellation to async operations:
 
-```csharp
+```csharp compile
 public class FetchUserJunction(IHttpClientFactory httpFactory) : Junction<UserId, UserProfile>
 {
     public override async Task<UserProfile> Run(UserId input)
     {
-        var client = httpFactory.CreateClient();
+        var client = httpFactory.CreateClient("users");
         var response = await client.GetAsync($"/users/{input.Value}", CancellationToken);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<UserProfile>(CancellationToken);
+        return await response.Content.ReadFromJsonAsync<UserProfile>(CancellationToken)
+            ?? throw new InvalidOperationException($"User {input.Value} has no profile.");
     }
 }
 ```

@@ -55,10 +55,10 @@ The library references `Trax.Effect`, `Trax.Mediator`, and `Trax.Scheduler` (or 
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Trax.Effect" Version="1.*" />
-    <PackageReference Include="Trax.Effect.Data.Postgres" Version="1.*" />
-    <PackageReference Include="Trax.Mediator" Version="1.*" />
-    <PackageReference Include="Trax.Scheduler" Version="1.*" />
+    <PackageReference Include="Trax.Effect" Version="1.57.4" />
+    <PackageReference Include="Trax.Effect.Data.Postgres" Version="1.57.4" />
+    <PackageReference Include="Trax.Mediator" Version="1.23.3" />
+    <PackageReference Include="Trax.Scheduler" Version="1.34.2" />
   </ItemGroup>
 </Project>
 ```
@@ -77,13 +77,17 @@ Each executable is a `Microsoft.NET.Sdk.Web` project with a `ProjectReference` t
     <ProjectReference Include="..\MyApp\MyApp.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Trax.Effect.Provider.Json" Version="1.*" />
-    <PackageReference Include="Trax.Effect.Provider.Parameter" Version="1.*" />
-    <PackageReference Include="Trax.Effect.JunctionProvider.Progress" Version="1.*" />
-    <PackageReference Include="Trax.Dashboard" Version="1.*" />
+    <PackageReference Include="Trax.Effect.Provider.Json" Version="1.57.4" />
+    <PackageReference Include="Trax.Effect.Provider.Parameter" Version="1.57.4" />
+    <PackageReference Include="Trax.Effect.JunctionProvider.Progress" Version="1.57.4" />
+    <PackageReference Include="Trax.Dashboard" Version="1.16.0" />
   </ItemGroup>
 </Project>
 ```
+
+The versions are the releases these docs are checked against. Pin exact versions, ideally once for
+the solution in `Directory.Packages.props`: a floating `Version="1.*"` restores whatever was
+published last, and a Trax minor release can change an API your trains call.
 
 The key line in `Program.cs` is the assembly scan - it points at the library so the train bus discovers all your trains:
 
