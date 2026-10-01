@@ -170,6 +170,10 @@ One batch's prune prefix starts another batch's, so the first would delete the s
 
 **Fix:** rename one batch so neither name plus `-` starts the other, or keep the batches in separate groups.
 
+The same message, ending "which includes '...', scheduled on its own", means a single `Schedule` falls inside a batch's prune: its external ID starts with the batch's prefix and, for a name-based batch, it is in the batch's group (`Schedule("sync-extra", ..., o => o.Group("sync"))` beside `ScheduleMany("sync", ...)`, or a plain `Schedule("sync-extra")` beside a batch with `PrunePrefix("sync-")`). Each start the batch would delete it with its history and its own schedule would create it again.
+
+**Fix:** give the single schedule an external ID outside the prefix, put it in a different group (name-based batches only), or make it one of the batch's items.
+
 ## "Ambiguous reference" between Cron types
 
 Both Trax.Core and Hangfire define a `Cron` class. If you're importing both namespaces, the compiler can't tell which one you mean.

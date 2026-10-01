@@ -211,7 +211,7 @@ The whole namespace sits behind the operations gate (`GateOperations`, `RequireA
 
 ### triggerManifest
 
-Triggers an immediate execution of a manifest, bypassing its normal schedule. A manifest holds at most one queued work queue entry, so when it already has one, that entry runs it and nothing more is queued; the mutation still succeeds.
+Triggers an immediate execution of a manifest, bypassing its normal schedule. A manifest holds at most one queued work queue entry, so when it already has one, nothing more is queued and that entry becomes the triggered run: it runs even if the manifest is disabled, and an entry due later (a retry waiting out its backoff) is brought forward to now. The mutation still succeeds.
 
 ```graphql
 mutation {
@@ -331,7 +331,7 @@ mutation {
 
 ### triggerGroup
 
-Triggers immediate execution of all enabled manifests in a group. A manifest that already has a queued work queue entry is skipped, and does not stop the others being queued.
+Triggers immediate execution of all enabled manifests in a group. A manifest that already has a queued work queue entry is not queued again and does not stop the others being queued; its entry is brought forward to now if it was due later. Every entry the trigger touches runs even if its manifest is disabled afterwards.
 
 ```graphql
 mutation {
