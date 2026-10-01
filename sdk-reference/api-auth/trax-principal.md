@@ -14,7 +14,7 @@ Framework-agnostic identity record produced by an [`ITraxPrincipalResolver`](/do
 ## Signature
 
 ```csharp
-public sealed record TraxPrincipal(
+public record TraxPrincipal(
     string Id,
     string DisplayName,
     IReadOnlyList<string> Roles,
