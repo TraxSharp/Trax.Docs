@@ -64,7 +64,7 @@ public class InternalLinksResolveTests
         var published = RepoRoot
             .MarkdownFiles()
             .Select(f => RepoRoot.Relative(f).Replace('\\', '/'))
-            .Where(IsPublished)
+            .Where(RepoRoot.IsPublished)
             .ToHashSet(StringComparer.Ordinal);
 
         var headingIds = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -291,13 +291,4 @@ public class InternalLinksResolveTests
         }
         return sb.ToString();
     }
-
-    /// <summary>Mirrors the exclusions in Trax.Website's <c>scripts/sync-docs.sh</c>.</summary>
-    private static bool IsPublished(string rel) =>
-        Path.GetFileName(rel) != "README.md"
-        && !rel.StartsWith("adr/", StringComparison.Ordinal)
-        && !rel.StartsWith(".claude/", StringComparison.Ordinal)
-        && !rel.StartsWith("tools/", StringComparison.Ordinal)
-        && !rel.StartsWith("tests/", StringComparison.Ordinal)
-        && !rel.StartsWith(".github/", StringComparison.Ordinal);
 }
