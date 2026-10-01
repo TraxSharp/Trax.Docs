@@ -137,11 +137,11 @@ The attribute supports two properties:
 | Property | Type | Description |
 |----------|------|-------------|
 | `Policy` | `string?` | Name of an ASP.NET Core authorization policy to evaluate |
-| `Roles` | `string?` | Comma-separated list of roles. The user must have at least one. Role comparison is case-insensitive. |
+| `Roles` | `string?` | Comma-separated list of roles. The user must have at least one. Role comparison is exact and case-sensitive. |
 
 The attribute works on classes, interfaces, and base classes. Trax unions the attributes it finds across the implementation type's interface chain and base chain, so `[TraxAuthorize("Admin")]` on an `IMyTrain` interface is honored even when the implementing class carries no attribute. Decorator-wrapped trains inherit their authorization requirements through the same mechanism.
 
-Role comparison is case-insensitive today: `[TraxAuthorize(Roles = "admin")]` matches a principal carrying `ClaimTypes.Role = "Admin"` and vice-versa, because `TrainAuthorizationService` upper-cases both sides. That is changing so train roles match exactly and case-sensitively, the way `@authorize` on a query model does (`Trax.Docs/adr/0026`). From Trax.Mediator 1.23.0 discovery keeps the roles as declared; a following Trax.Api release compares them ordinally. Declare roles in the casing your identity provider issues them.
+Role comparison is exact and case-sensitive, the way `@authorize` on a query model and ASP.NET Core's `RequireRole` compare roles (`ClaimsPrincipal.IsInRole`, ordinal against each identity's role claim type): `[TraxAuthorize(Roles = "Admin")]` does not match a principal carrying `ClaimTypes.Role = "admin"`. Train subscriptions compare the same way. Declare roles in the casing your identity provider issues them. Before this, `TrainAuthorizationService` upper-cased both sides, so `admin` matched `Admin`, and a culture case mapping could equate characters a reader sees as different (see `Trax.Docs/adr/0026`).
 
 ## How Policies and Roles Combine
 
@@ -327,7 +327,7 @@ Trax evaluates these policies at runtime using ASP.NET Core's `IAuthorizationSer
 4. When `ITrainExecutionService.QueueAsync()` or `RunAsync()` runs, it invokes the registered `ITrainAuthorizationService` before reading the input JSON. Every caller-built enqueue goes through `QueueAsync`, including the operations surface and the dashboard (which enqueues inside a trusted scope); see [The Operations Surface](#the-operations-surface).
 5. The default implementation (`TrainAuthorizationService` from `Trax.Api`) is fail-closed. It grabs the current user from `IHttpContextAccessor` and evaluates each requirement:
    - **Policy**: calls `IAuthorizationService.AuthorizeAsync(user, policyName)`.
-   - **Roles**: compares the upper-invariant `ClaimTypes.Role` claims against the normalized required set.
+   - **Roles**: passes when `user.IsInRole(role)` holds for at least one required role: an exact, case-sensitive match against the caller's role claims.
 6. If any check fails, `TrainAuthorizationException` is thrown. Its public `Message` is always the generic string `"Not authorized."`; the train name, failing policy, and required roles live only on the exception's `TrainName` and `Reason` properties for server-side logging.
 7. GraphQL surfaces the error with code `TRAX_AUTHORIZATION` and the same generic message. The train name, policy name, and role names never cross the wire.
 
