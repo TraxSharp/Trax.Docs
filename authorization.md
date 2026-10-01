@@ -411,9 +411,8 @@ Trains without `[TraxAuthorize]` return empty arrays for both fields.
 Per-train auth and endpoint-level auth are complementary. A typical setup might look like:
 
 ```csharp
-// All Trax endpoints require authentication
-app.UseTraxGraphQL(configure: endpoint => endpoint
-    .RequireAuthorization());
+// Every operation on the endpoint requires an authenticated caller
+builder.Services.AddTraxGraphQL(graphql => graphql.RequireAuthorization());
 
 // Individual trains require specific policies
 [TraxAuthorize("Admin")]
@@ -421,7 +420,9 @@ app.UseTraxGraphQL(configure: endpoint => endpoint
 public class AdminOnlyTrain : ServiceTrain<AdminInput, Unit>, IAdminOnlyTrain { ... }
 ```
 
-The endpoint-level check runs first (before the request reaches the handler). The per-train check runs inside the handler, after the train is resolved by name.
+The endpoint-level check runs first. The per-train check runs inside the handler, after the train is resolved by name.
+
+Gate the endpoint through the builder's `RequireAuthorization()`, not only through an ASP.NET convention on the mapped route (`app.UseTraxGraphQL(configure: endpoint => endpoint.RequireAuthorization())`). The builder's gate is the one Trax can see: the startup checks for exposed surfaces (the `operations` namespace, `[TraxAllowAnonymous]` contradictions) count it, and they do not count a route convention. A route convention still works as an additional layer, enforced by ASP.NET before HotChocolate runs.
 
 ## The Scheduler and Remote Workers Are Trusted
 
