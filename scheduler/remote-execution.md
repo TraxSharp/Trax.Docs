@@ -495,7 +495,7 @@ To send different trains to different runners, call `UseRemoteWorkers()` (or `Us
 )
 ```
 
-A train routed by two calls is refused when the scheduler is built. A `[TraxRemote]` train that no call routes explicitly goes to the first routed registration of any kind (the first `UseRemoteWorkers()`, `UseSqsWorkers()` or `UseLambdaWorkers()` call).
+A train routed by two calls is refused when the scheduler is built. A `[TraxRemote]` train that no call routes explicitly goes to the first routed registration of any kind (the first `UseRemoteWorkers()`, `UseSqsWorkers()` or `UseLambdaWorkers()` call). A scheduler with `[TraxRemote]` trains and none of the three fails when it is built, naming each such train: running a train marked remote on the scheduler host, often the one host it was kept off for isolation, is not a fallback. Add one of the three calls, or remove the attribute from a train that should run locally.
 
 ## Authorization Posture
 

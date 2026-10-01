@@ -118,6 +118,26 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 | `PruneOrphanedManifests(bool)` | prune | `true` | Whether to [delete manifests](/docs/scheduler/orphan-manifest-cleanup) from the database that are no longer defined in the startup configuration. Disable if you create manifests dynamically at runtime via `ITraxScheduler`. Only manifests this application owns (`IHostEnvironment.ApplicationName`, else the entry assembly's name) are pruned; another application's, and ones with no owner (written by an earlier version), never are. A host that declares no manifests, or has no application name, prunes nothing, and a manifest with a pending or running run is kept until the run finishes |
 | `DependentPriorityBoost(int)` | boost | 16 | Priority boost added to dependent train work queue entries at dispatch time. Range: 0-31. Dependent trains are dispatched before non-dependent ones by default |
 
+### Value Ranges
+
+`AddScheduler` checks every duration and count it is given when the scheduler is built, against the same ranges a runtime change through the dashboard or `updateScheduler` is held to. A value outside its range fails the build with an `InvalidOperationException` that lists every problem at once, each named by the method (or options property) that set it.
+
+`FailureCountWindow` is checked earlier, at the call: it throws `ArgumentOutOfRangeException` unless the window is between one second and ten years.
+
+| Setting | Range |
+|---------|-------|
+| `PollingInterval`, `ManifestManagerPollingInterval`, `JobDispatcherPollingInterval`, metadata cleanup `CleanupInterval` | 1 second to 30 days |
+| `DefaultJobTimeout`, `StalePendingTimeout`, `StaleInProgressTimeout`, `StaleStagedEntryTimeout`, `SchedulerLivenessThreshold`, metadata cleanup `RetentionPeriod` and each per-train retention, local worker `VisibilityTimeout` | 1 second to 10 years |
+| `DeadLetterRetentionPeriod`, `DefaultRetryDelay`, `MaxRetryDelay`, `DefaultMisfireThreshold` | 0 to 10 years |
+| `DefaultMaxRetries` | 0 or more |
+| `MaxActiveJobs`, metadata cleanup `DeleteBatchSize`, local worker `BatchSize` | at least 1 when set |
+| `RetryBackoffMultiplier` | a finite number, at least 1 |
+| local worker `WorkerCount` | 1 to 256 |
+| local worker `PollingInterval` | greater than zero, up to 30 days |
+| local worker `ShutdownTimeout` | 0 to 30 days |
+
+The polling services never wait less than one second between cycles, whatever interval reaches them. At startup the scheduler also logs a warning when the retry backoff for `DefaultMaxRetries` retries adds up to `FailureCountWindow` or more: the oldest failure would leave the window before the last retry, so a manifest that always fails would retry for ever without being dead-lettered. Lengthen the window, or lower `DefaultMaxRetries`, `DefaultRetryDelay` or `MaxRetryDelay`.
+
 ### Startup Schedules
 
 | Method | Description |

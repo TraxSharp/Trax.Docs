@@ -32,9 +32,9 @@ public SchedulerConfigurationBuilder AddMetadataCleanup(
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `CleanupInterval` | `TimeSpan` | 1 minute | How often the cleanup background service runs |
+| `CleanupInterval` | `TimeSpan` | 1 minute | How often the cleanup background service runs. 1 second to 30 days |
 | `RetentionPeriod` | `TimeSpan` | 30 minutes | How old metadata must be (in a terminal state) before eligible for deletion, for every train not given a retention of its own. This is the value the persisted runtime override replaces |
-| `DeleteBatchSize` | `int?` | 1000 | Max rows deleted per batch, per retention group. Set to `null` for single-statement deletes |
+| `DeleteBatchSize` | `int?` | 1000 | Max rows deleted per batch, per retention group. Set to `null` for single-statement deletes; at least 1 when set |
 
 ### Methods
 
@@ -50,6 +50,8 @@ The two-argument overloads throw:
 - `ArgumentOutOfRangeException` when `retention` is zero or negative.
 - `InvalidOperationException` when the train is an internal scheduler train, which is always swept at `RetentionPeriod`.
 - `InvalidOperationException` when the same name was already added with a different retention. The same retention twice is accepted and is not counted twice.
+
+`RetentionPeriod` and every per-train retention must be between one second and ten years, `CleanupInterval` between one second and 30 days, and `DeleteBatchSize` at least 1 when set. `AddScheduler` checks them when the scheduler is built and fails with an `InvalidOperationException` naming each value out of range (see [Value Ranges](/docs/sdk-reference/scheduler-api/add-scheduler#value-ranges)). To keep a train's metadata as long as possible, give it ten years.
 
 A train declared once under its interface name and again under its class name with different retentions cannot be caught here, because those are unrelated strings until the train registry relates them. The host refuses to start instead.
 
