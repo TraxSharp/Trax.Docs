@@ -426,7 +426,7 @@ Authorization is enforced once, at API submission time. When a train is queued o
 Later execution paths are trusted:
 
 - The scheduler dequeues from `work_queue` and calls `ITrainBus.RunAsync()` directly. It never reaches `ITrainAuthorizationService`.
-- Remote workers pull queued work over HTTP and execute it via `ITrainExecutionService.RunAsync()`. Because there is no `HttpContext` on the worker side, the authorization check treats the caller as trusted infrastructure and skips.
+- Remote workers receive queued work over HTTP and execute it via `ITrainExecutionService.RunAsync()`. The runner's request handler opens `ITrustedExecutionScope.BeginTrusted("scheduler.remote-run")` around the run, and the authorization check skips because that scope is active. A missing `HttpContext` on its own is not trust: outside a trusted scope, the default `TrainAuthorizationService` refuses a `[TraxAuthorize]` train with "No request context and no trusted execution scope." A custom `ITrainAuthorizationService` should make the same distinction, keying on `ITrustedExecutionScope.IsTrusted` rather than on whether a request is present.
 
 This means you can safely decorate a train with `[TraxAuthorize("Admin")]` and still schedule it via `AddScheduler()`, run it from a remote worker, or both. The authorization gate is the API boundary.
 
