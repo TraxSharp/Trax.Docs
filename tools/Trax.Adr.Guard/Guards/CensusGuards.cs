@@ -158,10 +158,44 @@ public static class CensusGuards
             if (trimmed.Length == 0 || trimmed.StartsWith('['))
                 continue;
 
+            // The last line of an attribute csharpier wrapped one argument per line: step over
+            // the whole attribute to the line that opens it. Stopping here lost the docstring
+            // of any class whose attribute grew long enough to wrap.
+            if (trimmed.TrimEnd().EndsWith(']'))
+            {
+                var opening = AttributeOpening(lines, i);
+                if (opening >= 0)
+                {
+                    i = opening;
+                    continue;
+                }
+            }
+
             break;
         }
 
         return string.Join("\n", doc);
+    }
+
+    /// <summary>
+    /// The line opening the attribute that ends on <paramref name="closing"/>, or -1 when no
+    /// line within <see cref="ExemplarGuards.MaxAttributeLines"/> opens one. Bounded like the
+    /// exemplar scan's join, so a stray bracket cannot walk the search up the whole file.
+    /// </summary>
+    private static int AttributeOpening(string[] lines, int closing)
+    {
+        for (var j = closing - 1; j >= 0 && closing - j < ExemplarGuards.MaxAttributeLines; j--)
+        {
+            var trimmed = lines[j].TrimStart();
+            if (trimmed.StartsWith('['))
+                return j;
+
+            // A docstring or a statement ends the search: an attribute's lines are neither.
+            if (trimmed.StartsWith("//", StringComparison.Ordinal) || trimmed.EndsWith(';'))
+                return -1;
+        }
+
+        return -1;
     }
 
     private static string? OptOutReason(string docstring)

@@ -64,7 +64,7 @@ public static class ExemplarGuards
         line.TrimStart().StartsWith('[') && GuardProperty.IsMatch(line);
 
     /// <summary>How many lines an attribute may span before the scan stops joining them.</summary>
-    private const int MaxAttributeLines = 20;
+    internal const int MaxAttributeLines = 20;
 
     /// <summary>Whether every <c>[</c> in an attribute's text so far has been closed.</summary>
     private static bool Closed(string attribute) =>
