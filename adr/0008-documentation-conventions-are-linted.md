@@ -63,6 +63,8 @@ these lints the moment they touch a page.
   Trax packages pinned in `tests/Trax.Docs.Snippets.Tests`, warnings included, and names the
   page and line of each diagnostic. `DocsPackageVersionsTests` holds a Trax version written on a
   page to the pin the snippets compiled against, and refuses a floating `1.*`.
+- `PackagesPageTests` holds `reference/packages.md` to the list of published packages the test
+  owns, in both directions.
 
 Not covered: compiling is opt in, and most fences are not marked. An unmarked example that no
 longer compiles, a described parameter that was renamed, or a compiled example whose prose says

@@ -6,10 +6,15 @@ namespace Trax.Docs.Tests.Tests;
 /// <para>The code repos are not checked out beside this one in CI, so the test cannot discover the
 /// packable projects itself. It owns the list instead. When a repo adds, renames or retires a
 /// packable <c>Trax.*</c> project, update <see cref="PublishedPackages"/> and the page together.</para>
+///
+/// <para>Enforces <c>Trax.Docs/adr/0008-documentation-conventions-are-linted.md</c>.</para>
 /// </summary>
 [TestFixture]
+[Property("adr", "Trax.Docs/adr/0008-documentation-conventions-are-linted.md")]
 public class PackagesPageTests
 {
+    private const string Adr = "Trax.Docs/adr/0008-documentation-conventions-are-linted.md";
+
     /// <summary>
     /// Every packable <c>Trax.*</c> project on the eight code repos' <c>main</c>, as of 2026-10-01.
     /// </summary>
@@ -91,7 +96,9 @@ public class PackagesPageTests
             .Should()
             .BeEmpty(
                 "reference/packages.md must list every published Trax package with a "
-                    + "[Name](https://www.nuget.org/packages/Name) link. Add a row for each missing one."
+                    + "[Name](https://www.nuget.org/packages/Name) link. Add a row for each missing one. See "
+                    + Adr
+                    + "."
             );
     }
 
@@ -106,7 +113,9 @@ public class PackagesPageTests
             .BeEmpty(
                 "every package reference/packages.md links must be in PublishedPackages, so the "
                     + "list stays the record of what ships. Add it there, or remove the row for a "
-                    + "package that no longer ships."
+                    + "package that no longer ships. See "
+                    + Adr
+                    + "."
             );
     }
 }
