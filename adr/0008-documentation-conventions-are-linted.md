@@ -9,7 +9,8 @@ status: accepted
 
 The conventions governing `Trax.Docs` (no em-dashes, internal links that resolve, an SDK
 reference block on every concept page with code, no leftover Jekyll syntax, C# examples marked
-to compile that do compile against the published packages) are checked by tests in CI rather
+to compile that do compile against the published packages, a description in every page's front
+matter) are checked by tests in CI rather
 than left to a reviewer.
 
 ## Status
@@ -65,6 +66,8 @@ these lints the moment they touch a page.
   page to the pin the snippets compiled against, and refuses a floating `1.*`.
 - `PackagesPageTests` holds `reference/packages.md` to the list of published packages the test
   owns, in both directions.
+- `PageDescriptionTests` requires a one-sentence `description` in every published page's front
+  matter, no longer than the 160 characters at which the site truncates it.
 
 Not covered: compiling is opt in, and most fences are not marked. An unmarked example that no
 longer compiles, a described parameter that was renamed, or a compiled example whose prose says
@@ -73,6 +76,8 @@ exists in the pinned release, not that the example behaves as the page says.
 
 ## Changelog
 
+- **2026-10-01**: Added the page description guard. The site's meta description and `llms.txt`
+  fell back to each page's first paragraph, which is often a notice or a lead-in to a code block.
 - **2026-10-01**: The link guard now rejects relative links and checks anchors, and no longer
   accepts `x/index.md` for `/docs/x`, which the site never served there.
 - **2026-10-01**: Added the compiled-snippet and package-version guards. "Nothing checks that
