@@ -55,8 +55,10 @@ runnable typed machine, is generated from that file's IR. The only thing hand-wr
 that drives the machine.
 
 The payoff is proportional to how much of the machine fits the [Rules vocabulary](/docs/sdk-reference/statemachine-api/rules):
-an edge left on a delegate guard is invisible in the IR, so it cannot be generated and must be hand-written in
-each runtime. A machine that stays declarative generates its whole twin.
+an edge left on a delegate guard or reducer is exported with no guard or reducer, so the generated twin treats
+it as unconditional and keeps the context, and disagrees with the server on that edge without any warning.
+Logic the vocabulary cannot express goes in a custom rule or reduction, which the IR names and each runtime
+binds a handler for. A machine that stays declarative generates its whole twin.
 
 ## Running it
 

@@ -14,8 +14,11 @@ schema, and every transition's guard and reducer as data. It is the single artif
 generators consume, so the C# machine is the source and the IR is the contract. Output is
 [canonical JSON](/docs/statemachine#the-canonical-wire), so the file is a stable golden.
 
-Export requires a declarative machine: `Export` throws if the machine was authored with delegates only
-(nothing to serialize).
+Export requires a declarative machine: `Export` throws `InvalidOperationException` if the machine made no
+declarative call at all (nothing to serialize). It does not refuse a machine that mixes the styles. An edge
+whose guard or reducer is a C# delegate is exported without that `guard` or `reduce`, which reads as an
+unconditional edge that keeps the context; see
+[Delegate vs declarative](/docs/sdk-reference/statemachine-api/fluent-authoring#delegate-vs-declarative).
 
 ## Top level
 
@@ -24,6 +27,7 @@ Export requires a declarative machine: `Export` throws if the machine was author
 | `id` | string | the machine's stable id |
 | `version` | number | the definition version |
 | `initialState` | string | the start state |
+| `initialContext` | object | the context a new snapshot starts with, from `StartsAt(state, initialContext)`, so a generated runtime reproduces it exactly |
 | `states` | string[] | every state, sorted (ordinal) |
 | `triggers` | string[] | every trigger, sorted (ordinal) |
 | `committedStates` | string[] | states a soft autosave must not overwrite |
@@ -43,9 +47,9 @@ Each transition carries its structure plus its guard and reducer as data:
 | Field | Type | Present when |
 | --- | --- | --- |
 | `from` / `trigger` / `to` | string | always |
-| `guard` | rule | the edge has a declarative guard |
+| `guard` | rule | the edge has a declarative guard (`When(Rule)`); absent for no guard and for a delegate guard alike |
 | `guardMessage` | string | `Because(...)` was set |
-| `reduce` | reduction | the edge has a declarative reducer |
+| `reduce` | reduction | the edge has a declarative reducer (`Reduce(Reduction)`); absent for no reducer and for a delegate reducer alike, and absent means the context is kept |
 | `effect` | object | the edge binds `RunsOnce<T>`; `{ "type": <TEffect full name>, "keyPrefix": <string> }` |
 
 A rule is a tagged object keyed by `rule` (`present`, `absent`, `ofType`, `nonEmpty`, `oneOf`, `compare`,
