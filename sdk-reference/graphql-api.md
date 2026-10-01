@@ -39,6 +39,7 @@ Navigate to the endpoint URL in a browser to open [Banana Cake Pop](https://chil
 | [Mutations](/docs/sdk-reference/graphql-api/mutations) | Grouped into `dispatch` (auto-generated train mutations) and `operations` (scheduler control mutations) |
 | [Subscriptions](/docs/sdk-reference/graphql-api/subscriptions) | Real-time WebSocket events for train lifecycle transitions (`onTrainStarted`, `onTrainCompleted`, `onTrainFailed`, `onTrainCancelled`) |
 | [TraxBroadcast Attribute](/docs/sdk-reference/graphql-api/trax-broadcast-attribute) | Opt trains into subscription events with `[TraxBroadcast]` |
+| [AddTraxHealthCheck](/docs/sdk-reference/graphql-api/add-trax-health-check) | ASP.NET Core health check over queue depth, running executions, recent failures and dead letters |
 
 ## Package
 

@@ -87,4 +87,4 @@ These conventions can be enforced in CI with the [architecture guard packages](/
 
 ## SDK Reference
 
-> [AddTraxGraphQL](/docs/sdk-reference/graphql-api/add-trax-graphql) | [Cross-schema data loaders](/docs/sdk-reference/graphql-api/cross-schema-data-loaders) | [Architecture guards](/docs/reference/architecture-guards)
+> [AddTraxGraphQL](/docs/sdk-reference/graphql-api/add-trax-graphql) | [Cross-schema data loaders](/docs/sdk-reference/graphql-api/cross-schema-data-loaders) | [Architecture guards](/docs/reference/architecture-guards) | [DomainDataContext](/docs/sdk-reference/configuration/domain-data-context)

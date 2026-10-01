@@ -293,4 +293,4 @@ Jobs execute inline, so tests are fast and don't need database infrastructure.
 
 ## SDK Reference
 
-> [AddMetadataCleanup](/docs/sdk-reference/scheduler-api/add-metadata-cleanup) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [ManifestManagement](/docs/sdk-reference/scheduler-api/manifest-management)
+> [AddMetadataCleanup](/docs/sdk-reference/scheduler-api/add-metadata-cleanup) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [ManifestManagement](/docs/sdk-reference/scheduler-api/manifest-management) | [ITraxScheduler](/docs/sdk-reference/scheduler-api/i-trax-scheduler#dead-letters)

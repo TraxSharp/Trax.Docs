@@ -58,4 +58,4 @@ services.AddTransientTraxJunction<IProcessPaymentJunction, ProcessPaymentJunctio
 
 ## SDK Reference
 
-> [Chain / IChain](/docs/sdk-reference/train-methods/chain)
+> [Chain / IChain](/docs/sdk-reference/train-methods/chain) | [Route and Junction Registration](/docs/sdk-reference/trains-and-junctions/route-registration)
