@@ -55,7 +55,8 @@ takes `Low`'s; 1.5 rounds to `High`.
 
 ## Remarks
 
-- A score below 0 or above the top level fails the run.
-- An enum with fewer than two levels is refused.
+- A score below 0 or above the top level fails the run, classified `Transient`.
+- An enum with fewer than two levels is refused, in both forms, as is `AtLeast` on a value the
+  enum does not define.
 - Levels are ordered by their values read as signed numbers, so a negative member is lower than
   zero.

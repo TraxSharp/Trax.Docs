@@ -67,15 +67,16 @@ protected override Task<Either<Exception, ModerationOutcome>> Junctions() =>
 
 1. Skipped if the train is already on the left track; no decider is asked. A cancelled run stops here too.
 2. Takes `TState` from Memory, then the decider (`IDecider`, or the `DecidedBy` type) from Memory or the container.
-3. For each question, asks the registered `IDecisionReplay` for an earlier run's answer. A replayed answer that no longer fits its question is set aside, with the reason, and the question is asked afresh. Questions it answers are not sent, to the decider or to the shadows.
-4. Asks the decider the rest in one `DecisionRequest`. The shadows are asked the same questions at the same time, each on a thread of its own.
+3. For each question, awaits the registered `IDecisionReplay` for an earlier run's answer and the fingerprint it was recorded with. A replayed answer whose fingerprint differs from this asking, or that no longer fits its question, is set aside, with the reason, and the question is asked afresh. Questions it answers are not sent, to the decider or to the shadows.
+4. Asks the decider the rest in one `DecisionRequest`. The shadows are asked the same questions at the same time, each on a thread of its own, and each shadow from the container in a DI scope of its own. Every decider is handed the state in Memory itself, not a copy, and must treat it as read-only.
 5. Once the live answer is in, waits at most `WaitForShadows` for the shadows, then cancels them; one that has not answered is recorded as not having answered.
 6. Checks every answer against its question and puts the typed decision in Memory.
-7. Awaits the registered `IDecisionObserver` for each decision, with its `Occurrence`, any shadows' answers and any `ReplayRefused` reason. An observer that is `Required` and fails, or that cannot be resolved, fails the step.
+7. Awaits the registered `IDecisionObserver` for each decision, with its `Occurrence`, its `Fingerprint`, any shadows' answers and any `ReplayRefused` reason. An observer that is `Required` and fails, or that cannot be resolved, fails the step.
 
-The run fails, naming the step and classified `Permanent`, when an answer does not fit its
+The run fails, naming the step and classified `Transient`, when an answer does not fit its
 question (an option that is not a member, a confidence or probability outside 0 to 1, a score off
-the scale, the wrong kind of answer) or a question goes unanswered. A decider that throws fails
+the scale, the wrong kind of answer) or a question goes unanswered: a model asked again usually
+answers properly. A declaration the startup check would refuse fails it `Permanent`. A decider that throws fails
 the run with its own exception and failure class. A shadow that fails or is slow is recorded,
 not thrown. A shadow that neither Memory nor the container supplies fails the run, `Permanent`, as
 a missing live decider does.

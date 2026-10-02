@@ -136,16 +136,24 @@ followed, so a later junction can record or act on it.
 
 ## When the run fails instead
 
-An answer Trax cannot trust is never acted on. The run fails, the failure names the step
-(`Switch<Ticket, TicketTrack>`), and it is
-[classified](/docs/core/trains-and-junctions#classifying-failures) `Permanent`, because asking the
-same declaration again gets the same answer:
+An answer Trax cannot trust is never acted on. The run fails and the failure names the step
+(`Switch<Ticket, TicketTrack>`). How it is
+[classified](/docs/core/trains-and-junctions#classifying-failures) depends on whose mistake it is.
+
+A decider's answer that does not fit is classified `Transient`, because a model asked again
+usually answers properly:
 
 - an option that is not a member of the enum, including a member given as a number
 - a confidence or probability outside 0 to 1, or not a number
 - a score below 0 or above the top level
 - the wrong kind of answer, or no answer to a question that was asked
+
+A fault in the declaration, or a decision the declaration gives nowhere to go, is classified
+`Permanent`, because running it again gets the same refusal:
+
 - a declaration the startup check refuses, for a host that skips the check
+- a decision with no track to take: a choice below its bar, or naming a member with no track, on a
+  switch with no `Otherwise`, or a gate's probability in a band with no `Unsure` track
 
 A decider that throws fails the run with its own exception, whatever fallback tracks are
 declared: an error is not a decision. The decider's own failure class is kept, so an adapter can
@@ -159,10 +167,14 @@ answer per question. It is found the way a junction input is: in Memory, then th
 registration serves every decision in every train; `Decide(q => q.DecidedBy<TDecider>())` names a
 different one for a single step.
 
+`DecisionRequest.State` is the object in the train's Memory, not a copy, because an arbitrary state
+cannot be cloned safely. A decider reads it and never changes it; the same object is handed to any
+shadows at the same time.
+
 | Decider | Package | For |
 |---|---|---|
 | `SystemOneDecider`, from `AddNimbleDecider` | Trax.Effect.Decisions.SystemOne | Nimble, Bespoke Labs' open-weights decision model, on a Nimble server you run. The default choice. See [Nimble](/docs/effect/decisions#nimble). |
-| `SystemOneDecider`, from `AddSystemOneDecider` | Trax.Effect.Decisions.SystemOne | Any other model that speaks the System One request format: Jev, d1, Laya, Kev and others. |
+| `SystemOneDecider`, from `AddSystemOneDecider` | Trax.Effect.Decisions.SystemOne | Another model behind a server that accepts the System One request format, such as Jev. |
 | `RuleDecider` | Trax.Core | Policy rather than judgement, written as code. Always certain. |
 | `CascadingDecider` | Trax.Core | A fast decider first, and a slower one only for the questions the first was unsure of. |
 | `ScriptedDecider` | Trax.Core | Answers written in advance, for tests and for running locally before a model is wired up. |
@@ -188,9 +200,10 @@ services.AddSingleton<IDecider>(sp => new CascadingDecider(
 
 `LargeModelDecider` stands for an `IDecider` of your own over a chat model; Trax does not ship
 one. A choice or score below `escalateBelow`, a yes/no whose probability lies strictly between
-`unsureAbove` (0.2) and `unsureBelow` (0.8), a confidence or probability that is not a number, and
-a question the first decider did not answer are asked again of the second. Only those questions
-are sent. If the first decider throws, every question goes to the second, since the first tier
+`unsureAbove` (0.2) and `unsureBelow` (0.8), a confidence or probability that is not a number, a
+question the first decider did not answer, and an answer that does not fit its question (an option
+it was not offered, a score off the levels, a confidence or probability outside 0 to 1, another
+kind of answer) are asked again of the second. Only those questions are sent. If the first decider throws, every question goes to the second, since the first tier
 being down is what the second is for; cancellation passes straight through. Pass an `ILogger` as
 `logger` to be told when that happens. The second answer replaces the first; if the second
 decider fails, the run fails. The bounds must lie between 0 and 1, with `unsureAbove` not above
@@ -224,14 +237,18 @@ A `Switch`, `Gate` or `Scale` that asks its own question declares shadows on its
 Agreement there means the shadow's answer would have sent the train down the same track, by the
 step's own bars and bands. On a plain `Decide`, whose routing comes later, it means the same
 option, the same nearest level, or the same side of one half for a yes/no. A shadow whose answer
-does not fit the question never agrees. A routing step that only routes on an earlier `Decide`
-asks nothing, so shadows declared on it are refused; shadow the `Decide`.
+does not fit the question never agrees, and neither does any shadow when the live answer takes no
+track (a gate's band with no `Unsure` track, a choice with no track and no `Otherwise`). A routing
+step that only routes on an earlier `Decide` asks nothing, so shadows declared on it are refused;
+shadow the `Decide`.
 
 Use a shadow to move from a rule table to a model, or from one model version to the next, on real
 traffic before switching over. A shadow handed to `AddServices` is passed as an interface, as every
-service there is; from the container, a concrete type does. A shadow that neither supplies is a
-mistake in the host: the startup check reports it, and a run that reaches it fails, `Permanent`,
-as it does for a missing live decider.
+service there is; from the container, a concrete type does. A shadow from the container is built
+in a DI scope of its own, disposed when the shadow ends, so it never shares the run's scoped
+services (a `DbContext`, say) with the live decider or with the junctions that run after the
+decision. A shadow that neither supplies is a mistake in the host: the startup check reports it,
+and a run that reaches it fails, `Permanent`, as it does for a missing live decider.
 
 ## What the startup check verifies
 
@@ -242,9 +259,12 @@ inside a track is reported at the routing step, as `track 'Refund', step 1: ...`
 
 The check also refuses a routing step with no decision before it, a decider or shadow that
 neither Memory nor the container supplies, a shadow named twice or declared on a step that asks
-nothing, a negative or unbounded `WaitForShadows`, a track declared twice, a switch with no tracks, a
-gate with no Yes or No track or with bars that cross, and a scale with no track for its lowest
-level. Reading the chain asks no decider and runs no track.
+nothing, a negative or unbounded `WaitForShadows`, a track declared twice, a track on a value the
+enum does not define (`When((Lane)7, ...)`, or the same in `AtLeast`), a switch with no tracks, a
+gate with no Yes or No track or with bars that cross, a scale on an enum with fewer than two
+levels, and a scale with no track for its lowest level. Reading the chain asks no decider and runs
+no track. A routing step that asks its own question checks its tracks before it asks, so a host
+that skips the check still never pays for a decision on a declaration it would refuse.
 
 ## Observing and replaying
 
@@ -271,11 +291,38 @@ the train acts on the decision, classified as the exception says or `Transient` 
 nothing. An observer that cannot be resolved at all fails the step either way.
 
 `DecisionMade` carries the question, the answer, the decider, whether it was replayed, the
-shadows' answers, and `Occurrence`: how many times the run asked that question before, from 0,
-which is the number `IDecisionReplay.Replay` is given to find the answer again. A replayed answer
-is checked exactly as a fresh one is. One that no longer fits the question (an option renamed,
-removed or no longer offered, a scale with fewer levels, another kind of question) is not acted
-on: the decider is asked afresh, and `DecisionMade.ReplayRefused` says why.
+shadows' answers, `Occurrence` (how many times the run asked that question before, from 0) and
+`Fingerprint`. The replay is asked by the same coordinates, on the run's path, once per question:
+
+```csharp
+public interface IDecisionReplay
+{
+    Task<RecordedAnswer?> Replay(
+        string train, string runId, string key, int occurrence, CancellationToken cancellationToken);
+}
+
+public sealed record RecordedAnswer(Answer Answer, string Fingerprint);
+```
+
+It returns null to ask the decider. A host that replays stores each `DecisionMade.Answer` with its
+`Fingerprint` and hands both back exactly as stored. Whatever `Replay` throws fails the step,
+classified as the exception says, because a replay that cannot be read cannot be told from a run
+with nothing to replay.
+
+The fingerprint identifies one asking of a question as the chain declares it: a SHA-256 over the
+step, the state's type, the kind of question, its key, its words, and every option or level with
+its description (or what yes and no mean). It never covers the state's value, which differs from
+run to run by design. A replayed answer is checked before it is acted on, and is not acted on when:
+
+- its fingerprint differs from the question as it is asked now: the question was reworded, its
+  options, levels or descriptions changed, or the chain changed so that another step now asks it
+  first
+- it no longer fits the question: an option renamed or removed from the enum, a scale with fewer
+  levels, another kind of question
+
+Either way the decider is asked afresh, and `DecisionMade.ReplayRefused` says why. A recorded
+choice of a member the switch has no track for is replayed like any other and takes the
+`Otherwise` track again, as it did the first time.
 
 Trax.Effect implements both, to record decisions against the run and to make a re-queued run take
 the tracks the original took. See [Decision Recording and Models](/docs/effect/decisions).

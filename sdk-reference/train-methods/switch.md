@@ -75,6 +75,8 @@ Switch<LoanApplication, Underwriting>(tracks => tracks
 ## Remarks
 
 - After the switch, the chain can rely only on what every track produces.
-- A switch with no tracks, or a track declared twice, is refused at startup and at run time.
+- A switch with no tracks, a track declared twice, or a track on a value the enum does not define
+  (`When((Lane)7, ...)`) is refused at startup and at run time. The asking form checks its tracks
+  before it asks, so a refused declaration never costs a decision.
 - Shadows declared on the form that asks nothing are refused: it routes on a decision made earlier,
   so shadow the `Decide` that made it.
