@@ -41,7 +41,7 @@ start.
 | `ApiKey` | none | Sent as a bearer token only when set. The server checks one only when it is started with `OPENJEV_API_KEY`. |
 | `MaxConcurrentRequests` | 4 | One server container runs four evaluations at once and turns a fifth away with a 529. Raise it when the server scales to more containers. |
 | `MaxOptions` | 26 | The most options or levels the server accepts on one question |
-| Questions per request | 64 | The server's limit; a `Decide` asking more is refused before it is sent |
+| Questions per request | 64 | The server's limit; a `Decide` asking more is refused at startup |
 | `AttemptTimeout` | 30 seconds | A self-hosted server can be slow on its first request after loading |
 
 The request cannot pin a model revision: the server serves whichever revision it was deployed
@@ -112,10 +112,16 @@ configuration cures them:
 - a redirect. The adapter does not follow redirects; the endpoint is the one configured.
 - an endpoint that cannot be reached as configured: its name does not resolve, its TLS handshake
   fails, or a proxy refuses the credentials
-- a request that cannot be sent as it is, refused before sending: a question with fewer than two
-  options or levels, or with blank instructions; a state that is not written as a JSON string,
-  object or array (a bare number, say); a state that cannot be serialized; an unsupported question
-  type; a duplicate option or question key
+- a request that cannot be sent as it is: a state written as JSON `null`, or one that cannot be
+  serialized at all. These depend on the value, so they are refused when the request is about to
+  be sent.
+
+What the model refuses whatever the state is refused earlier, at startup. `SystemOneDecider`
+implements [`IVetsQuestions`](/docs/core/decisions#deciders), so the startup check refuses a
+declaration with more questions in one `Decide` than `MaxQuestions`, a question with blank
+instructions, fewer than two or more than `MaxOptions` options or levels, an option named twice, a
+kind of question the format cannot ask, or a state type JSON writes as a bare number, `true` or
+`false`, and the host does not start with it.
 
 A failure's message gives the status, a few words on what it means, and the provider's request id
 when the response carries one in its `x-typesafe-request-id` header. It never quotes the response
@@ -160,7 +166,8 @@ it acted on, the model and decider that gave it, any shadow's answer and whether
 every track taken on it. Each decision is logged and written to `trax.decision` against the run's
 metadata as it is made, before the train acts on it, through a short-lived data context of its own
 rather than the run's. A run that fails, times out or is killed after deciding still shows what it
-decided. Each track a routing step takes is added to that question's row when it is taken; more
+decided, and so does a step that failed on a decider's answer: a missing or unfit live answer
+is recorded with the reason in `refused`. Each track a routing step takes is added to that question's row when it is taken; more
 than one step can route on one decision (a `Decide` followed by two `Switch` steps on the same
 choice), so the row keeps every routing in order rather than only the last.
 
@@ -172,18 +179,23 @@ hold is written as the string `"NaN"`, `"Infinity"` or `"-Infinity"`, and an ans
 journal has no stored form for is recorded with the reason in the shadow's error. A live answer of
 such a type fails its step, `Permanent`, since it could never be read back. So does a decision the
 run's own train reports under an external id other than the run's (the train changed its
-`ExternalId` while running), rather than being acted on without a record. Calling
+`ExternalId` while running), rather than being acted on without a record. Decisions are matched
+to the run through its async flow; when code in the run lost that flow (it suppressed
+`ExecutionContext` flow, say), the journal looks the run up by its external id among the runs of
+that train in progress on this host, and records against it when exactly one matches. Otherwise
+the decision is logged only. Calling
 `AddDecisionRecording()` more than once registers it once.
 
 | Column | Holds |
 |---|---|
 | `metadata_id` | The run. Rows are deleted with it. |
-| `question_key` | The [question key](/docs/core/decisions#question-keys): the enum or marker type's full name |
+| `question_key` | The [question key](/docs/core/decisions#question-keys): the type's name without its namespace, or the `Key` set on `[Asks]` |
 | `occurrence` | Which asking of the question this was in the run, from 0 |
 | `fingerprint` | The [fingerprint](/docs/core/decisions#observing-and-replaying) of the asking the answer was given to, 64 lowercase hex characters. A replay hands it back, and an answer whose fingerprint differs from the question as it is asked now is not replayed. |
 | `kind` | `choice`, `score` or `yes_no` |
 | `question` | The question's instructions and criteria (jsonb) |
-| `answer` | The answer acted on (jsonb), with `replay_refused` when an earlier run's answer was not replayed and the decider was asked afresh |
+| `answer` | The answer acted on (jsonb), with `replay_refused` when an earlier run's answer was not replayed and the decider was asked afresh. On a refused row, the answer the run would not act on, or null when the decider gave none. |
+| `refused` | Why the run would not act on the decider's answer, or null for an answer it acted on. Every row has an `answer` or a `refused` (a check constraint holds it). A refused row is never replayed. |
 | `model` | The model that answered, as the decider names it, or null for a decider that is not a model. For a System One model it is the name the request asked for, echoed back. |
 | `decider` | The decider's type, or null for a replayed answer |
 | `replayed` | Whether the answer came from an earlier run |
@@ -200,12 +212,12 @@ migration set (Postgres `054`, Sqlite `019`) and is read through `IDataContext.R
 
 ```sql
 -- How often each support track was taken this week, and how often it was overruled.
--- question_key is the type's full name: TicketTrack, declared in the Support namespace.
+-- question_key is the type's name without its namespace, unless [Asks] sets a Key.
 SELECT r ->> 'track' AS track, count(*) AS routings, count(r ->> 'fallback_reason') AS overruled
 FROM trax.decision d
 JOIN trax.metadata m ON m.id = d.metadata_id
 CROSS JOIN LATERAL jsonb_array_elements(d.routes) AS r
-WHERE d.question_key = 'Support.TicketTrack' AND m.start_time > now() - interval '7 days'
+WHERE d.question_key = 'TicketTrack' AND m.start_time > now() - interval '7 days'
 GROUP BY 1;
 ```
 
@@ -220,7 +232,7 @@ Re-queueing an execution, with the dashboard's **Re-queue** button or the
 run that replays the original's recorded decisions. Both go through
 [`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync),
 which sets the new run's `ReplayDecisionsOf` to the original's id when the original has decisions
-to replay: it recorded a decision, or was itself queued to replay another run. A run of a train
+to replay: it recorded a decision it acted on, or was itself queued to replay another run. A run of a train
 that never decides is re-queued as an ordinary enqueue. Each question the new run asks is answered
 from what was recorded for the same question and asking, without calling a decider or its shadows,
 and recorded with `replayed` set. A re-queue repeats a run, usually because something after a
@@ -249,6 +261,7 @@ sweep.
 | A question no run in the chain reached (they failed earlier, or the chain changed since) | Asked afresh |
 | A recorded answer whose [fingerprint](/docs/core/decisions#observing-and-replaying) differs from the question as it is asked now, or that no longer fits it (an option renamed or removed, a scale with fewer levels, another kind of question) | Asked afresh, with the reason stored as `replay_refused` |
 | A recorded choice of a member the switch has no track for | Replayed; it takes the `Otherwise` track again, as it did the first time |
+| A refused row (the step failed on the decider's answer) | Skipped: never replayed, so the question is asked afresh |
 | A host that does not call `AddDecisionRecording()` | The run fails before its first junction, `Permanent` |
 | A run in the chain that no longer exists, or is a run of another train | The run fails before its first junction, `Permanent` |
 | A run in the chain that ran without recording its decisions (`decisions_recorded` false, and it replayed nothing itself) | The run fails before its first junction, `Permanent`: what it decided cannot be known |
@@ -266,13 +279,14 @@ A requeue is linked only when the run has decisions to replay, so a replay reach
 `AddDecisionRecording()` when one host recorded the run and another runs the requeue: one worker of
 a fleet left without the call. Every host that runs trains (`AddScheduler`, `AddTraxJobRunner`,
 and `AddTraxWorker` through it) checks for this at startup. When `IDecisionReplay` is not
-registered and some registered train's chain, or a track in it, asks a decider, it logs a warning
-naming those trains and telling the reader to call `AddDecisionRecording()`.
+registered and some registered train's chain, or a track in it, asks a decider, the host refuses
+to start: an `InvalidOperationException` lists those trains and says to call
+`AddDecisionRecording()`. The check runs as the host starts, before any worker claims work.
 
-It warns rather than refusing to start. The unsafe outcome, a replay that asks afresh and perhaps
-takes another track, is already refused by the run itself, so nothing fails open; and a host that
-runs deciding trains without recording, and never runs their requeues, is correctly configured.
-The warning finds the misconfigured host at startup instead of at the first replay that fails.
+Trax fails closed here rather than warning. The replay on such a host would already fail rather
+than ask afresh, but only when a requeue happened to land on it, and a warning on one worker of a
+fleet is easy to miss. Refusing to start puts the gap in front of whoever deploys the host, before
+it takes any work.
 
 ## SDK Reference
 

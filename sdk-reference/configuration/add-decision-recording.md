@@ -66,7 +66,14 @@ Calling `AddDecisionRecording()` more than once registers these once.
 - A shadow's answer cannot cost the live record: a number JSON cannot hold is written as the
   string `"NaN"`, `"Infinity"` or `"-Infinity"`, and an answer of a type with no stored form is
   recorded with the reason in the shadow's error.
+- A decider's missing or unfit live answer, which fails its step, is recorded too, with the answer
+  (null when there was none), the decider, the model and the reason in `refused`. A refused row is
+  never replayed, so a requeue of that run asks the question afresh.
 - Each run's metadata row is marked `DecisionsRecorded` on its first write, before any junction.
+- A decision, refusal, routing or replay lookup that arrives without the run on its async flow,
+  because code in the run suppressed `ExecutionContext` flow, is matched to the run by external id
+  among the runs of that train in progress on this host. Exactly one match is recorded against;
+  otherwise it is logged only.
 - A run that is not persisted (no metadata row) has its decisions logged and not written. A
   decision the run's own train reports under an external id other than the run's, because the
   train changed its `ExternalId` while running, fails its step, `Permanent`.
@@ -96,7 +103,8 @@ public static Task<bool> HasDecisionsToReplay(
 ```
 
 Whether a requeue of the run `metadataId` should replay its decisions rather than be queued as an
-ordinary run that asks afresh. True when the run recorded a decision, or was itself queued to
+ordinary run that asks afresh. True when the run recorded a decision it acted on (a refused answer
+does not count, since it is never replayed), or was itself queued to
 replay another run's: a requeue of a requeue that failed before reaching a question recorded
 nothing, but the answers of the run it replayed are still the ones to repeat. False for a run of a
 train that never decides, a run on a host that records nothing, and a run that does not exist.

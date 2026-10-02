@@ -45,8 +45,8 @@ public static TBuilder AddSystemOneDecider<TBuilder>(
 | `MaxAttempts` | `int` | `3` | Attempts per request, counting the first. |
 | `RetryDelay` | `TimeSpan` | 500 ms | The wait before the first retry, doubling after each, with jitter, unless the model sends `Retry-After`. The doubling stops at `MaxRetryDelay`. |
 | `MaxRetryDelay` | `TimeSpan` | 30 seconds | The longest wait before a retry, at most a day. A `Retry-After` asking for longer is not retried: the decision fails as `Transient`. |
-| `MaxOptions` | `int` | `255` | The most options or levels one question may offer, from 2 to 255. A question with more is refused before it is sent. |
-| `MaxQuestions` | `int` | `64` | The most questions one request may carry. A `Decide` asking more is refused before it is sent. |
+| `MaxOptions` | `int` | `255` | The most options or levels one question may offer, from 2 to 255. A question with more is refused at startup. |
+| `MaxQuestions` | `int` | `64` | The most questions one request may carry. A `Decide` asking more is refused at startup. |
 | `MaxConcurrentRequests` | `int?` | `null` | Requests in flight at once, or no limit. A request over the limit waits for a slot, which does not count against its `AttemptTimeout`. |
 
 ## Returns
@@ -79,8 +79,16 @@ services.AddTrax(trax => trax
 | 501, 505 or any other 4xx (bad criteria, a bad key, 402 for no credit left) | no | `DecisionServiceException` | `Permanent` |
 | A 3xx. Redirects are not followed, including one handed back by an `HttpClient` you pass in; the endpoint is the one configured. | no | `DecisionServiceException` | `Permanent` |
 | An endpoint that cannot be reached as configured: its name does not resolve, its TLS handshake fails, or a proxy refuses the credentials | no | `DecisionServiceException` | `Permanent` |
-| A request that cannot be sent as it is, refused before sending: too many questions, a question with fewer than two options or levels or more than `MaxOptions`, a question with blank instructions, a duplicate option or question key, an unsupported question type, a state that cannot be serialized or is not written as a JSON string, object or array | no | `DecisionServiceException` | `Permanent` |
+| A request that cannot be sent as it is: a state written as JSON `null`, or one that cannot be serialized | no | `DecisionServiceException` | `Permanent` |
 | An answer it cannot read | no | the train's unanswered-question failure | `Transient` |
+
+`SystemOneDecider` implements [`IVetsQuestions`](/docs/core/decisions#deciders), so what the model
+refuses whatever the state stops the host at startup instead of failing every run: more questions
+in one `Decide` than `MaxQuestions`, a question with blank instructions, fewer than two or more than
+`MaxOptions` options or levels, an option named twice, a kind of question the format cannot ask,
+and a state type JSON writes as a bare number, `true` or `false`. Each question is sent under its
+[question key](/docs/core/decisions#question-keys), the type's name without its namespace or the
+`Key` set on `[Asks]`.
 
 A choice or score answer without a `confidence`, which the format allows, takes the probability of
 the chosen option or the nearest level instead; one with neither is left out. A score whose
