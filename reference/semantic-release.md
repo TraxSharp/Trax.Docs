@@ -11,8 +11,9 @@ nav_order: 5
 Every Trax repo that publishes to NuGet (Trax.Core, Trax.Effect, Trax.Mediator, Trax.Scheduler,
 Trax.Api, Trax.Dashboard, Trax.Cli and Trax.Samples) versions its releases with
 [semantic-release](https://github.com/semantic-release/semantic-release). Releases are cut by
-hand. A merge to `main` builds and tests `main` and publishes nothing: work accumulates there until
-someone runs the release workflow, and that run releases everything merged since the last tag.
+hand. A merge to `main` runs no workflow and publishes nothing, since the pull request already built
+and tested the change: work accumulates there until someone runs the release workflow, which builds
+and tests `main` again before it releases everything merged since the last tag.
 
 ## Commit types
 
