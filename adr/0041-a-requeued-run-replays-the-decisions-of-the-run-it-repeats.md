@@ -47,8 +47,9 @@ and the run views filter on it, so a re-queued run would vanish from the root-le
 **The link is a column on `work_queue` and on `metadata`, not a foreign key.** The original may
 be deleted before the re-queue runs (manifest pruning, or a delete outside Trax). A run whose
 original no longer exists fails before its first junction, classified permanent, rather than
-asking afresh. Metadata cleanup keeps a run that a queued entry or a retained run still links to,
-so its age alone never breaks a chain.
+asking afresh. Metadata cleanup keeps a run while a queued entry or any other run still names it,
+so its age alone never breaks a chain; an expired linking run is deleted first, and the run it
+names in a later sweep.
 
 **A requeue of a requeue replays the first run.** A run that failed before reaching a question
 recorded nothing for it, yet the run it replayed did. The replay follows `replay_decisions_of`
@@ -80,6 +81,11 @@ fingerprint differs or that no longer fits the question as it is asked now (an o
 removed, a scale with fewer levels). The second is noted in the stored answer as
 `replay_refused`. A recorded choice of a member the step has no track for is not refused: it
 replays and takes the fallback track again.
+
+**A host that does not record decisions is warned, not refused.** Every host that runs trains
+logs a warning at startup naming its deciding trains when `AddDecisionRecording` is missing. It
+does not refuse to start: the replay already fails closed on such a host, and a host that never
+runs those requeues is correctly configured.
 
 **An execution service that cannot carry the link is a misconfiguration.** A custom or decorating
 `ITrainExecutionService` that predates the `QueueTrainOptions` overload throws
@@ -124,7 +130,15 @@ an ordinary enqueue, that `QueueTrainInput` has no property for the link, and th
 through an execution service without the overload is a misconfiguration;
 `OperationsServiceTests` pins that an ordinary `QueueTrainAsync` enqueue replays nothing, and
 `QueueTrainAuthorizationTests` in Trax.Api that the `queueTrain` input does not accept a replay
-link; `JobDispatcherTrainTests` pins the link onto the dispatched run's metadata. `OperationsQueriesTests` in Trax.Api and `MetadataRequeueRefusalTests` and
+link; `JobDispatcherTrainTests` pins the link onto the dispatched run's metadata, and
+`UnreadableQueuedInputTests` that an unreadable requeue still carries it onto its failed run.
+`RequeueReplayEndToEndTests` in Trax.Scheduler queues, requeues, dispatches and runs a deciding
+train, and pins that the requeue takes the original's tracks without asking, including through a
+requeue that recorded none or only part of its decisions. `MetadataCleanupTrainTests` and
+`SqliteCleanupTests` pin that cleanup keeps a run a queued requeue or another run will replay, and
+deletes it once the run replaying it is gone. `DecisionRecordingStartupCheckTests` pins that a host
+without decision recording is warned naming its deciding trains, that one that records is not,
+and that every host that runs trains has the check once. `OperationsQueriesTests` in Trax.Api and `MetadataRequeueRefusalTests` and
 `MetadataRequeueTrustedScopeTests` in Trax.Dashboard pin that both re-queue surfaces go through
 the shared requeue.
 
@@ -138,7 +152,9 @@ original chain could not have.
 - **2026-10-02**: A replay follows the chain of requeues back, matches answers to askings by
   fingerprint, and fails on a run of another train or one that did not record its decisions;
   cleanup keeps a run something still replays; the requeue resolves the saved input's reference
-  metadata; the exemplars name the tests that pin the queue input's missing link.
+  metadata; a host that runs deciding trains without recording is warned at startup; the
+exemplars name the tests that pin the queue input's missing link, the end-to-end requeue and the
+cleanup rule.
 - **2026-10-01**: Decisions are written as each is made rather than when the run finishes; a
   replay that cannot be honoured (no recording on the host, no such run) fails the run instead of
   asking afresh; the link is set only by `IOperationsService.RequeueExecutionAsync`, not by the
