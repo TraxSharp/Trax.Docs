@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Decision Recording and Models
-description: How Trax.Effect records each decision against its run, replays them when a run is re-queued, and answers questions with Nimble or another typed model.
+description: How Trax.Effect records each decision against its run, replays them when a run is re-queued or retried, and answers questions with Nimble or another model.
 parent: Effect
 nav_order: 8
 ---
@@ -10,8 +10,8 @@ nav_order: 8
 
 A train's [decisions](/docs/core/decisions) run without Trax.Effect; Trax.Core needs only an
 `IDecider`. Trax.Effect adds three things around them: an adapter for typed decision models, a
-record of every decision against the run that made it, and re-queued runs that take the tracks
-the original took.
+record of every decision against the run that made it, and re-queued and retried runs that take
+the tracks the original took.
 
 ```csharp
 services.AddTrax(trax => trax.AddEffects(effects => effects
@@ -186,6 +186,16 @@ that train in progress on this host, and records against it when exactly one mat
 the decision is logged only. Calling
 `AddDecisionRecording()` more than once registers it once.
 
+Each answer is stored with the hash of the state it was given about
+([`StateHash`](/docs/core/decisions#a-replay-matches-the-state-not-only-the-question)), never the
+state itself. `AddDecisionRecording(o => o.ReplayAnswersFor(...))` sets how long a recorded answer
+may be replayed; see [Only into the same state, and only while fresh](#only-into-the-same-state-and-only-while-fresh).
+
+A question about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type)
+is recorded in full here, because a replay reads its answer from this table. The mark withholds the
+answer from [junction events](/docs/effect/junction-events) and `trax.junction_run`, not from
+`trax.decision`.
+
 | Column | Holds |
 |---|---|
 | `metadata_id` | The run. Rows are deleted with it. |
@@ -200,6 +210,7 @@ the decision is logged only. Calling
 | `decider` | The decider's type, or null for a replayed answer |
 | `replayed` | Whether the answer came from an earlier run |
 | `shadows` | Each shadow's answer, whether it agreed, and why it gave none (jsonb) |
+| `state_hash` | The SHA-256 of the state the question was asked about, 64 lowercase hex characters, or null when the state could not be written as JSON or the row predates the column. A row with no hash is never replayed. |
 | `routes` | Every track a routing step took on this decision, in order, as a jsonb array of `{"track": ..., "fallback_reason": ...}`; `fallback_reason` says why the decision was not followed, and is null when it was. Null when nothing routed on it. |
 | `decided_at` | When it was answered |
 
@@ -208,7 +219,30 @@ when the host records decisions, before any junction, so a replay can tell a run
 questions from one whose decisions were never recorded.
 
 It needs a data provider, and is a compile error before one. The table ships in the core
-migration set (Postgres `054`, Sqlite `019`) and is read through `IDataContext.RecordedDecisions`.
+migration set (Postgres `054`, Sqlite `019`; `state_hash` in Postgres `059`, Sqlite `024`) and is
+read through `IDataContext.RecordedDecisions`.
+
+### Other decision observers
+
+Trax.Core takes one `IDecisionObserver` from the container. When Trax adds an observer of its own
+(`AddDecisionRecording`, `AddJunctionEvents`), it registers a composite in its place that tells
+every observer: each one Trax adds, and each one the host registered as an `IDecisionObserver`
+before `AddTrax`. Required observers are told
+first, so a decision that could not be recorded is never reported as made, then the best-effort
+ones.
+
+Register your own observer before `AddTrax`. One registered after it replaces the composite in the
+container, so decision recording would never be told about a decision. While decision recording is
+registered, such a host refuses to start with an `InvalidOperationException` naming the observer,
+and every run that would record its decisions refuses too, for a host built without the generic
+host. No decision is acted on unrecorded.
+
+```csharp
+services.AddSingleton<IDecisionObserver, DecisionAuditor>();   // before AddTrax: told alongside Trax's own
+services.AddTrax(trax => trax.AddEffects(effects => effects
+    .UsePostgres(connectionString)
+    .AddDecisionRecording()));
+```
 
 ```sql
 -- How often each support track was taken this week, and how often it was overruled.
@@ -225,7 +259,7 @@ That is the data a confidence bar should be tuned from: label a few hundred reco
 with what should have happened, and pick the bar where the cost of a wrong track meets the cost
 of sending work to the fallback.
 
-## Re-queued runs replay their decisions
+## Re-queued and retried runs replay their decisions
 
 Re-queueing an execution, with the dashboard's **Re-queue** button or the
 [`requeueExecution`](/docs/sdk-reference/graphql-api/mutations#requeueexecution) mutation, queues a
@@ -239,8 +273,37 @@ and recorded with `replayed` set. A re-queue repeats a run, usually because some
 decision failed, and asking a model again could take a different track. `Trax.Docs/adr/0041`
 records why.
 
-The requeue is the only way to set the link. Queueing a train through `queueTrain` or
-`QueueTrainAsync` never replays, and neither does a dead-letter retry or a manifest's scheduled run.
+A manifest's automatic retry, and a requeue of its dead letter, replay the failed run's decisions
+too, at most once in a row and only when the scheduler can show the answers were given by that
+manifest's own run, about the same input. See
+[Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions).
+Queueing a train through `queueTrain` or `QueueTrainAsync` never replays, and neither does a
+manifest's scheduled run that is not a retry.
+
+### Only into the same state, and only while fresh
+
+A recorded answer is replayed only when both hold:
+
+- **The state hashes the same.** The question is asked about the state as it is in the repeated
+  run, and Trax.Core replays the answer only when that state's hash equals the `state_hash` the
+  answer was recorded with. See
+  [A replay matches the state, not only the question](/docs/core/decisions#a-replay-matches-the-state-not-only-the-question).
+- **The answer is fresh.** It is younger than `ReplayAnswersFor`, 24 hours by default, counted from
+  when a decider gave it. A requeue of a requeue that replayed the answer records a new row for it,
+  but the age still counts from the decider's row, so replaying an answer never makes it younger. A
+  replayed row whose answering run is no longer in the chain cannot be dated and is asked afresh.
+
+```csharp
+effects.UsePostgres(connectionString)
+    .AddDecisionRecording(o => o.ReplayAnswersFor(TimeSpan.FromHours(6)))
+```
+
+`ReplayAnswersFor` takes at least one second. An answer outside either bound is asked afresh, and
+that is never a failure. A changed state is reported in the new row's `replay_refused`; an aged-out
+answer is left out of the replay and logged at `Information`. Rows written before `state_hash`
+existed have none, so the first requeue after upgrading asks afresh. Both bounds apply to every
+path that names a run to replay: a manual requeue, a dead letter's requeue and a manifest's retry.
+`Trax.Effect/docs/adr/0020` records why.
 
 ### A requeue of a requeue
 
@@ -260,6 +323,8 @@ sweep.
 |---|---|
 | A question no run in the chain reached (they failed earlier, or the chain changed since) | Asked afresh |
 | A recorded answer whose [fingerprint](/docs/core/decisions#observing-and-replaying) differs from the question as it is asked now, or that no longer fits it (an option renamed or removed, a scale with fewer levels, another kind of question) | Asked afresh, with the reason stored as `replay_refused` |
+| A recorded answer given about a state that hashes differently from the state asked about now, or recorded with no `state_hash` | Asked afresh, with the reason stored as `replay_refused` |
+| A recorded answer older than `ReplayAnswersFor`, counted from when a decider gave it | Asked afresh, and logged |
 | A recorded choice of a member the switch has no track for | Replayed; it takes the `Otherwise` track again, as it did the first time |
 | A refused row (the step failed on the decider's answer) | Skipped: never replayed, so the question is asked afresh |
 | A host that does not call `AddDecisionRecording()` | The run fails before its first junction, `Permanent` |
@@ -290,4 +355,4 @@ it takes any work.
 
 ## SDK Reference
 
-> [AddDecisionRecording](/docs/sdk-reference/configuration/add-decision-recording) | [AddNimbleDecider](/docs/sdk-reference/configuration/add-nimble-decider) | [AddSystemOneDecider](/docs/sdk-reference/configuration/add-system-one-decider) | [IOperationsService](/docs/sdk-reference/scheduler-api/i-operations-service) | [TrainExecution](/docs/sdk-reference/mediator-api/train-execution)
+> [AddDecisionRecording](/docs/sdk-reference/configuration/add-decision-recording) | [AddJunctionEvents](/docs/sdk-reference/configuration/add-junction-events) | [TraxSensitive](/docs/sdk-reference/attributes/trax-sensitive) | [AddNimbleDecider](/docs/sdk-reference/configuration/add-nimble-decider) | [AddSystemOneDecider](/docs/sdk-reference/configuration/add-system-one-decider) | [IOperationsService](/docs/sdk-reference/scheduler-api/i-operations-service) | [TrainExecution](/docs/sdk-reference/mediator-api/train-execution)

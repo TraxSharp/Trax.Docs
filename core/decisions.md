@@ -82,7 +82,7 @@ prompt), recording and replay look answers up by it, and it is part of every ask
 anything you would not show one.
 
 Moving the type to another namespace leaves the key as it was. Renaming it, or a type it is nested
-in, changes the key, so the next re-queue asks that question afresh rather than replaying an
+in, changes the key, so the next re-queue or retry asks that question afresh rather than replaying an
 answer recorded under the old one. `[Asks(..., Key = "...")]` sets the key explicitly, to keep the
 old one across a rename or to give a type a key of its own:
 
@@ -347,8 +347,9 @@ the train acts on the decision, classified as the exception says or `Transient` 
 nothing. An observer that cannot be resolved at all fails the step either way.
 
 `DecisionMade` carries the question, the answer, the decider, whether it was replayed, the
-shadows' answers, `Occurrence` (how many times the run asked that question before, from 0) and
-`Fingerprint`. The replay is asked by the same coordinates, on the run's path, once per question:
+shadows' answers, `Occurrence` (how many times the run asked that question before, from 0),
+`Fingerprint` and `StateHash`. The replay is asked by the same coordinates, on the run's path, once
+per question:
 
 ```csharp
 public interface IDecisionReplay
@@ -357,11 +358,14 @@ public interface IDecisionReplay
         string train, string runId, string key, int occurrence, CancellationToken cancellationToken);
 }
 
-public sealed record RecordedAnswer(Answer Answer, string Fingerprint);
+public sealed record RecordedAnswer(Answer Answer, string Fingerprint)
+{
+    public string? StateHash { get; init; }
+}
 ```
 
 It returns null to ask the decider. A host that replays stores each `DecisionMade.Answer` with its
-`Fingerprint` and hands both back exactly as stored. Whatever `Replay` throws fails the step,
+`Fingerprint` and `StateHash` and hands them back exactly as stored. Whatever `Replay` throws fails the step,
 classified as the exception says, because a replay that cannot be read cannot be told from a run
 with nothing to replay.
 
@@ -375,13 +379,41 @@ run to run by design. A replayed answer is checked before it is acted on, and is
   first
 - it no longer fits the question: an option renamed or removed from the enum, a scale with fewer
   levels, another kind of question
+- it was given about a different state: its `StateHash` differs from the hash of the state the
+  question is asked about now, or is null
 
-Either way the decider is asked afresh, and `DecisionMade.ReplayRefused` says why. A recorded
+In each case the decider is asked afresh, and `DecisionMade.ReplayRefused` says which check
+refused the answer. A recorded
 choice of a member the switch has no track for is replayed like any other and takes the
 `Otherwise` track again, as it did the first time.
 
-Trax.Effect implements both, to record decisions against the run and to make a re-queued run take
-the tracks the original took. See [Decision Recording and Models](/docs/effect/decisions).
+### A replay matches the state, not only the question
+
+The fingerprint says an answer was given to the same asking; the state hash says it was given
+about the same data. A repeated run runs every step again, so the state a question is about is read
+afresh: the data may have changed while the run waited to be retried, and a loop may meet its items
+in another order, so its second asking is about a different item. A recorded answer is replayed
+only into the state it was given about. Approving a refund of 20 does not approve one of 2000.
+
+`StateHash` is a SHA-256, as 64 lowercase hex characters, over the state's runtime type and the JSON
+it is written as (`JsonSerializerDefaults.Web`, what a decider that sends the state on sees), taken
+before the decider is asked. The check is made in Trax.Core, so every replay implementation inherits
+it and only stores and returns the hash.
+
+| The replayed answer's state hash | What happens |
+|---|---|
+| Equal to the hash of the state asked about now | Replayed |
+| Different | Asked afresh, with the reason in `ReplayRefused` |
+| Null (an answer recorded before states were hashed) | Asked afresh, with the reason in `ReplayRefused` |
+| The state asked about now cannot be written as JSON | Asked afresh, with the reason in `ReplayRefused`. Hashing never fails the run. |
+
+A state whose JSON changes from run to run although nothing that matters changed (a timestamp, a
+generated id, a dictionary filled in another order) is asked afresh on every repeat. Keep such
+values out of the state a question is asked about when replay matters. Only the hash leaves the
+run, never the state. `Trax.Core/docs/adr/0004` records why.
+
+Trax.Effect implements both, to record decisions against the run and to make a re-queued or
+retried run take the tracks the original took. See [Decision Recording and Models](/docs/effect/decisions).
 
 ## Testing a train's decisions
 

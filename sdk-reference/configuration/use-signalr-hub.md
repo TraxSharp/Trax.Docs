@@ -35,6 +35,9 @@ public static BroadcasterBuilder UseSignalRHub(
 | `OnlyForTrains<T1>()` ... `<T1, T2, T3>()` | type parameters | Restrict to listed train interface types. Stores `typeof(T).FullName` (the canonical identifier Trax puts on the wire), not the short name. |
 | `OnlyForTrains` | `params Type[]` | Same as the generic overloads. Throws if any type is not an interface. |
 | `WithProjection<TClient>` | `Func<TrainLifecycleEventMessage, TClient>` | Replace the default `TraxClientEvent` projection. Last call wins. |
+| `WithJunctionEvents` | none | Also send [junction events](#junction-events) through the `"JunctionEvent"` client method, without answers. Off by default. |
+| `WithJunctionAnswers` | none | As `WithJunctionEvents`, with each question's answer and confidence |
+| `WithJunctionProjection<TClient>` | `Func<TrainLifecycleEventMessage, TClient>` | As `WithJunctionEvents`, with junction events in a shape of your own. Replaces `WithJunctionAnswers` when both are called. `WithProjection` shapes train events only. |
 | `WithDeliveryQueueCapacity` | `int capacity` | How many events may wait for delivery to clients. Default `SignalRSinkOptions.DefaultDeliveryQueueCapacity` (1024). Throws `ArgumentOutOfRangeException` below 1. See [Delivery](#delivery). |
 
 ## Default projection
@@ -90,6 +93,46 @@ b.UseSignalRHub(opts => opts.WithProjection(msg =>
 
 The projection is invoked once per matching event, after filtering. The hub serializes the result via SignalR's configured `IHubProtocol` (JSON by default).
 
+## Junction events
+
+On a host that calls [`AddJunctionEvents()`](/docs/sdk-reference/configuration/add-junction-events),
+the sink can also send each step of a run. Without one of the three options below it sends none.
+
+```csharp
+b.UseSignalRHub(opts => opts
+    .OnlyForTrains<IUnderwriteLoanTrain>()
+    .WithJunctionEvents())
+```
+
+A junction event goes to the same clients as its train's events and passes the same filters:
+`OnlyForTrains` applies to it, and so does `OnlyForEvents` when it was called, in which case the
+junction event types to send (`JunctionStarted`, `JunctionCompleted`, `JunctionFailed`,
+`JunctionCancelled`, `Decided`, `DecisionRefused`, `Routed`) must be listed too.
+
+By default each step is projected to a `TraxJunctionClientEvent` and sent through the
+`"JunctionEvent"` client method:
+
+| Field | Type | Source |
+|-------|------|--------|
+| `MetadataId`, `ExternalId`, `TrainName`, `EventType`, `Timestamp` | | As on `TraxClientEvent` |
+| `Position` | `int` | Where the step falls in the run, from 0 |
+| `Kind` | `string` | `Junction`, `Choice`, `Score`, `YesNo` or `Route` |
+| `Name` | `string` | The junction's class name, or the question's key |
+| `State` | `string` | `InProgress`, `Completed`, `Failed` or `Cancelled` |
+| `StartedAt`, `EndedAt`, `DurationMs` | | When the step started and ended, and its duration |
+| `FailureClass`, `FailureException` | `string?` | How a failed junction's failure is classified, and its exception's type name |
+| `QuestionKey` | `string?` | The question's key, for a question or a track |
+| `Answer`, `Confidence` | | Null, and left off the wire, unless `WithJunctionAnswers()` was called |
+| `Replayed` | `bool` | Whether the answer was replayed from an earlier run |
+| `AnswerWithheld` | `bool` | True for a question about a `[TraxSensitive]` type |
+
+Every client the hub admits receives every train's events, so the default payload carries no
+answer or confidence. `WithJunctionAnswers()` adds them; answers to questions about a
+[`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) type stay
+withheld. No payload carries an input, output or failure message. When the delivery queue is full,
+an incoming train event takes the place of the oldest queued junction event before it is dropped
+itself, so steps are given up first.
+
 ## Delivery
 
 The lifecycle hook and the event handler do not wait for clients. They apply the filters and write the event to a bounded queue, then return. One background sender takes events off the queue in the order they were raised, applies the projection, and sends each to `Clients.All`. A train's `OnStarted`, `OnCompleted`, `OnFailed`, `OnCancelled` and `OnStateChanged` therefore take the same time whether the connected clients are fast, slow or stalled.
@@ -128,4 +171,4 @@ dotnet add package Trax.Effect.Broadcaster.SignalR
 
 ## SDK Reference
 
-> [UseBroadcaster](/docs/sdk-reference/configuration/use-broadcaster) | [MapTraxTrainEventHub](/docs/sdk-reference/configuration/map-trax-train-event-hub) | [AddLifecycleHook](/docs/sdk-reference/configuration/add-lifecycle-hook)
+> [UseBroadcaster](/docs/sdk-reference/configuration/use-broadcaster) | [AddJunctionEvents](/docs/sdk-reference/configuration/add-junction-events) | [MapTraxTrainEventHub](/docs/sdk-reference/configuration/map-trax-train-event-hub) | [AddLifecycleHook](/docs/sdk-reference/configuration/add-lifecycle-hook)

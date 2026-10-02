@@ -55,13 +55,19 @@ Task TriggerAsync(string externalId, CancellationToken ct = default)
 Task TriggerAsync(string externalId, TimeSpan delay, CancellationToken ct = default)
 ```
 
+```csharp
+Task TriggerAsync(string externalId, bool askAfresh, CancellationToken ct = default)
+Task TriggerAsync(string externalId, TimeSpan delay, bool askAfresh, CancellationToken ct = default)
+```
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `externalId` | `string` | Yes | The `ExternalId` of the manifest to trigger |
 | `delay` | `TimeSpan` | No | How far in the future to schedule the execution. When omitted, the job is queued for immediate dispatch. |
+| `askAfresh` | `bool` | No | When `true` and the trigger releases a queued entry that would [replay a failed run's decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions) (a retry waiting out its backoff), the entry no longer replays them: the run asks its deciders afresh. A new entry never replays, so it changes nothing there. |
 | `ct` | `CancellationToken` | No | Cancellation token |
 
-**Throws**: `InvalidOperationException` when no manifest with the specified `ExternalId` exists.
+**Throws**: `InvalidOperationException` when no manifest with the specified `ExternalId` exists. The `askAfresh` overloads throw `NotSupportedException` from an `ITraxScheduler` implementation written before them.
 
 ## ScheduleOnceAsync
 

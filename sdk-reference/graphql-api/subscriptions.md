@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Subscriptions
-description: "Reference for Trax GraphQL subscriptions: train lifecycle events, the onDataChanged signal, payloads, WebSocket connection, allowed origins and authentication."
+description: "Reference for Trax GraphQL subscriptions: train lifecycle events, a run's junction events, the onDataChanged signal, payloads, WebSocket and authentication."
 parent: GraphQL API
 grand_parent: SDK Reference
 nav_order: 5
@@ -9,7 +9,7 @@ nav_order: 5
 
 # Subscriptions
 
-Trax provides real-time GraphQL subscriptions over WebSocket. There are two kinds: per-train lifecycle events (started, completed, failed, cancelled) and a coalesced `onDataChanged` signal that tells an admin UI which data domain changed so it can refetch without polling.
+Trax provides real-time GraphQL subscriptions over WebSocket. There are three kinds: per-train lifecycle events (started, completed, failed, cancelled), the steps of one run ([`onJunctionEvent`](#onjunctionevent)), and a coalesced `onDataChanged` signal that tells an admin UI which data domain changed so it can refetch without polling.
 
 Subscriptions are powered by HotChocolate's built-in subscription infrastructure with an in-memory pub/sub transport. They are automatically enabled when you call `AddTraxGraphQL()`.
 
@@ -87,6 +87,65 @@ sequence: 1, 2, 3, 5, 6   # something was lost between 3 and 5
 A client that sees a number other than the previous one plus one has missed state changes, and should refetch what it shows (for an admin view, `operations.executions`; otherwise its own queries) and carry on reading the feed. The skip is always one number, so a subscriber outside the operations view does not learn how much activity there was in trains it cannot see. A loss of an event the subscriber would not have received is reported too, since the subscription cannot tell whose event was dropped; the refetch then changes nothing.
 
 Events a host sends through HotChocolate's `ITopicEventSender` itself, rather than through Trax's hooks, are not numbered and never cause a skip. Numbers are per API node. `Trax.Api/docs/adr/0032` records the decision.
+
+## onJunctionEvent
+
+```graphql
+subscription {
+  onJunctionEvent(metadataId: 100) {
+    eventType
+    timestamp
+    sequence
+    junction {
+      position
+      kind
+      name
+      state
+      durationMs
+      failureClass
+      failureException
+      questionKey
+      answer
+      confidence
+      replayed
+      answerWithheld
+      attempt
+    }
+  }
+}
+```
+
+Fires for each step of the run `metadataId`: a junction starting, completing, failing or being
+cancelled, a question a routing step asked, and the track it took. Only a host that calls
+[`AddJunctionEvents()`](/docs/sdk-reference/configuration/add-junction-events) publishes them. The
+run is a required argument; there is no feed of every run's steps.
+
+You receive a run's steps exactly when you would receive that run's train events: a train's steps
+are published by the same rule as its events (`[TraxBroadcast]`, or every train when the operations
+surface is exposed), and each subscriber's view is the one [Who receives what](#who-receives-what)
+describes, including the refusal of a subscriber who could receive nothing. Outside the operations
+view a step loses host detail, as a train event does: `decider` is null, and `failureException` is
+shown only for a `TrainException`. A broadcast subscriber also gets `answer` and `confidence` as
+null unless the host calls [`AllowJunctionAnswersForBroadcastSubscribers()`](/docs/sdk-reference/graphql-api/add-trax-graphql#builder-methods);
+it still sees that a question was asked, its key and the step that followed. The operations view
+always sees answers.
+
+| Field | Description |
+|-------|-------------|
+| `metadataId`, `externalId`, `trainName`, `timestamp` | As on `TrainLifecycleEvent` |
+| `eventType` | `JUNCTION_STARTED`, `JUNCTION_COMPLETED`, `JUNCTION_FAILED`, `JUNCTION_CANCELLED`, `DECIDED`, `DECISION_REFUSED` or `ROUTED` |
+| `junction` | The step, a `JunctionStep`: `position`, `kind`, `name`, `state`, `startedAt`, `endedAt`, `durationMs`, `failureClass`, `failureException`, `questionKey`, `answer`, `confidence`, `replayed`, `decider`, `answerWithheld`, `attempt` |
+| `sequence` | Numbered as lifecycle events are. See [Lost events](#lost-events) |
+
+A step never carries the train's input or output or a failure's message. An answer to a question
+about a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) type
+is null, with `answerWithheld` true.
+
+The feed carries every run's steps on one topic, filtered by run as each subscriber reads it, so a
+skip in `sequence` reports a loss whichever run it came from. To follow a run already under way,
+subscribe first, then read [`operations.junctionRuns`](/docs/sdk-reference/graphql-api/queries#junctionruns)
+for the steps it took before, and keep for each position whichever is further along.
+`Trax.Api/docs/adr/0037` records why the feed follows one run.
 
 ## Examples
 

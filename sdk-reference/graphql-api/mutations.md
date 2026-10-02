@@ -228,6 +228,7 @@ mutation {
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `externalId` | `String!` | Yes | The manifest's external ID |
+| `askAfresh` | `Boolean` | No | Default `false`. When `true` and the trigger releases a queued retry that would [replay the failed run's decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions), the run asks its deciders afresh instead |
 
 **Returns**: `OperationResponse`
 
@@ -255,6 +256,7 @@ mutation {
 |-----------|------|----------|-------------|
 | `externalId` | `String!` | Yes | The manifest's external ID |
 | `delay` | `TimeSpan!` | Yes | How long to wait before triggering (e.g. `"00:05:00"` for 5 minutes) |
+| `askAfresh` | `Boolean` | No | Default `false`. As on `triggerManifest` |
 
 **Returns**: `OperationResponse`
 
@@ -443,6 +445,31 @@ mutation {
 
 ---
 
+### setManifestsReplayDecisionsOnRetry
+
+Sets whether retries of many manifests replay the decisions of the run they retry. Only manifests
+whose flag differs are written. It calls `IOperationsService.SetManifestsReplayDecisionsOnRetryAsync`,
+the call the dashboard makes. Turning it off also clears the replay link of each manifest's queued
+entry, so a retry waiting out its backoff asks afresh. See
+[Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions).
+
+```graphql
+mutation {
+  operations {
+    setManifestsReplayDecisionsOnRetry(ids: [3, 4], replay: false) { success count message }
+  }
+}
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `ids` | `[Long!]!` | Yes | 1 to 1000 manifest database ids |
+| `replay` | `Boolean!` | Yes | The flag to set |
+
+**Returns**: `OperationResponse`. `count` is the number of manifests changed, zero included. An empty list, or more than 1000 ids, returns `success: false` and changes nothing.
+
+---
+
 ### requeueExecution
 
 Re-queues an execution: reads its train name + input from the metadata row and enqueues a
@@ -455,11 +482,15 @@ than `success: false`.
 
 The new run replays the decisions the execution recorded with
 [`AddDecisionRecording`](/docs/sdk-reference/configuration/add-decision-recording), so it takes the
-[tracks](/docs/core/decisions) the execution took instead of asking its deciders again. The replay link is set only here, to
+[tracks](/docs/core/decisions) the execution took instead of asking its deciders again. Among the API's mutations the replay link is set only here, to
 the execution being re-queued, and only when it has decisions to replay (it recorded a decision,
 or was itself a replaying requeue, so re-queueing a re-queue replays too); any other execution is
-re-queued as an ordinary enqueue. `queueTrain` has no way to set it. See
-[Re-queued runs replay their decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions).
+re-queued as an ordinary enqueue. `queueTrain` has no way to set it. A manifest's retry and a
+dead-letter requeue are linked by the scheduler from its own checks, never from a caller (see
+[Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions)).
+Each replayed answer is still checked: a question whose state hashes differently now, or whose
+answer is older than `ReplayAnswersFor`, is asked afresh. See
+[Re-queued and retried runs replay their decisions](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions).
 
 An execution with no saved input is refused with `success: false` and a message saying inputs are
 saved only when [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters)
@@ -826,7 +857,7 @@ mutation {
 
 ### deadLetters (nested namespace)
 
-The `operations.deadLetters` namespace exposes dead-letter requeue and acknowledge mutations: `requeueDeadLetter`, `acknowledgeDeadLetter`, batch variants (`requeueDeadLetters`, `acknowledgeDeadLetters`), and "all" variants (`requeueAllDeadLetters`, `acknowledgeAllDeadLetters`). The batch variants take 1 to 1000 ids; an empty or longer list returns `success: false` and changes nothing. See [scheduler/dead-letters-and-cleanup](/docs/scheduler/dead-letters-and-cleanup) for full details and examples.
+The `operations.deadLetters` namespace exposes dead-letter requeue and acknowledge mutations: `requeueDeadLetter`, `acknowledgeDeadLetter`, batch variants (`requeueDeadLetters`, `acknowledgeDeadLetters`), and "all" variants (`requeueAllDeadLetters`, `acknowledgeAllDeadLetters`). The batch variants take 1 to 1000 ids; an empty or longer list returns `success: false` and changes nothing. The three requeues take an optional `askAfresh: Boolean` (default `false`): left false, a requeued run [replays the failed run's decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions) when that is sound; true, it asks its deciders afresh. See [scheduler/dead-letters-and-cleanup](/docs/scheduler/dead-letters-and-cleanup) for full details and examples.
 
 ---
 

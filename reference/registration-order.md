@@ -19,6 +19,7 @@ naming the call to move. Nothing about registration is allowed to fail silently.
 | `AddTrax()` before `AddTraxGraphQL()` / `AddTraxDashboard()` | Throws immediately, naming the missing call. |
 | An authorization posture in `AddTraxDashboard()` options before `UseTraxDashboard()` | `UseTraxDashboard()` throws, naming `RequirePolicy`, `RequireRoles` and `AllowAnonymousDashboard`. |
 | Trains registered before `AddTraxGraphQL()` | The host refuses to start, naming each `[TraxQuery]`, `[TraxMutation]` or `[TraxBroadcast]` train registered afterwards. `AddTraxGraphQL()` checks each train's authorization posture and name and builds the schema roots from the trains registered before it. |
+| Your own `IDecisionObserver` before `AddTrax()`, on a host that calls `AddDecisionRecording()` | The host refuses to start, naming the observer, and every run that would record its decisions refuses too. One registered after `AddTrax()` would replace the composite that tells decision recording. See [Other decision observers](/docs/effect/decisions#other-decision-observers). |
 
 ```csharp
 builder.Services.AddTrax(trax => trax.AddEffects(...).AddMediator(...));

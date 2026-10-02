@@ -36,7 +36,7 @@ The generic type parameter `TBuilder` is inferred by the compiler, so callers ju
 |-----------|-------------|
 | Broadcast lifecycle hook | Internal lifecycle hook that publishes events to `ITrainEventBroadcaster` |
 | Broadcast change sink | Internal sink that forwards coalesced data-change signals (`onDataChanged`) to other processes over the same transport |
-| `TrainEventReceiverService` | `BackgroundService` that consumes events from `ITrainEventReceiver` and dispatches to `ITrainEventHandler` instances |
+| `TrainEventReceiverService` | `BackgroundService` that consumes events from `ITrainEventReceiver` and dispatches train events to `ITrainEventHandler` instances, and [junction events](/docs/effect/junction-events) to `IJunctionEventHandler` instances only |
 
 The transport-specific `ITrainEventBroadcaster` and `ITrainEventReceiver` are registered by the callback (e.g., `UseRabbitMq()`). The hook and the sink are internal types: `UseBroadcaster()` is the only way to add them.
 
@@ -132,6 +132,7 @@ Options:
 |----------|------|---------|-------------|
 | `ConnectionString` | `string` | N/A | AMQP connection URI |
 | `ExchangeName` | `string` | `"trax.lifecycle"` | Fanout exchange name |
+| `JunctionExchangeName` | `string?` | `ExchangeName` + `".junctions"` | Fanout exchange [junction events](/docs/effect/junction-events) are published to. Must differ from `ExchangeName`, or `UseRabbitMq` throws `ArgumentException`. |
 | `PrefetchCount` | `ushort` | `64` | How many received events the receiver may hold unacknowledged at once. The broker holds the rest until the handlers acknowledge one, so a slow handler leaves events queued on the broker rather than in the receiving process. `0` (no limit) is refused: `UseRabbitMq` throws `ArgumentException`, and a directly constructed receiver throws `InvalidOperationException` from `StartAsync`. |
 
 The RabbitMQ transport uses a **fanout exchange** so all connected hub instances receive every event. Each receiver creates its own exclusive, auto-delete queue.
@@ -142,7 +143,7 @@ Each publish waits for the broker's publisher confirm, for at most 5 seconds. An
 
 While the broker is unreachable the sender retries the event it holds with a growing delay (1 second, doubling to 30), each connection attempt bounded at 5 seconds, and further events wait in the queue. An event the broker refuses, by closing the channel on it with a channel-level error (`403`, `404`, `405`, `406`) or by rejecting the publish, is tried 3 times, then dropped and logged as an `Error`, so a refusal that does not clear, such as an exchange of the same name declared with another type, does not hold up the events behind it.
 
-When the queue is full, non-terminal events give way first. A new `Started`, `StateChanged` or `DataChanged` event is dropped. A new `Completed`, `Failed` or `Cancelled` event takes the place of the oldest queued non-terminal event, and is dropped itself only when every queued event is terminal. So a run whose `Started` reached subscribers keeps its outcome, although a subscriber can see an outcome without the `Started` before it. The first drop logs a `Warning`, followed by a second one giving the count when the queue drains.
+When the queue is full, junction events give way first, then non-terminal events. A new junction event is dropped. A new `Started`, `StateChanged` or `DataChanged` event takes the place of the oldest queued junction event, or is dropped when none is queued. A new `Completed`, `Failed` or `Cancelled` event takes the place of the oldest queued junction or non-terminal event, and is dropped itself only when every queued event is terminal. So a run whose `Started` reached subscribers keeps its outcome, although a subscriber can see an outcome without the `Started` before it. The first drop logs a `Warning`, followed by a second one giving the count when the queue drains.
 
 A connection the broker closed is disposed before it is replaced. On shutdown the broadcaster waits up to 5 seconds for queued events to be sent, and does not wait at all while it is failing to reach the broker. Delivery is best effort: a consumer that must not miss an event reads it from the store.
 
@@ -155,6 +156,19 @@ effects.UseBroadcaster(b =>
     )
 )
 ```
+
+#### Junction events and rollout order
+
+On a host that calls [`AddJunctionEvents()`](/docs/sdk-reference/configuration/add-junction-events),
+each step of a run is published to the junction exchange, `trax.lifecycle.junctions` by default,
+which the publisher and the receiver both declare. A receiver binds its queue to both exchanges. A
+receiver from a Trax version before junction events binds only the train exchange, so it never
+receives one, and a fleet can be upgraded in any order: an old receiver never sees a step, an old
+publisher never sends one, and a new receiver gets steps from new publishers as soon as they start.
+
+A step and its run's own events travel through different exchanges, so a subscriber can see a
+run's `Completed` before its last step. Each step carries its position and timestamps; order by
+those.
 
 ### SignalR
 

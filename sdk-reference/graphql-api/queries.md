@@ -376,6 +376,7 @@ query {
 | `dependsOnManifestId` | `Long` | ID of the manifest this one depends on |
 | `priority` | `Int!` | Dispatch priority (0-31, higher runs first) |
 | `manifestGroupName` | `String` | Name of the parent group |
+| `replayDecisionsOnRetry` | `Boolean!` | Whether a retry of the manifest's failed run, automatic or a requeue of its dead letter, replays the decisions that run recorded. Set with [`ScheduleOptions.ReplayDecisionsOnRetry`](/docs/sdk-reference/scheduler-api/schedule#scheduleoptions); see [Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions) |
 
 A manifest's `properties` (the train input it runs with) are not on this type. Read them from
 [`manifestDetail`](#manifestdetail), one manifest at a time.
@@ -725,6 +726,54 @@ query {
 | `afterId` | `Long` | `null` | Keyset cursor (`id < afterId`) |
 
 **Returns**: `PagedResult<ExecutionSummary>` (count is always exact).
+
+---
+
+### junctionRuns
+
+The steps of one execution, in the order it reached them, as
+[`AddJunctionEvents()`](/docs/sdk-reference/configuration/add-junction-events) recorded them: each
+junction that ran, each question a routing step asked and the track it took. Empty for an
+execution with none recorded, and for an id with no execution. Read through
+`JunctionRunQueries.ForRun`, the query the dashboard's timeline reads too.
+
+```graphql
+query {
+  operations {
+    junctionRuns(metadataId: 100) {
+      position
+      kind
+      name
+      state
+      startedAt
+      durationMs
+      failureClass
+      questionKey
+      answer
+      confidence
+      replayed
+      answerWithheld
+      attempt
+    }
+  }
+}
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `metadataId` | `Long!` | none | The execution's id |
+| `afterPosition` | `Int` | `null` | Only steps after this position, a keyset cursor for the next page |
+| `take` | `Int` | `500` | Page size, from 1 to 500 |
+
+**Returns**: `[JunctionStep!]!`, the same type the [`onJunctionEvent`](/docs/sdk-reference/graphql-api/subscriptions#onjunctionevent)
+subscription carries. A step carries no input, output or failure message, and an answer to a
+question about a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type)
+type is never present. The recorded decider is not kept, so `decider` is always null here.
+
+It answers to the operations gate, as [`execution`](#execution) does, so a caller refused one is
+refused the other. The rows trail the live subscription by moments: a client following a running
+execution subscribes first, then reads this, and keeps for each position whichever is further
+along.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 layout: default
 title: TraxSensitive
-description: Reference for TraxSensitive, which masks a member of a train's input or output in every stored copy, what is masked, the rules and what it does not cover.
+description: Reference for TraxSensitive, which masks a member of a train's input or output in stored copies, and withholds a question type's answers from junction events.
 parent: Attributes
 grand_parent: SDK Reference
 nav_order: 3
@@ -11,13 +11,20 @@ nav_order: 3
 
 Marks a property, field or record parameter of a train's input or output, or of anything reachable from them, whose value must not appear in the copies Trax keeps. The train runs with the real value; only the written copy is masked.
 
+On the enum or marker type a routing step asks about, it withholds that question's answers from [junction events](/docs/effect/junction-events). See [On a question type](#on-a-question-type).
+
 ## Signature
 
 ```csharp
 namespace Trax.Effect.Attributes;
 
 [AttributeUsage(
-    AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter,
+    AttributeTargets.Property
+        | AttributeTargets.Field
+        | AttributeTargets.Parameter
+        | AttributeTargets.Enum
+        | AttributeTargets.Class
+        | AttributeTargets.Struct,
     AllowMultiple = false,
     Inherited = true
 )]
@@ -51,6 +58,31 @@ and so everywhere those copies travel: the dashboard, the API's execution detail
 ## What it does not cover
 
 The copy a train is *run* from keeps the real value, because the train needs it: a queued entry's input (`work_queue.input`) and a manifest's properties. Those are JSON strings the mark cannot reach into, so Trax keeps them out of its logs instead: a model's `ToString()`, the JSON effect and the junction logger write each as `{"_omitted": true}`. They are still readable wherever those columns are. Keep a secret out of an input where you can, and pass a reference to it instead.
+
+## On a question type
+
+On the enum or marker type a `Decide`, `Switch`, `Gate` or `Scale` asks about, the mark withholds
+the answer. Junction events ([AddJunctionEvents](/docs/sdk-reference/configuration/add-junction-events))
+and `trax.junction_run` then record that the question was asked and answered, with
+`AnswerWithheld` set, but not the option, score, probability, confidence or track taken. The
+GraphQL `onJunctionEvent` subscription, `operations.junctionRuns`, the SignalR sink and the
+dashboard's timeline show it as withheld.
+
+```csharp
+[TraxSensitive]
+public enum CreditTier { Prime, NearPrime, Subprime }
+```
+
+- It is honoured wherever the question's key is built from the marked type: a closed form of a
+  marked generic type, a type nested in a marked type, a type that takes a marked type as a type
+  argument, and a type that inherits the mark from a base class.
+- It fails closed: a question whose key shares a name with a marked type is withheld too.
+- On a type it does nothing else. It does not mask a property of that type in a train's input or
+  output; mark the property for that.
+- [`trax.decision`](/docs/effect/decisions#recording-decisions) keeps the full answer either way,
+  because a requeue or retry replays it from there.
+- The junctions a track runs are still named in their own steps, so the path a run took stays
+  visible.
 
 ## Example
 

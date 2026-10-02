@@ -20,7 +20,8 @@ Navigate to **Data > Dead Letters** and click the visibility icon on any row. Th
 
 Two actions are available while the dead letter is in `AwaitingIntervention` status:
 
-- **Re-queue**: Creates a new WorkQueue entry from the manifest's properties and marks the dead letter as `Retried`
+- **Re-queue**: Creates a new WorkQueue entry from the manifest's properties and marks the dead letter as `Retried`. The run [replays the failed run's decisions](#retries-replay-decisions) when that is sound.
+- **Re-queue, Ask Afresh**: The same, except the run asks its deciders afresh
 - **Acknowledge**: Prompts for a resolution note and marks the dead letter as `Acknowledged`
 
 #### Batch Operations
@@ -29,6 +30,7 @@ The dead letters list page supports batch operations for resolving multiple dead
 
 - **Requeue All / Acknowledge All**: Resolves every `AwaitingIntervention` dead letter in a single operation
 - **Requeue Selected / Acknowledge Selected**: Use the checkboxes to select specific dead letters, then resolve just those
+- **Requeue All, Ask Afresh / Requeue Selected, Ask Afresh**: Requeue as above, with each run asking its deciders afresh
 
 ### Via GraphQL
 
@@ -83,7 +85,23 @@ mutation {
     }
   }
 }
+
+# Requeue so the run asks its deciders afresh
+mutation {
+  operations {
+    deadLetters {
+      requeueDeadLetter(id: 42, askAfresh: true) {
+        success
+        message
+      }
+    }
+  }
+}
 ```
+
+`requeueDeadLetter`, `requeueDeadLetters` and `requeueAllDeadLetters` take `askAfresh` (default
+`false`), as `triggerManifest` and `triggerManifestDelayed` do; see
+[Retries replay decisions](#retries-replay-decisions).
 
 Query dead letters with optional status filtering:
 
@@ -122,7 +140,16 @@ var result = await scheduler.AcknowledgeDeadLettersAsync(new long[] { 1, 2, 3 },
 // Resolve all
 var result = await scheduler.RequeueAllDeadLettersAsync();
 var result = await scheduler.AcknowledgeAllDeadLettersAsync("Mass acknowledge");
+
+// Requeue so the run asks its deciders afresh instead of replaying the failed run's decisions
+var result = await scheduler.RequeueDeadLetterAsync(deadLetterId, askAfresh: true);
+var result = await scheduler.RequeueDeadLettersAsync(new long[] { 1, 2, 3 }, askAfresh: true);
+var result = await scheduler.RequeueAllDeadLettersAsync(askAfresh: true);
 ```
+
+A requeue [replays the decisions](#retries-replay-decisions) of the manifest's failed run when that
+is sound, as an automatic retry does. Pass `askAfresh: true` to queue the run to ask its deciders
+again instead.
 
 The batch methods take 1 to `OperationsService.MaxBatchSize` (1000) ids, the limit every operations-surface batch has. An empty list or a longer one is refused: the result counts nothing and its message says why. `RequeueAllDeadLettersAsync` reads and requeues a page of manifests at a time and sums the counts, so a large backlog is never loaded at once; every dead letter of one manifest is in the same page, so they still fold into one entry.
 
@@ -182,6 +209,62 @@ Configure via the scheduler builder:
     .MaxRetryDelay(TimeSpan.FromHours(1))
 )
 ```
+
+## Retries replay decisions
+
+A retry exists because something after a decision failed: a tool step threw, a database timed out.
+Trax has no per-junction retry, so a retry runs the chain from its first junction, and asking a
+model again costs a call per question and can be answered differently. So when a manifest's run
+fails, its retry, queued by the ManifestManager, and a requeue of its dead letter replay the
+[decisions](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions) the failed
+run recorded: the retry takes the tracks the failed run's deciders chose instead of asking them
+again. Only the answers are replayed. Every ordinary junction runs again, side effects included.
+
+The scheduler reads the run to replay from the database, never from a caller: it is the manifest's
+latest finished run, when that run failed. It links the retry to it only when all of these hold:
+
+| Check | Otherwise |
+|---|---|
+| The manifest replays decisions on retry (`ReplayDecisionsOnRetry`, on by default) | Asked afresh |
+| The failed run asked its deciders itself, rather than replaying another run's answers | Asked afresh |
+| No other run already replayed the failed run's answers and failed with them | Asked afresh |
+| The failed run is a run of the manifest's train, recorded its decisions and acted on at least one | Asked afresh |
+| The failed run was queued by this manifest, with no subject key, and with exactly the input and input type the retry is queued with | Asked afresh |
+
+So a retry replays at most once in a row: answers that were replayed into a failure are not
+replayed again, and the next retry asks afresh. A manifest edited between the failure and the retry
+asks afresh, because the answers were given about the old input. Asking afresh is never an error,
+and a lookup that fails is logged and asks afresh rather than holding up the retry.
+
+Within the replay, each answer is still checked one by one: it replays only into a question asked
+the same way, about a state that hashes the same, and only while it is younger than
+[`ReplayAnswersFor`](/docs/sdk-reference/configuration/add-decision-recording#decisionrecordingoptions)
+(24 hours by default). An answer that fails any of these is asked afresh. The InMemory provider
+does not replay retries, because its ManifestManager dispatches without work queue entries to
+compare inputs against. Replay needs [`AddDecisionRecording()`](/docs/sdk-reference/configuration/add-decision-recording)
+on the hosts that run the manifest's train.
+
+### Asking afresh on purpose
+
+A manifest whose questions should always be answered on current information turns replay off:
+
+```csharp
+scheduler.Schedule<IScoreLeadsTrain>(
+    "score-leads",
+    new ScoreLeadsInput(),
+    Every.Minutes(30),
+    options => options.ReplayDecisionsOnRetry(false));
+```
+
+The flag is stored on the manifest as `replay_decisions_on_retry`, so every scheduler host reads the
+same value. Stated in code, it is written on every seed; left unstated, a new manifest replays and
+an existing one keeps its value. [`IOperationsService.SetManifestsReplayDecisionsOnRetryAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#batch-actions)
+sets it at runtime. Turning it off reaches a retry already queued: the write clears the link on the
+manifest's queued entry, and the dispatcher checks the flag again when it claims an entry.
+
+For a single occasion, the dead-letter requeues and `TriggerAsync` take `askAfresh`. A requeue
+asked afresh queues no link, and a trigger asked afresh clears the link of the queued retry it
+releases. `Trax.Scheduler/docs/adr/0017` records why retries replay, and why only once.
 
 ## Monitoring
 
@@ -294,4 +377,4 @@ Jobs execute inline, so tests are fast and don't need database infrastructure.
 
 ## SDK Reference
 
-> [AddMetadataCleanup](/docs/sdk-reference/scheduler-api/add-metadata-cleanup) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [ManifestManagement](/docs/sdk-reference/scheduler-api/manifest-management) | [ITraxScheduler](/docs/sdk-reference/scheduler-api/i-trax-scheduler#dead-letters)
+> [AddMetadataCleanup](/docs/sdk-reference/scheduler-api/add-metadata-cleanup) | [AddDecisionRecording](/docs/sdk-reference/configuration/add-decision-recording) | [Schedule](/docs/sdk-reference/scheduler-api/schedule) | [AddScheduler](/docs/sdk-reference/scheduler-api/add-scheduler) | [ManifestManagement](/docs/sdk-reference/scheduler-api/manifest-management) | [ITraxScheduler](/docs/sdk-reference/scheduler-api/i-trax-scheduler#dead-letters)

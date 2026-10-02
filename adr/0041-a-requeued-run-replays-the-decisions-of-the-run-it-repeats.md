@@ -1,6 +1,6 @@
 ---
 authors: [Theauxm]
-repos: [effect, mediator, scheduler, api, dashboard]
+repos: [core, effect, mediator, scheduler, api, dashboard]
 areas: [platform, data-model, graphql]
 status: accepted
 ---
@@ -10,12 +10,16 @@ status: accepted
 Re-queueing an execution, from the dashboard or through `requeueExecution`, queues a run that
 replays the decisions the original recorded: it takes the tracks the original took instead of
 asking its deciders again. Both surfaces call `IOperationsService.RequeueExecutionAsync`, which is
-the only place the link is set: to the run being re-queued, and only when that run has decisions
+the only place a caller can have the link set: to the run being re-queued, and only when that run has decisions
 to replay (it recorded one, or was itself queued to replay another run). The link travels from the
 queued entry to the new run's metadata as `replay_decisions_of`, and a run with recorded answers
 for a question uses them in place of a decider's, following the link back through every run it
-repeats. An ordinary enqueue (`queueTrain`, `QueueTrainAsync`), a dead-letter retry and a
-manifest's scheduled run do not replay.
+repeats. A manifest's automatic retry and a requeue of its dead letter replay the failed run's
+decisions too, under the checks `scheduler/0017` lists and at most once in a row. An ordinary
+enqueue (`queueTrain`, `QueueTrainAsync`) and a manifest's scheduled run that is not a retry do not
+replay. Whatever path names a run to replay, a recorded answer is replayed only into a state that
+hashes as the state it was given about (`core/0004`), and only while it is younger than
+`ReplayAnswersFor`, 24 hours by default (`effect/0020`).
 
 ## Status
 
@@ -50,6 +54,27 @@ original no longer exists fails before its first junction, classified permanent,
 asking afresh. Metadata cleanup keeps a run while a queued entry or any other run still names it,
 so its age alone never breaks a chain; an expired linking run is deleted first, and the run it
 names in a later sweep.
+
+**Retries replay, once.** A manifest's retry, queued by the ManifestManager, and a requeue of its
+dead letter carry `replay_decisions_of` naming the manifest's failed run (`scheduler/0017`). The
+scheduler reads the source from the database, never from a caller, and links it only when the
+manifest's `replay_decisions_on_retry` is on (the default), the failed run asked its deciders itself
+rather than replaying another run, it is a run of the manifest's train that recorded its
+decisions, and it was queued by the manifest with the input the retry is queued with. Anything
+else asks afresh, which is never an error. Answers that were replayed into a failure are not
+replayed again, so one unusable answer cannot hold a manifest in a loop of retries and requeues.
+An operator can ask afresh on purpose: the dead-letter requeues and the manifest trigger take
+`askAfresh`.
+
+**An answer replays only into the same state, and only while it is fresh.** Matching by question,
+occurrence and fingerprint says the answer was given to the same asking, not about the same
+data. Each recorded answer now carries the hash of the state it was given about
+(`DecisionMade.StateHash`, stored as `state_hash`), and Trax.Core replays it only when the state
+asked about now hashes the same (`core/0004`); a different or missing hash asks afresh, with the
+reason in `ReplayRefused`. The journal also replays an answer only while it is younger than
+`ReplayAnswersFor` (24 hours by default), measured from when a decider gave it, following replayed
+rows back to that one, so a replay never makes an answer younger (`effect/0020`). An answer recorded
+before `state_hash` existed has no hash and is asked afresh.
 
 **A requeue of a requeue replays the first run.** A run that failed before reaching a question
 recorded nothing for it, yet the run it replayed did. The replay follows `replay_decisions_of`
@@ -147,6 +172,12 @@ whose trains do not decide, starts, and that every host that runs trains has the
 first. `OperationsQueriesTests` in Trax.Api and `MetadataRequeueRefusalTests` and
 `MetadataRequeueTrustedScopeTests` in Trax.Dashboard pin that both re-queue surfaces go through
 the shared requeue.
+`DecisionRuntimeTests` in Trax.Core pins that an answer replays only into a state that hashes the
+same, and that a different or missing hash asks afresh with the reason in `ReplayRefused`;
+`DecisionRecordingTests` in Trax.Effect that the hash is stored and an answer older than
+`ReplayAnswersFor` is asked afresh; `ManifestRetryReplaysDecisionsTests` in Trax.Scheduler that a
+manifest's retry and a dead-letter requeue replay the failed run once, that `askAfresh` and the
+manifest's opt-out ask afresh, and that each check that fails asks afresh rather than failing.
 
 Not covered: a train whose chain changed between the original run and its re-queue replays the
 askings whose fingerprints still match and asks the rest afresh, but a change to what a track's
@@ -154,6 +185,11 @@ junctions do is not in any fingerprint; nothing flags that the replayed run took
 original chain could not have.
 
 ## Changelog
+
+- **2026-10-02**: A manifest's retry and a dead-letter requeue replay the failed run's decisions,
+  at most once in a row and only under the checks of `scheduler/0017`; a recorded answer replays
+  only into a state that hashes the same (`core/0004`) and only while younger than
+  `ReplayAnswersFor` (`effect/0020`); Trax.Core joins the repos bound by the decision.
 
 - **2026-10-02**: A replay follows the chain of requeues back, matches answers to askings by
   fingerprint, and fails on a run of another train or one that did not record its decisions;
