@@ -1,8 +1,13 @@
 version: 2
 updates:
   - package-ecosystem: "nuget"
+    # Directory.Packages.props at the root pins every package; the lockfiles sit beside each project.
     directory: "/"
     schedule: { interval: "weekly" }
+    # A release gets a week on nuget.org before a bot proposes it, so a hijacked
+    # version is usually caught and pulled first. Security updates are not delayed
+    # by this.
+    cooldown: { default-days: 7 }
     # Three at a time. A bump that needs a human costs a review either way, and
     # ten open at once only made the pile deeper than the week's attention span.
     open-pull-requests-limit: 3
@@ -13,10 +18,11 @@ updates:
         exclude-patterns: ["Trax.*"]
         update-types: ["minor", "patch"]
       # The published Trax releases that tests/Trax.Docs.Snippets.Tests compiles the docs'
-      # snippets against. On their own because a bump is also a docs change: the pages show the
-      # pinned versions, so DocsPackageVersionsTests fails the PR until they are updated, and any
-      # snippet the new release breaks fails beside it. That is a page to fix, not a bump to merge
-      # blind, and grouped in it would hold the week's other bumps hostage.
+      # snippets against, pinned in Directory.Packages.props. On their own because a bump is also
+      # a docs change: the pages show the pinned versions, so DocsPackageVersionsTests fails the PR
+      # until they are updated, and any snippet the new release breaks fails beside it. That is a
+      # page to fix, not a bump to merge blind, and grouped in it would hold the week's other bumps
+      # hostage.
       trax:
         patterns: ["Trax.*"]
         update-types: ["minor", "patch"]
@@ -36,8 +42,9 @@ updates:
       # it formats: bump it and run `dotnet csharpier format .` in one commit.
       - dependency-name: "csharpier"
   - package-ecosystem: "github-actions"
-    # "/" covers .github/workflows only; the composite action this repo publishes pins its own steps.
-    directories: ["/", "/.github/actions/adr-guard"]
+    # "/" covers .github/workflows only; the composite actions this repo publishes pin their own steps.
+    directories: ["/", "/.github/actions/*"]
     schedule: { interval: "weekly" }
+    cooldown: { default-days: 7 }
     groups:
       actions: { patterns: ["*"] }

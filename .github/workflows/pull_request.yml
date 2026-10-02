@@ -7,9 +7,6 @@ on:
 # Default to no permissions; the job widens only what it needs.
 permissions: {}
 
-env:
-  DOTNET_VERSION: '10.0.x'
-
 jobs:
   doc-lint:
     runs-on: ubuntu-latest
@@ -27,6 +24,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Guard against local-dev lockfile versions
+        run: |
+          if grep -rln '"resolved": "1.99.99"' --include=packages.lock.json . ; then
+            echo "::error::A packages.lock.json contains the local-dev version 1.99.99. Regenerate lockfiles in CI mode (remove trax-local.props) before committing."
+            exit 1
+          fi
+
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68  # v6.0.0
         with:
@@ -38,14 +42,64 @@ jobs:
       - name: Check formatting
         run: dotnet csharpier check .
 
-      - name: Restore
-        run: dotnet restore
+      - name: Restore (locked)
+        run: dotnet restore --locked-mode
+
+      - name: Every project is locked
+        run: .github/scripts/check-project-locks.sh Trax.Docs.slnx
+
+      - name: No deprecated packages
+        run: .github/scripts/check-deprecated-packages.sh Trax.Docs.slnx
 
       - name: Build
         run: dotnet build --configuration Release --no-restore -warnaserror
 
       - name: Test
         run: dotnet test --configuration Release --no-build
+
+  # Fails a pull request that adds a dependency with a known advisory. It reads the
+  # dependency graph GitHub builds from the manifests and lockfiles, so it runs no
+  # project code.
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294  # v5.0.0
+        with:
+          fail-on-severity: low
+
+  # Static analysis of the workflows and of the adr-guard composite action: template
+  # injection, credential persistence, unpinned actions, dangerous triggers.
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Audit workflows
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482  # v0.6.4
+        with:
+          # Report in the log and fail the job, rather than upload to code scanning,
+          # which would need security-events: write.
+          advanced-security: false
 
   # The ADR corpus here binds every repo, so it is checked the same way the repo-local
   # corpora are: through the composite action this repo also publishes to the others.
@@ -69,7 +123,8 @@ jobs:
           persist-credentials: false
 
       - name: Check ADRs
-        uses: ./.github/actions/adr-guard
+        # The local path is the point: this runs the action as the pull request changes it.
+        uses: ./.github/actions/adr-guard  # zizmor: ignore[self-repository]
         with:
           adr-root: adr
           known-areas: testing,platform,packaging,ci,naming,data-model,graphql,docs,migrations,providers

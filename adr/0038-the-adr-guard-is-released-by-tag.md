@@ -54,7 +54,8 @@ fixed. **Major** is an input removed, renamed or given a different default, whic
 `with:` block rather than the corpus.
 
 The workflow refuses to tag when nothing the action runs (`.github/actions/adr-guard`,
-`tools/Trax.Adr.Guard`, `global.json`) has changed since the last tag, because a tag over a
+`tools/Trax.Adr.Guard`, `global.json`, `Directory.Build.props`, `Directory.Packages.props`) has
+changed since the last tag, because a tag over a
 docs-only change would open eight PRs that change nothing.
 
 Dependabot resolves an action in a subdirectory (`TraxSharp/Trax.Docs/.github/actions/adr-guard`)
