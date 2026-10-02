@@ -55,10 +55,12 @@ surface lives in the chain.
 
 **A decision that cannot be trusted fails the run.** An answer naming an option that does not
 exist, a probability outside 0 to 1, a score off the scale or a missing answer fails it, with
-the step named and the failure classified permanent. A decider that throws fails it too: an
-error is not a decision, so no fallback track is taken on its behalf. A choice below a track's
-confidence bar takes the declared `Otherwise` (or `Unsure`) track, or fails the run when none is
-declared, so a train whose outcomes all matter can refuse to guess.
+the step named and the failure classified transient, because a model asked again usually answers
+properly. A declaration that cannot work, and a decision the declaration gives no track to take,
+are classified permanent. A decider that throws fails it too: an error is not a decision, so no
+fallback track is taken on its behalf. A choice below a track's confidence bar takes the declared
+`Otherwise` (or `Unsure`) track, or fails the run when none is declared, so a train whose outcomes
+all matter can refuse to guess.
 
 **The question is part of the declaration.** A model is meant to judge by the instructions and
 each option's description, not the type's name, so a decision with no question (`[Asks]` or
@@ -67,6 +69,11 @@ keyed by the type's full name (`QuestionKey.For`, generic arguments in square br
 model adapter may send that key as the question's id, as the System One adapter does. The full
 name keeps two types that share a short name from colliding in the answers and in a replay.
 
+**A decider is handed the train's state, not a copy.** An arbitrary state cannot be cloned
+safely, so the live decider and every shadow read the object in Memory at the same time, and each
+must treat it as read-only. A shadow from the container is built in a DI scope of its own, so it
+never shares scoped services with the live decider or the junctions after it.
+
 **Memory is keyed by type, so a decision has a type.** A choice is `ChoiceDecision<TTrack>`, a
 score `ScoreDecision<TLevel>`, a yes/no `YesNoDecision<TQuestion>` for a marker type, and the
 track taken `TrackTaken<TKey>`. Two decisions about the same type in one run overwrite each other.
@@ -74,9 +81,11 @@ track taken `TrackTaken<TKey>`. Two decisions about the same type in one run ove
 **Recording and replay are hooks, not Core features.** Core reports every decision and routing
 to an optional `IDecisionObserver`, and asks an optional `IDecisionReplay` before it asks a
 decider. The observer is awaited before any track is taken, and is best effort unless it declares
-itself `Required`, in which case a failure to record fails the step. A replayed answer that no
-longer fits its question is not acted on: the decider is asked afresh and the reason reported.
-Trax.Effect implements both; see
+itself `Required`, in which case a failure to record fails the step. Each asking of a question
+has a fingerprint, a hash of the step and the question's declaration and never of the state, and
+a replay hands back the fingerprint an answer was recorded under. A replayed answer whose
+fingerprint differs, or that no longer fits its question, is not acted on: the decider is asked
+afresh and the reason reported. Trax.Effect implements both; see
 [0041](./0041-a-requeued-run-replays-the-decisions-of-the-run-it-repeats.md).
 
 ## Exemplars
@@ -86,16 +95,24 @@ is available after a routing step, that a fault inside a track is reported at th
 naming the track, that routing on a decision nothing made, a missing decider and an unsupplied
 shadow are reported, that each declaration mistake is refused (a track declared twice, no
 tracks, a confidence outside 0 to 1, no question, a question asked twice, a gate with no Yes
-track or crossing bars, a scale with nothing for its lowest level, a track naming a type that is
-not a junction), that reading the chain asks no decider and runs no track, and that every unfit
-answer fails the run permanently. `DecisionExampleTests` in Trax.Core runs three applications
+track or crossing bars, a scale with nothing for its lowest level or fewer than two levels, a
+track on a value the enum does not define, a track naming a type that is not a junction), that
+reading the chain asks no decider and runs no track, that a step checks its tracks before it
+asks, and that an unfit or missing answer fails the run as transient while a declaration that
+cannot work stays permanent. `DeciderTests` in Trax.Core pins that a cascade escalates an answer
+that does not fit its question. `DecisionExampleTests` in Trax.Core runs three applications
 end to end: triage with a fallback and a per-track bar, underwriting with no fallback, and
 moderation asking three questions in one call and routing on all of them.
 `DecisionRuntimeTests` in Trax.Core pins that a shadow that never answers does not hold up the
 run, that a shadow is not asked a replayed question, that an unregistered shadow is refused at run
 time as at startup, that shadow agreement on a `Switch`, `Gate` or `Scale` is taking the same
-track, that a replayed answer that no longer fits is asked afresh, that a `Required` observer's
-failure fails the step before any track, and that a cancelled run asks, tells and routes nothing.
+track and is never agreement when the live answer takes no track, that a shadow from the
+container shares no scoped service with the live decider, that a replayed answer that no longer
+fits, or whose fingerprint differs because the question was reworded or another asking was
+inserted ahead of it, is asked afresh, that a recorded choice of a member with no track replays
+and takes `Otherwise` again, that a replay that throws fails the step, that a `Required`
+observer's failure fails the step before any track, and that a cancelled run asks, tells and
+routes nothing.
 
 Not covered: nothing checks that a question's words say what its author meant, and a model's
 calibration is the model's own; the thresholds a train declares are only as good as the
@@ -103,6 +120,9 @@ labelled cases they were tuned on.
 
 ## Changelog
 
+- **2026-10-02**: A decider's unfit or missing answer is transient, not permanent; a replay is
+  matched to its asking by a fingerprint; a decider is handed the state itself and must not change
+  it, and a shadow gets a DI scope of its own.
 - **2026-10-01**: Question keys are the type's full name and may reach a model as the question's
   id; the observer is async and can be required; a replayed answer that no longer fits is asked
   afresh rather than failing the run.
