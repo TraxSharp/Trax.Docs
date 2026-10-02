@@ -11,9 +11,9 @@ nav_order: 23
 
 Answers every train's [decisions](/docs/core/decisions) through a typed decision model that speaks
 the System One request format (Jev, d1, Laya, Kev and others), by registering a
-`SystemOneDecider` as the `IDecider`. For Nimble, use
-[AddNimbleDecider](/docs/sdk-reference/configuration/add-nimble-decider), which fills in its
-endpoints, models and limits. See
+`SystemOneDecider` as the `IDecider`, or, with a name, as a keyed `SystemOneDecider` only. For
+Nimble, use [AddNimbleDecider](/docs/sdk-reference/configuration/add-nimble-decider), which fills
+in its model name and limits. See
 [Typed decision models](/docs/effect/decisions#other-typed-decision-models).
 
 ## Signature
@@ -24,19 +24,27 @@ public static TBuilder AddSystemOneDecider<TBuilder>(
     Action<SystemOneOptions> configure
 )
     where TBuilder : TraxEffectBuilder
+
+public static TBuilder AddSystemOneDecider<TBuilder>(
+    this TBuilder configurationBuilder,
+    string name,
+    Action<SystemOneOptions> configure
+)
+    where TBuilder : TraxEffectBuilder
 ```
 
 ## SystemOneOptions
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `Endpoint` | `Uri?` | required | The model's endpoint, such as `https://api.typesafe.ai/v1/systemone`. Must be HTTPS unless it is a loopback address. |
+| `Endpoint` | `Uri?` | required | The model's endpoint, such as `https://api.typesafe.ai/v1/systemone`. Must be an `http` or `https` URL, and HTTPS unless it is a loopback address. |
 | `Model` | `string?` | required | The model pinned to a version, such as `jev-1.13.0`. A floating alias (ending `latest`, or with no version digits) is refused. |
 | `AllowFloatingModel` | `bool` | `false` | Accepts a floating alias. |
-| `ApiKey` | `string?` | `null` | Sent as a bearer token. Never logged. |
+| `ApiKey` | `string?` | `null` | Sent as a bearer token. A blank or whitespace key counts as none and sends no `Authorization` header. Never logged. |
 | `AttemptTimeout` | `TimeSpan` | 10 seconds | How long one attempt may take before it is abandoned and retried. |
 | `MaxAttempts` | `int` | `3` | Attempts per request, counting the first. |
-| `RetryDelay` | `TimeSpan` | 500 ms | The wait before the first retry, doubling after each, unless the model sends `Retry-After`. Capped at 30 seconds. |
+| `RetryDelay` | `TimeSpan` | 500 ms | The wait before the first retry, doubling after each, with jitter, unless the model sends `Retry-After`. The doubling stops at `MaxRetryDelay`. |
+| `MaxRetryDelay` | `TimeSpan` | 30 seconds | The longest wait before a retry, at most a day. A `Retry-After` asking for longer is not retried: the decision fails as `Transient`. |
 | `MaxOptions` | `int` | `255` | The most options or levels one question may offer, from 2 to 255. A question with more is refused before it is sent. |
 | `MaxQuestions` | `int` | `64` | The most questions one request may carry. A `Decide` asking more is refused before it is sent. |
 | `MaxConcurrentRequests` | `int?` | `null` | Requests in flight at once, or no limit. A request over the limit waits for a slot, which does not count against its `AttemptTimeout`. |
@@ -65,11 +73,19 @@ services.AddTrax(trax => trax
 
 | What the model did | Retried | Run fails with | Failure class |
 |---|---|---|---|
-| 408, 429 or 5xx (including Nimble's 529, busy), no answer in time, or could not be reached | yes, until `MaxAttempts` | `DecisionServiceException` | `Transient` |
-| Any other 4xx (bad criteria, a bad key, 402 for no credit left) | no | `DecisionServiceException` | `Permanent` |
-| Too many questions or options, before anything is sent | no | `DecisionServiceException` | `Permanent` |
+| 408, 429 or 5xx other than 501 and 505 (including Nimble's 529, busy), no answer in time, could not be reached, or a 200 whose body is not a System One response | yes, until `MaxAttempts` | `DecisionServiceException` | `Transient` |
+| A `Retry-After` longer than `MaxRetryDelay` | no | `DecisionServiceException` | `Transient` |
+| 501, 505 or any other 4xx (bad criteria, a bad key, 402 for no credit left) | no | `DecisionServiceException` | `Permanent` |
+| A request that cannot be sent as it is: too many questions or options, a duplicate option or question key, an unsupported question type, a state that cannot be serialized | no | `DecisionServiceException` | `Permanent` |
 | An answer it cannot read | no | the train's unanswered-question failure | `Permanent` |
 
+A choice or score answer without a `confidence`, which the format allows, takes the probability of
+the chosen option or the nearest level instead; one with neither is left out. A score whose
+`probabilities` are not keyed by every level from 0 is left out rather than shifted onto the wrong
+levels.
+
+A retry waits for what `Retry-After` asks, plus a little jitter so a fleet of callers does not
+return at once, or else the doubling `RetryDelay`, jittered and capped at `MaxRetryDelay`.
 Cancelling the run cancels the request and is not retried. A failure's message carries the model's
 `detail` and `request_id` when its error body has them, as Nimble's does; the request id is what the
 provider asks for when a failure is reported.
@@ -77,8 +93,16 @@ provider asks for when a failure is reported.
 ## Remarks
 
 - The options are checked when this is called, so unusable settings stop the host from starting.
-- Registers the decider as `SystemOneDecider` and as `IDecider`. To escalate what it is unsure of,
-  register a `CascadingDecider` as the `IDecider` after it, built from `SystemOneDecider`.
+- The unnamed form registers the decider as `SystemOneDecider` and as `IDecider`, and may be used
+  once across this method and `AddNimbleDecider`; a second unnamed registration fails at startup
+  instead of replacing the first.
+- The named form registers a keyed `SystemOneDecider` under `name` and nothing else, so several
+  models can sit side by side. Resolve each with `GetRequiredKeyedService<SystemOneDecider>(name)`
+  and compose them, for example into a `CascadingDecider` registered as the `IDecider`; see
+  [Putting the model in front of a larger one](/docs/effect/decisions#putting-the-model-in-front-of-a-larger-one).
+  `DecidedBy<TDecider>()` resolves by type, so it cannot name a keyed decider.
+- The decider is built on first use and owned by the container, which disposes its HTTP client
+  when the host stops.
 
 ## Package
 

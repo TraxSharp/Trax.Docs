@@ -109,11 +109,15 @@ input, authorizes, and throws the same exceptions for the same reasons.
 |---|---|---|---|
 | `Priority` | `int` | `0` | Dispatch priority (0-31, higher runs first) |
 | `ScheduledAt` | `DateTime?` | `null` | Earliest dispatch time, read as `scheduledAt` above |
-| `ReplayDecisionsOf` | `long?` | `null` | The metadata id of an earlier run whose recorded [decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) the new run replays, so it takes the tracks that run took instead of asking its deciders again. A re-queue sets it. |
+| `ReplayDecisionsOf` | `long?` | `null` | The metadata id of an earlier run whose recorded [decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) the new run replays, so it takes the tracks that run took instead of asking its deciders again. [`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync) sets it, to the run being re-queued, when that run recorded decisions. |
 
-An `ITrainExecutionService` written before this overload existed gets a default implementation
-that queues through the overload above, and throws `NotSupportedException` when
-`ReplayDecisionsOf` is set rather than queue a run that would ask afresh.
+An `ITrainExecutionService` written before this overload existed, a custom one or a decorator
+around the mediator's, gets a default implementation that queues through the overload above. When
+`ReplayDecisionsOf` is set it throws `DecisionReplayNotSupportedException` (in
+`Trax.Mediator.Exceptions`, deriving from `NotSupportedException`, carrying the implementation's
+type as `ImplementationType`) rather than queue a run that would ask afresh. It is a host
+misconfiguration, not a refusal of the caller: implement this overload and pass
+`ReplayDecisionsOf` through.
 
 ### What it does
 

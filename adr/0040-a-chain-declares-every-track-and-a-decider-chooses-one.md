@@ -60,9 +60,12 @@ error is not a decision, so no fallback track is taken on its behalf. A choice b
 confidence bar takes the declared `Otherwise` (or `Unsure`) track, or fails the run when none is
 declared, so a train whose outcomes all matter can refuse to guess.
 
-**The question is part of the declaration.** A model sees only the instructions and each
-option's description, never the type's name, so a decision with no question (`[Asks]` or
-`asking:`) is refused when the chain is read.
+**The question is part of the declaration.** A model is meant to judge by the instructions and
+each option's description, not the type's name, so a decision with no question (`[Asks]` or
+`asking:`) is refused when the chain is read. The type's name is not hidden either: a question is
+keyed by the type's full name (`QuestionKey.For`, generic arguments in square brackets), and a
+model adapter may send that key as the question's id, as the System One adapter does. The full
+name keeps two types that share a short name from colliding in the answers and in a replay.
 
 **Memory is keyed by type, so a decision has a type.** A choice is `ChoiceDecision<TTrack>`, a
 score `ScoreDecision<TLevel>`, a yes/no `YesNoDecision<TQuestion>` for a marker type, and the
@@ -70,7 +73,10 @@ track taken `TrackTaken<TKey>`. Two decisions about the same type in one run ove
 
 **Recording and replay are hooks, not Core features.** Core reports every decision and routing
 to an optional `IDecisionObserver`, and asks an optional `IDecisionReplay` before it asks a
-decider. Trax.Effect implements both; see
+decider. The observer is awaited before any track is taken, and is best effort unless it declares
+itself `Required`, in which case a failure to record fails the step. A replayed answer that no
+longer fits its question is not acted on: the decider is asked afresh and the reason reported.
+Trax.Effect implements both; see
 [0041](./0041-a-requeued-run-replays-the-decisions-of-the-run-it-repeats.md).
 
 ## Exemplars
@@ -85,6 +91,11 @@ not a junction), that reading the chain asks no decider and runs no track, and t
 answer fails the run permanently. `DecisionExampleTests` in Trax.Core runs three applications
 end to end: triage with a fallback and a per-track bar, underwriting with no fallback, and
 moderation asking three questions in one call and routing on all of them.
+`DecisionRuntimeTests` in Trax.Core pins that a shadow that never answers does not hold up the
+run, that a shadow is not asked a replayed question, that an unregistered shadow is refused at run
+time as at startup, that shadow agreement on a `Switch`, `Gate` or `Scale` is taking the same
+track, that a replayed answer that no longer fits is asked afresh, that a `Required` observer's
+failure fails the step before any track, and that a cancelled run asks, tells and routes nothing.
 
 Not covered: nothing checks that a question's words say what its author meant, and a model's
 calibration is the model's own; the thresholds a train declares are only as good as the
@@ -92,4 +103,7 @@ labelled cases they were tuned on.
 
 ## Changelog
 
+- **2026-10-01**: Question keys are the type's full name and may reach a model as the question's
+  id; the observer is async and can be required; a replayed answer that no longer fits is asked
+  afresh rather than failing the run.
 - **2026-10-01**: Recorded.

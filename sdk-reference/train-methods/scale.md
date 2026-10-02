@@ -35,6 +35,8 @@ Routes on a `ScoreDecision<TLevel>` already in Memory. Asks nothing.
 | `AtLeast(TLevel level, Func<MonadTask, MonadTask> then)` | The track for a score that rounds to `level` or above, up to the next level with a track of its own. The lowest level must have one. |
 | `Otherwise(Func<MonadTask, MonadTask> then)` | Where the train goes when the score's confidence is below `RequireConfidence`. Without it, that fails the run. |
 | `RequireConfidence(double minimum)` | The bar, from 0 to 1. Defaults to 0. |
+| `Shadow<TDecider>()` | Asking form only. Also puts the question to `TDecider` and records whether its answer would have taken the same track, by this scale's bands and bar. Never acted on. See [Decide](/docs/sdk-reference/train-methods/decide). |
+| `WaitForShadows(TimeSpan wait)` | Asking form only. How long to wait for the shadows once the live answer is in. Defaults to five seconds. |
 
 The score rounds to its nearest level, halves up, and the train takes the track declared for the
 highest level at or below it.
@@ -55,3 +57,5 @@ takes `Low`'s; 1.5 rounds to `High`.
 
 - A score below 0 or above the top level fails the run.
 - An enum with fewer than two levels is refused.
+- Levels are ordered by their values read as signed numbers, so a negative member is lower than
+  zero.

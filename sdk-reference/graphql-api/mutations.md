@@ -447,20 +447,24 @@ mutation {
 
 Re-queues an execution: reads its train name + input from the metadata row and enqueues a
 fresh work queue entry for the dispatcher (the GraphQL counterpart of the dashboard's Re-queue
-button). It goes through the same path as [`queueTrain`](#queuetrain), so a caller who may not
+button). Both call [`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync),
+so they refuse the same runs with the same messages. The enqueue goes through the same path as
+[`queueTrain`](#queuetrain), so a caller who may not
 run the train gets a GraphQL error with code `TRAX_AUTHORIZATION` (`"Not authorized."`) rather
 than `success: false`.
 
 The new run replays the decisions the execution recorded with
 [`AddDecisionRecording`](/docs/sdk-reference/configuration/add-decision-recording), so it takes the
-[tracks](/docs/core/decisions) the execution took instead of asking its deciders again. An
-execution that recorded none is re-run asking afresh. See
+[tracks](/docs/core/decisions) the execution took instead of asking its deciders again. The replay link is set only here, to
+the execution being re-queued, and only when it recorded decisions; an execution that recorded
+none is re-queued as an ordinary enqueue. `queueTrain` has no way to set it. See
 [Re-queued runs replay their decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions).
 
 An execution with no saved input is refused with `success: false` and a message saying inputs are
 saved only when [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters)
 is on. So is one whose input was too large to save in full and was stored as the truncation
-placeholder (`{"_truncated": true, ...}`), and one whose recorded input has a
+placeholder (`{"_truncated": true, ...}`), one stored as the `_unserializable` or `_disposed`
+placeholder because it could not be saved, and one whose recorded input has a
 [`[TraxSensitive]`](/docs/sdk-reference/configuration/save-train-parameters#masking-sensitive-fields) member masked as
 `{"_redacted": true}`: re-queueing it would run the train with the mask in place of the value.
 Enqueue refusals (a throwing `OnQueue`, an unusable

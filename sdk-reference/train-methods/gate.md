@@ -39,6 +39,8 @@ Routes on a `YesNoDecision<TQuestion>` already in Memory. Asks nothing.
 | `Yes(Func<MonadTask, MonadTask> then, double atLeast = 0.5)` | Taken when the probability of yes is at least `atLeast`. Required. |
 | `No(Func<MonadTask, MonadTask> then, double below = 0.5)` | Taken when it is below `below`. Required. |
 | `Unsure(Func<MonadTask, MonadTask> then)` | Taken when it is at least `below` and below `atLeast`. Without it, that band fails the run. |
+| `Shadow<TDecider>()` | Asking form only. Also puts the question to `TDecider` and records whether its answer would have taken the same track, by this gate's bars. Never acted on. See [Decide](/docs/sdk-reference/train-methods/decide). |
+| `WaitForShadows(TimeSpan wait)` | Asking form only. How long to wait for the shadows once the live answer is in. Defaults to five seconds. |
 
 With the defaults there is no band between the bars.
 
