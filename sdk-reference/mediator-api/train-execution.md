@@ -109,7 +109,7 @@ input, authorizes, and throws the same exceptions for the same reasons.
 |---|---|---|---|
 | `Priority` | `int` | `0` | Dispatch priority (0-31, higher runs first) |
 | `ScheduledAt` | `DateTime?` | `null` | Earliest dispatch time, read as `scheduledAt` above |
-| `ReplayDecisionsOf` | `long?` | `null` | The metadata id of an earlier run whose recorded [decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) the new run replays, so it takes the tracks that run took instead of asking its deciders again. [`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync) sets it, to the run being re-queued, when that run recorded decisions. |
+| `ReplayDecisionsOf` | `long?` | `null` | The metadata id of an earlier run whose recorded [decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) the new run replays, so it takes the tracks that run took instead of asking its deciders again. [`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync) sets it, to the run being re-queued, when that run has decisions to replay. |
 
 An `ITrainExecutionService` written before this overload existed, a custom one or a decorator
 around the mediator's, gets a default implementation that queues through the overload above. When
@@ -123,7 +123,7 @@ misconfiguration, not a refusal of the caller: implement this overload and pass
 
 1. Looks up the train by `trainName` via `ITrainDiscoveryService`.
 2. Authorizes the caller against the train's requirements, failing closed as described under **Throws**.
-3. Deserializes `inputJson` to the train's `InputType` through [`TrainInputReader.Read`](#traininputreader), reading null or blank as `{}`, so `OnQueue` and `QueueSubjectKey` always receive a real input. Property names are matched whatever their case, so `{"Amount":5}` and `{"amount":5}` are the same input, and a property given twice, in the same or another casing, is refused with `JsonException` (`Trax.Docs/adr/0023`). JSON reference metadata is not honoured: a list written as `{"$id":"1","$values":[...]}` is refused with `JsonException`, and `$ref` is read as an unknown property, not as a reference to another part of the input.
+3. Deserializes `inputJson` to the train's `InputType` through [`TrainInputReader.Read`](#traininputreader), reading null or blank as `{}`, so `OnQueue` and `QueueSubjectKey` always receive a real input. Property names are matched whatever their case, so `{"Amount":5}` and `{"amount":5}` are the same input, and a property given twice, in the same or another casing, is refused with `JsonException` (`Trax.Docs/adr/0023`). JSON reference metadata is not honoured: a list written as `{"$id":"1","$values":[...]}` is refused with `JsonException`, and `$ref` is read as an unknown property, not as a reference to another part of the input. A run's saved input carries that metadata, so a re-queue resolves it first with [`TrainInputReader.ResolveSavedInput`](#resolvesavedinput) and hands this method the plain tree.
 4. Re-serializes the input using manifest serialization options (normalizes the JSON: indented, every member written), and refuses the enqueue with `TrainInputValidationException` when that stored form is larger than 4 times `MaxInputJsonBytes`. The bytes are counted as they are written and writing stops the moment the cap is crossed, so a stored form far over the cap is never built in full. The check runs before the entry exists, so nothing is written.
 5. Creates a `WorkQueue` entry with the train name, serialized input, input type name, priority, and `scheduledAt` converted to UTC.
 6. Stamps the entry's subject key from the train's [`QueueSubjectKey`](/docs/core/trains-and-junctions#queuesubjectkey-serializing-work-that-touches-the-same-thing) override, if it has one. An exception from `QueueSubjectKey`, or an empty, whitespace-only or over-long key, aborts the enqueue, so no entry is written.
@@ -228,8 +228,16 @@ public static class TrainInputReader
         TrainRegistration registration,
         int maxInputJsonBytes
     );
+
+    public static string ResolveSavedInput(
+        string savedInputJson,
+        TrainRegistration registration,
+        int maxInputJsonBytes
+    );
 }
 ```
+
+### Read
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
@@ -244,6 +252,24 @@ public static class TrainInputReader
 It does not authorize. Call it after the caller has been authorized for the train, as `PrepareAsync` does, so a caller who may not use the train learns nothing about its input from a parse error.
 
 `StoredInputGrowthFactor` is how many times `MaxInputJsonBytes` a queued input's stored form may be (see step 4 of `QueueAsync`).
+
+### ResolveSavedInput
+
+Turns a run's saved input (the `Input` column [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters) writes) into JSON that `Read` reads as the input the run was given. Anything that reads a saved input back as a train's input, as a re-queue does, passes it through here first.
+
+`SaveTrainParameters()` writes with `TraxJsonSerializationOptions.Default`, which preserves references: every object carries an `$id`, a list is written as `{"$id":"2","$values":[...]}`, and a second occurrence of the same object as `{"$ref":"3"}`. Read directly, the list is refused and the `$ref` reads back as an object with every member at its default. `ResolveSavedInput` rewrites a saved input whose root object starts with `$id` (the form such a writer always gives it) as the plain tree it stands for: each `$id` dropped, each `$values` object written as its array, and each `$ref` written as a full copy of the value it names, so no two members of the input share an object. Any other input is returned unchanged.
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `savedInputJson` | `string` | Yes | N/A | The saved input |
+| `registration` | `TrainRegistration` | Yes | N/A | The train the input was saved for |
+| `maxInputJsonBytes` | `int` | Yes | N/A | The cap `Read` will hold the result to, normally `MediatorConfiguration.MaxInputJsonBytes` |
+
+**Returns**: the input as a plain JSON tree, or `savedInputJson` unchanged when it carries no reference metadata at its root.
+
+**Throws**: `JsonException` if the saved input is not JSON, its reference metadata is malformed or sits where a reference-preserving writer would not have put it, one `$id` is given to two values, a `$ref` names an `$id` that is not there, a value refers to a value that contains it (a cycle has no plain tree), or the resolved input nests more than 64 levels deep; `TrainInputValidationException` if the plain form is larger than `maxInputJsonBytes`. Writing stops the moment the result passes the cap, so references that copy one value many times over never make a small saved input into a large one.
+
+Nothing it does depends on the input type, so it reveals nothing about the input and may run before the caller is authorized. Its result still goes through `Read`, and through authorization, like any other input.
 
 ## Examples
 

@@ -456,8 +456,9 @@ than `success: false`.
 The new run replays the decisions the execution recorded with
 [`AddDecisionRecording`](/docs/sdk-reference/configuration/add-decision-recording), so it takes the
 [tracks](/docs/core/decisions) the execution took instead of asking its deciders again. The replay link is set only here, to
-the execution being re-queued, and only when it recorded decisions; an execution that recorded
-none is re-queued as an ordinary enqueue. `queueTrain` has no way to set it. See
+the execution being re-queued, and only when it has decisions to replay (it recorded a decision,
+or was itself a replaying requeue, so re-queueing a re-queue replays too); any other execution is
+re-queued as an ordinary enqueue. `queueTrain` has no way to set it. See
 [Re-queued runs replay their decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions).
 
 An execution with no saved input is refused with `success: false` and a message saying inputs are
