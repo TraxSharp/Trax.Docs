@@ -116,7 +116,7 @@ class.
 ## Compiled examples
 
 A C# fence whose info string carries `compile` after the language is compiled in CI against the
-published Trax packages pinned in `tests/Trax.Docs.Snippets.Tests/Trax.Docs.Snippets.Tests.csproj`:
+published Trax packages pinned in the repository's `Directory.Packages.props`:
 
 ~~~markdown
 ```csharp compile

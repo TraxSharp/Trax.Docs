@@ -12,7 +12,7 @@ namespace Trax.Docs.Snippets.Tests.Tests;
 /// <c>Trax.Docs/adr/0002-cross-repo-dependencies-are-exact-pinned.md</c>: it restores whatever was
 /// published last, which a later release has already broken once.</para>
 ///
-/// <para>When Dependabot bumps a pin in Trax.Docs.Snippets.Tests.csproj, this fails until the
+/// <para>When Dependabot bumps a Trax pin in Directory.Packages.props, this fails until the
 /// pages show the new version, which is the point at which their snippets have been re-checked.</para>
 ///
 /// <para>Enforces <c>Trax.Docs/adr/0008-documentation-conventions-are-linted.md</c>.</para>
@@ -48,7 +48,7 @@ public class DocsPackageVersionsTests
                     var version = m.Groups["version"].Value;
                     if (!pins.TryGetValue(id, out var pinned))
                         offenders.Add(
-                            $"{page}:{i + 1}  {id} {version}: not pinned in Trax.Docs.Snippets.Tests.csproj, so nothing checks it"
+                            $"{page}:{i + 1}  {id} {version}: not pinned in Directory.Packages.props, so nothing checks it"
                         );
                     else if (version != pinned)
                         offenders.Add($"{page}:{i + 1}  {id} {version}: the pin is {pinned}");
@@ -60,7 +60,7 @@ public class DocsPackageVersionsTests
             .Should()
             .BeEmpty(
                 "a page names the exact Trax version its snippets are compiled against, the pin in "
-                    + "tests/Trax.Docs.Snippets.Tests/Trax.Docs.Snippets.Tests.csproj. After a pin bump, "
+                    + "Directory.Packages.props. After a pin bump, "
                     + "update the pages to it; for a package no snippet uses yet, add its pin. See "
                     + "Trax.Docs/adr/0008-documentation-conventions-are-linted.md. Offenders:\n  "
                     + string.Join("\n  ", offenders)
@@ -69,12 +69,10 @@ public class DocsPackageVersionsTests
 
     private static Dictionary<string, string> Pins()
     {
-        var csproj = XDocument.Load(
-            RepoRoot.Combine("tests", "Trax.Docs.Snippets.Tests", "Trax.Docs.Snippets.Tests.csproj")
-        );
+        var props = XDocument.Load(RepoRoot.Combine("Directory.Packages.props"));
 
-        return csproj
-            .Descendants("PackageReference")
+        return props
+            .Descendants("PackageVersion")
             .Select(e =>
                 (Id: (string?)e.Attribute("Include"), Version: (string?)e.Attribute("Version"))
             )

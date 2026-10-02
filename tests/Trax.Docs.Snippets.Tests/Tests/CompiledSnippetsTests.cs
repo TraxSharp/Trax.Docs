@@ -26,7 +26,7 @@ public class CompiledSnippetsTests
             .Should()
             .BeEmpty(
                 "a fence marked `compile` must build, warnings included, against the published "
-                    + "Trax packages pinned in Trax.Docs.Snippets.Tests.csproj. Fix the snippet, or the "
+                    + "Trax packages pinned in Directory.Packages.props. Fix the snippet, or the "
                     + "page if it shows an API the pinned release does not have. Snippets on a page "
                     + "compile with the implicit usings of a Web SDK project and nothing else, so a "
                     + "missing Trax `using` is the page's to show. See "
