@@ -54,21 +54,54 @@ Calling `AddDecisionRecording()` more than once registers these once.
 
 - Each decision is written before the train acts on it, through a short-lived data context from
   `IDataContextProviderFactory` rather than the run's own, so it never flushes what the run's
-  junctions have tracked. The track a routing step takes is written onto the latest row for that
-  question when it is taken. A run killed mid-way keeps every decision it acted on.
+  junctions have tracked. Each track a routing step takes is added, in order, to the `routes` of
+  the latest row for that question when it is taken. A run killed mid-way keeps every decision it
+  acted on.
+- Each decision is stored with the fingerprint Trax.Core reports for it, and a replay hands the
+  fingerprint back with the answer, so an answer given to a different asking of the question is
+  not replayed.
 - A decision that cannot be written fails its step before any track is taken, classified
-  `Transient`, or `Permanent` when the store refuses the value.
+  `Transient`, or `Permanent` when the store refuses the value. A live answer of a type the journal
+  has no stored form for fails its step, `Permanent`, because it could never be read back.
 - A shadow's answer cannot cost the live record: a number JSON cannot hold is written as the
-  string `"NaN"`, `"Infinity"` or `"-Infinity"`.
-- A run that is not persisted (no metadata row) has its decisions logged and not written.
-- A run whose metadata names an earlier run in `ReplayDecisionsOf` loads that run's answers before
-  its first junction. If that run does not exist, the run fails there, classified `Permanent`,
-  rather than asking afresh. A question the earlier run never reached is asked afresh.
+  string `"NaN"`, `"Infinity"` or `"-Infinity"`, and an answer of a type with no stored form is
+  recorded with the reason in the shadow's error.
+- Each run's metadata row is marked `DecisionsRecorded` on its first write, before any junction.
+- A run that is not persisted (no metadata row) has its decisions logged and not written. A
+  decision the run's own train reports under an external id other than the run's, because the
+  train changed its `ExternalId` while running, fails its step, `Permanent`.
+- A run whose metadata names an earlier run in `ReplayDecisionsOf` loads, before its first
+  junction, the answers of that run and, for questions it never reached, of the runs it replayed
+  in turn, nearest first, up to 32 runs back. It fails there, classified `Permanent`, rather than
+  asking afresh, when a run in that chain does not exist, is a run of another train, or ran without
+  recording its decisions, when the chain loops or goes back further, or when a recorded answer
+  cannot be read; and classified `Transient` when the database fails. A question no run in the
+  chain reached is asked afresh. See
+  [A requeue of a requeue](/docs/effect/decisions#a-requeue-of-a-requeue).
 - On a host without `AddDecisionRecording()`, a run that names a run to replay fails before its
   first junction, classified `Permanent`, because it has nothing to replay from.
 - Runs that share an external id, as a retried dispatch's rows can, each write under their own
   row and replay their own answers.
 - A host with no logging registered still records.
+
+## HasDecisionsToReplay
+
+```csharp
+// Trax.Effect.Data.Decisions
+public static Task<bool> HasDecisionsToReplay(
+    this IDataContext context,
+    long metadataId,
+    CancellationToken cancellationToken
+)
+```
+
+Whether a requeue of the run `metadataId` should replay its decisions rather than be queued as an
+ordinary run that asks afresh. True when the run recorded a decision, or was itself queued to
+replay another run's: a requeue of a requeue that failed before reaching a question recorded
+nothing, but the answers of the run it replayed are still the ones to repeat. False for a run of a
+train that never decides, a run on a host that records nothing, and a run that does not exist.
+[`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync)
+asks it; a host that requeues runs its own way should too.
 
 ## Package
 

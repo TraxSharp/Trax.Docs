@@ -1,7 +1,7 @@
 ---
 layout: default
 title: AddSystemOneDecider
-description: Reference for AddSystemOneDecider, which answers train decisions through a typed decision model that speaks the System One format, such as Jev or Laya.
+description: Reference for AddSystemOneDecider, which answers train decisions through a typed decision model that speaks the System One format, such as Jev.
 parent: Configuration
 grand_parent: SDK Reference
 nav_order: 23
@@ -10,7 +10,7 @@ nav_order: 23
 # AddSystemOneDecider
 
 Answers every train's [decisions](/docs/core/decisions) through a typed decision model that speaks
-the System One request format (Jev, d1, Laya, Kev and others), by registering a
+the System One request format (Jev, or another server that accepts it), by registering a
 `SystemOneDecider` as the `IDecider`, or, with a name, as a keyed `SystemOneDecider` only. For
 Nimble, use [AddNimbleDecider](/docs/sdk-reference/configuration/add-nimble-decider), which fills
 in its model name and limits. See
@@ -37,7 +37,7 @@ public static TBuilder AddSystemOneDecider<TBuilder>(
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `Endpoint` | `Uri?` | required | The model's endpoint, such as `https://api.typesafe.ai/v1/systemone`. Must be an `http` or `https` URL, and HTTPS unless it is a loopback address. |
+| `Endpoint` | `Uri?` | required | The model's endpoint, such as `https://api.typesafe.ai/v1/systemone` for Jev, or the URL of a server you run. Requests go to it and nowhere else: redirects are not followed. Must be an `http` or `https` URL, and HTTPS unless it is a loopback address. |
 | `Model` | `string?` | required | The model pinned to a version, such as `jev-1.13.0`. A floating alias (ending `latest`, or with no version digits) is refused. |
 | `AllowFloatingModel` | `bool` | `false` | Accepts a floating alias. |
 | `ApiKey` | `string?` | `null` | Sent as a bearer token. A blank or whitespace key counts as none and sends no `Authorization` header. Never logged. |
@@ -62,8 +62,9 @@ services.AddTrax(trax => trax
         .AddDecisionRecording()
         .AddSystemOneDecider(o =>
         {
-            o.Endpoint = new Uri("http://localhost:8080/v1/systemone");   // a self-hosted model
-            o.Model = "laya-1.2.0";
+            o.Endpoint = new Uri("https://api.typesafe.ai/v1/systemone");
+            o.Model = "jev-1.13.0";
+            o.ApiKey = configuration["Jev:ApiKey"];
         })
     )
 );
@@ -73,11 +74,13 @@ services.AddTrax(trax => trax
 
 | What the model did | Retried | Run fails with | Failure class |
 |---|---|---|---|
-| 408, 429 or 5xx other than 501 and 505 (including Nimble's 529, busy), no answer in time, could not be reached, or a 200 whose body is not a System One response | yes, until `MaxAttempts` | `DecisionServiceException` | `Transient` |
+| 408, 429 or 5xx other than 501 and 505 (including Nimble's 529, busy), no answer in time, a connection refused, reset or timed out, or a 200 whose body is not a System One response, including one with no `answers` object | yes, until `MaxAttempts` | `DecisionServiceException` | `Transient` |
 | A `Retry-After` longer than `MaxRetryDelay` | no | `DecisionServiceException` | `Transient` |
 | 501, 505 or any other 4xx (bad criteria, a bad key, 402 for no credit left) | no | `DecisionServiceException` | `Permanent` |
-| A request that cannot be sent as it is: too many questions or options, a duplicate option or question key, an unsupported question type, a state that cannot be serialized | no | `DecisionServiceException` | `Permanent` |
-| An answer it cannot read | no | the train's unanswered-question failure | `Permanent` |
+| A 3xx. Redirects are not followed, including one handed back by an `HttpClient` you pass in; the endpoint is the one configured. | no | `DecisionServiceException` | `Permanent` |
+| An endpoint that cannot be reached as configured: its name does not resolve, its TLS handshake fails, or a proxy refuses the credentials | no | `DecisionServiceException` | `Permanent` |
+| A request that cannot be sent as it is, refused before sending: too many questions, a question with fewer than two options or levels or more than `MaxOptions`, a question with blank instructions, a duplicate option or question key, an unsupported question type, a state that cannot be serialized or is not written as a JSON string, object or array | no | `DecisionServiceException` | `Permanent` |
+| An answer it cannot read | no | the train's unanswered-question failure | `Transient` |
 
 A choice or score answer without a `confidence`, which the format allows, takes the probability of
 the chosen option or the nearest level instead; one with neither is left out. A score whose
@@ -86,9 +89,14 @@ levels.
 
 A retry waits for what `Retry-After` asks, plus a little jitter so a fleet of callers does not
 return at once, or else the doubling `RetryDelay`, jittered and capped at `MaxRetryDelay`.
-Cancelling the run cancels the request and is not retried. A failure's message carries the model's
-`detail` and `request_id` when its error body has them, as Nimble's does; the request id is what the
-provider asks for when a failure is reported.
+Cancelling the run cancels the request and is not retried. A failure's message gives the status,
+a few words on what it means, and the provider's request id from the `x-typesafe-request-id`
+response header when there is one; the request id is what the provider asks for when a failure is
+reported. The response body is never read into the message: it can echo the request, which carries
+the train's state, and the message is stored as the run's failure reason.
+
+Every answer carries the `model` the response names. That is the name the request asked for,
+echoed back, not a version the server confirms, so pin the version where the model is deployed.
 
 ## Remarks
 
@@ -102,7 +110,10 @@ provider asks for when a failure is reported.
   [Putting the model in front of a larger one](/docs/effect/decisions#putting-the-model-in-front-of-a-larger-one).
   `DecidedBy<TDecider>()` resolves by type, so it cannot name a keyed decider.
 - The decider is built on first use and owned by the container, which disposes its HTTP client
-  when the host stops.
+  when the host stops. A decision in flight when the decider is disposed keeps the outcome of its
+  request.
+- A `SystemOneDecider` built with its own HTTP client does not follow redirects. One built with an
+  `HttpClient` you pass in uses that client, and a 3xx it hands back still fails the decision.
 
 ## Package
 
