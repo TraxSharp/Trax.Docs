@@ -65,14 +65,24 @@ all matter can refuse to guess.
 **The question is part of the declaration.** A model is meant to judge by the instructions and
 each option's description, not the type's name, so a decision with no question (`[Asks]` or
 `asking:`) is refused when the chain is read. The type's name is not hidden either: a question is
-keyed by the type's full name (`QuestionKey.For`, generic arguments in square brackets), and a
-model adapter may send that key as the question's id, as the System One adapter does. The full
-name keeps two types that share a short name from colliding in the answers and in a replay.
+keyed by the type's name without its namespace (`QuestionKey.For`, generic arguments in angle
+brackets), or by a `Key` set on `[Asks]`, and a model adapter may send that key as the question's
+id, as the System One adapter does. The key is short because a model reads it and because it is
+part of every recorded answer's fingerprint: moving a type to another namespace must not change
+what the model sees or stop a requeue replaying. The cost is that two types sharing a name can
+collide, so one train asking about two types under one key is refused at startup, and `Key`
+separates them.
 
-**A decider is handed the train's state, not a copy.** An arbitrary state cannot be cloned
-safely, so the live decider and every shadow read the object in Memory at the same time, and each
-must treat it as read-only. A shadow from the container is built in a DI scope of its own, so it
-never shares scoped services with the live decider or the junctions after it.
+**A decider can refuse a declaration at startup.** A decider that implements `IVetsQuestions` is
+shown each step's declared questions when the chain is read, and every problem it names refuses
+the chain, so a question its model can never answer stops the host rather than failing every run.
+
+**The live decider is handed the train's state; a shadow gets a copy.** The live decider reads the
+object in Memory and must not change it. Each shadow gets its own copy, written to JSON and read
+back, so nothing a shadow does reaches the run or another shadow; a state type JSON cannot copy is
+refused at startup when shadows are declared on it. A shadow from the container is built in a DI
+scope of its own, so it never shares scoped services with the live decider or the junctions after
+it, and a shadow that ignores cancellation has that scope disposed a second later.
 
 **Memory is keyed by type, so a decision has a type.** A choice is `ChoiceDecision<TTrack>`, a
 score `ScoreDecision<TLevel>`, a yes/no `YesNoDecision<TQuestion>` for a marker type, and the
@@ -81,7 +91,9 @@ track taken `TrackTaken<TKey>`. Two decisions about the same type in one run ove
 **Recording and replay are hooks, not Core features.** Core reports every decision and routing
 to an optional `IDecisionObserver`, and asks an optional `IDecisionReplay` before it asks a
 decider. The observer is awaited before any track is taken, and is best effort unless it declares
-itself `Required`, in which case a failure to record fails the step. Each asking of a question
+itself `Required`, in which case a failure to record fails the step. A live answer the run
+refuses is reported to the observer too, so the record shows what the decider said even when the
+step failed on it. Each asking of a question
 has a fingerprint, a hash of the step and the question's declaration and never of the state, and
 a replay hands back the fingerprint an answer was recorded under. A replayed answer whose
 fingerprint differs, or that no longer fits its question, is not acted on: the decider is asked
@@ -99,15 +111,21 @@ track or crossing bars, a scale with nothing for its lowest level or fewer than 
 track on a value the enum does not define, a track naming a type that is not a junction), that
 reading the chain asks no decider and runs no track, that a step checks its tracks before it
 asks, and that an unfit or missing answer fails the run as transient while a declaration that
-cannot work stays permanent. `DeciderTests` in Trax.Core pins that a cascade escalates an answer
-that does not fit its question. `DecisionExampleTests` in Trax.Core runs three applications
+cannot work stays permanent, and that shadows on a state type JSON cannot copy are refused.
+`DeciderTests` in Trax.Core pins that a cascade escalates an answer that does not fit its
+question. `QuestionKeyTests` pins the short key, an explicit `Key` and its limits, and the refusal
+of two types asked about under one key. `QuestionVettingTests` pins that a decider implementing
+`IVetsQuestions` refuses a declaration when the chain is read, and that a cascade vets with each
+tier. `DecisionExampleTests` in Trax.Core runs three applications
 end to end: triage with a fallback and a per-track bar, underwriting with no fallback, and
 moderation asking three questions in one call and routing on all of them.
 `DecisionRuntimeTests` in Trax.Core pins that a shadow that never answers does not hold up the
 run, that a shadow is not asked a replayed question, that an unregistered shadow is refused at run
 time as at startup, that shadow agreement on a `Switch`, `Gate` or `Scale` is taking the same
 track and is never agreement when the live answer takes no track, that a shadow from the
-container shares no scoped service with the live decider, that a replayed answer that no longer
+container shares no scoped service with the live decider, that each shadow is handed its own
+copy of the state, that a hung shadow's scope is disposed after cancellation, that every refused
+live answer reaches the observer's `Refused` and is named in the failure, that a replayed answer that no longer
 fits, or whose fingerprint differs because the question was reworded or another asking was
 inserted ahead of it, is asked afresh, that a recorded choice of a member with no track replays
 and takes `Otherwise` again, that a replay that throws fails the step, that a `Required`
@@ -120,9 +138,11 @@ labelled cases they were tuned on.
 
 ## Changelog
 
-- **2026-10-02**: A decider's unfit or missing answer is transient, not permanent; a replay is
-  matched to its asking by a fingerprint; a decider is handed the state itself and must not change
-  it, and a shadow gets a DI scope of its own.
+- **2026-10-02**: A decider's unfit or missing answer is transient, not permanent, and reported
+  to the observer as a refusal; a replay is matched to its asking by a fingerprint; question keys
+  drop the namespace and can be set with `[Asks(Key)]`, with collisions refused; a decider can vet
+  declared questions at startup; each shadow gets its own copy of the state and its own DI
+  scope.
 - **2026-10-01**: Question keys are the type's full name and may reach a model as the question's
   id; the observer is async and can be required; a replayed answer that no longer fits is asked
   afresh rather than failing the run.

@@ -80,12 +80,15 @@ things are still asked afresh: a question no run in the chain reached, and a rec
 fingerprint differs or that no longer fits the question as it is asked now (an option renamed or
 removed, a scale with fewer levels). The second is noted in the stored answer as
 `replay_refused`. A recorded choice of a member the step has no track for is not refused: it
-replays and takes the fallback track again.
+replays and takes the fallback track again. A live answer the run refused is recorded too, with
+the reason in `refused`, but never replayed and never counted as a decision to replay, so the
+requeue of a run that failed on one asks afresh.
 
-**A host that does not record decisions is warned, not refused.** Every host that runs trains
-logs a warning at startup naming its deciding trains when `AddDecisionRecording` is missing. It
-does not refuse to start: the replay already fails closed on such a host, and a host that never
-runs those requeues is correctly configured.
+**A host that does not record decisions refuses to start.** Every host that runs trains refuses
+to start, naming its deciding trains, when `AddDecisionRecording` is missing. A replay on such a
+host would already fail rather than ask afresh, but only once a requeue landed on it, and a
+warning on one worker of a fleet is easy to miss; Trax fails closed at startup instead. A host
+that runs deciding trains must record their decisions, whether or not it ever runs a requeue.
 
 **An execution service that cannot carry the link is a misconfiguration.** A custom or decorating
 `ITrainExecutionService` that predates the `QueueTrainOptions` overload throws
@@ -112,7 +115,9 @@ carry the link: the requeue owns it.
 **Enforced elsewhere:** `DecisionRecordingTests` in Trax.Effect pins that a run records each
 decision, its fingerprint and every track taken on it against its metadata, that a decision is
 written before the run ends, that a decision that cannot be written fails its step as transient,
-that a decision not followed records why, that a run that fails after deciding still records,
+that a decision not followed records why, that a refused or missing answer is a `refused` row
+whose requeue asks afresh, that a decision made after code in the run lost its async flow is still
+recorded against the run when exactly one run matches, that a run that fails after deciding still records,
 that a run naming an earlier one replays its decisions without asking, that a requeue of a
 requeue replays the run before it with the nearer run's answer winning, that an answer whose
 fingerprint differs is not replayed, that a replay of a run that does not exist, belongs to
@@ -137,8 +142,9 @@ train, and pins that the requeue takes the original's tracks without asking, inc
 requeue that recorded none or only part of its decisions. `MetadataCleanupTrainTests` and
 `SqliteCleanupTests` pin that cleanup keeps a run a queued requeue or another run will replay, and
 deletes it once the run replaying it is gone. `DecisionRecordingStartupCheckTests` pins that a host
-without decision recording is warned naming its deciding trains, that one that records is not,
-and that every host that runs trains has the check once. `OperationsQueriesTests` in Trax.Api and `MetadataRequeueRefusalTests` and
+without decision recording refuses to start naming its deciding trains, that one that records, or
+whose trains do not decide, starts, and that every host that runs trains has the check once and
+first. `OperationsQueriesTests` in Trax.Api and `MetadataRequeueRefusalTests` and
 `MetadataRequeueTrustedScopeTests` in Trax.Dashboard pin that both re-queue surfaces go through
 the shared requeue.
 
@@ -152,7 +158,8 @@ original chain could not have.
 - **2026-10-02**: A replay follows the chain of requeues back, matches answers to askings by
   fingerprint, and fails on a run of another train or one that did not record its decisions;
   cleanup keeps a run something still replays; the requeue resolves the saved input's reference
-  metadata; a host that runs deciding trains without recording is warned at startup; the
+  metadata; a host that runs deciding trains without recording refuses to start; a refused live
+answer is recorded but never replayed; the
 exemplars name the tests that pin the queue input's missing link, the end-to-end requeue and the
 cleanup rule.
 - **2026-10-01**: Decisions are written as each is made rather than when the run finishes; a
