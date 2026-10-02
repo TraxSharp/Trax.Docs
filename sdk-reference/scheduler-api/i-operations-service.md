@@ -67,7 +67,9 @@ messages and enqueue the same way. The dashboard calls it inside its `"dashboard
 the API does not.
 
 It reads the run by `metadataId` and refuses, with a failed result and nothing queued, when the
-run does not exist (`Execution {id} not found.`) or its saved input is not the input it ran with:
+run does not exist (`Execution {id} not found.`), when its train is no longer registered
+(`Train {name} is no longer registered, so execution {id} cannot be re-queued.`), or when its
+saved input is not the input it ran with:
 nothing was saved (inputs are saved only when `SaveTrainParameters()` is on), the parameter effect
 saved a `_truncated`, `_unserializable` or `_disposed` placeholder in its place, or
 `[TraxSensitive]` members were masked. Each of those would read back as default values.
@@ -80,16 +82,21 @@ comes back in full both times. A saved input whose metadata has no plain form is
 (`Execution {id}'s saved input cannot be read back as the input it ran with: ...`), and one whose
 plain form is over the input cap gets the generic size message. The enqueue then goes through the
 same path as `QueueTrainAsync`, so the train's authorization, its `OnQueue` hook, its subject key
-and the input cap apply, and a refusal or failure is reported as it is there. On success `Id` is
-the new work queue entry.
+and the input cap apply, and a refusal or failure is reported as it is there, with one difference:
+the caller supplied no JSON, so an input that no longer reads as the train's input type (the type
+changed shape after the run) is refused as
+`The saved input of run {id} no longer reads as {InputType.FullName}: ...`, not as
+`Invalid InputJson`. Like an enqueue's parse error, that is given only once the caller is
+authorized. On success `Id` is the new work queue entry.
 
 When the run has decisions to replay (it recorded a decision, or was itself queued to replay
 another run), the new entry names it in `ReplayDecisionsOf`, so the new run
 [replays those decisions](/docs/effect/decisions#re-queued-runs-replay-their-decisions) and takes
 the tracks the original took. A requeue of a requeue therefore replays too, following the chain
 back to the answers the first run recorded. A run with nothing to replay is re-queued as an
-ordinary enqueue. This method is the only place the link is set, always to the run being
-re-queued. When the run has decisions to replay and the registered `ITrainExecutionService` does
+ordinary enqueue. It asks
+[`HasDecisionsToReplay`](/docs/sdk-reference/configuration/add-decision-recording#hasdecisionstoreplay).
+This method is the only place the link is set, always to the run being re-queued. When the run has decisions to replay and the registered `ITrainExecutionService` does
 not implement the
 [`QueueAsync` overload that takes `QueueTrainOptions`](/docs/sdk-reference/mediator-api/train-execution),
 the mediator's `DecisionReplayNotSupportedException` is logged and thrown as a host

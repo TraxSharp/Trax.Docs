@@ -98,7 +98,7 @@ Trains sharing a cutoff are swept together, so the batched delete runs once per 
 ## Remarks
 
 - Only metadata in a **terminal state** (`Completed`, `Failed`, or `Cancelled`) older than `RetentionPeriod` is deleted. `Pending` and `InProgress` metadata is never cleaned up.
-- A run that a queued work entry, or a run not yet deleted, names in `replay_decisions_of` is kept, whatever its age, so a [re-queue that replays its decisions](/docs/effect/decisions#a-requeue-of-a-requeue) can still read them. It becomes eligible once nothing links to it.
+- A run is kept, whatever its age, while a `Queued` work queue entry or any metadata row names it in `replay_decisions_of`, so a [re-queue that replays its decisions](/docs/effect/decisions#a-requeue-of-a-requeue) can still read them. When the linking run has expired too, it is deleted first and the run it links to goes in a later batch or sweep.
 - The cleanup service runs as an `IHostedService` on the configured `CleanupInterval`.
 - The internal scheduler trains (`JobDispatcher`, `ManifestManager`, `MetadataCleanup`, `DeadLetterCleanup`, `JobRunner`) are always pruned while cleanup is enabled. You don't need to add them manually, and a consumer can never accidentally leave one out.
 - A cleanup batch that hits an unexpected foreign-key reference or other error is bisected to isolate the offending row, which is logged and skipped, so one bad row can't abort the whole sweep.

@@ -239,8 +239,10 @@ run it replayed, and so on. So a requeue of a requeue that failed before reachin
 takes the track the first run took there. The chain is followed at most 32 runs back.
 
 All of this is loaded once, before the run's first junction, so answering a question never waits
-on the database. Metadata cleanup does not delete a run that a queued entry or a retained run
-still names in `replay_decisions_of`, so a chain stays whole while anything links to it.
+on the database. Metadata cleanup does not delete a run while a `Queued` work queue entry or any
+other run names it in `replay_decisions_of`, so a chain stays whole while anything links to it;
+when the linking run expires too, it is deleted first and the run it links to in a later batch or
+sweep.
 
 | The replay meets | What happens |
 |---|---|
@@ -257,6 +259,20 @@ still names in `replay_decisions_of`, so a chain stays whole while anything link
 A run that cannot honour its replay fails instead of asking afresh, because it was queued to
 repeat the original. A run in the chain that recorded its decisions but reached no questions is
 not a failure: there is nothing of its own to repeat, and the replay goes on to the run before it.
+
+### A host that does not record
+
+A requeue is linked only when the run has decisions to replay, so a replay reaches a host without
+`AddDecisionRecording()` when one host recorded the run and another runs the requeue: one worker of
+a fleet left without the call. Every host that runs trains (`AddScheduler`, `AddTraxJobRunner`,
+and `AddTraxWorker` through it) checks for this at startup. When `IDecisionReplay` is not
+registered and some registered train's chain, or a track in it, asks a decider, it logs a warning
+naming those trains and telling the reader to call `AddDecisionRecording()`.
+
+It warns rather than refusing to start. The unsafe outcome, a replay that asks afresh and perhaps
+takes another track, is already refused by the run itself, so nothing fails open; and a host that
+runs deciding trains without recording, and never runs their requeues, is correctly configured.
+The warning finds the misconfigured host at startup instead of at the first replay that fails.
 
 ## SDK Reference
 

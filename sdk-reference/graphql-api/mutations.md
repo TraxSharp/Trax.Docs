@@ -468,6 +468,11 @@ placeholder (`{"_truncated": true, ...}`), one stored as the `_unserializable` o
 placeholder because it could not be saved, and one whose recorded input has a
 [`[TraxSensitive]`](/docs/sdk-reference/configuration/save-train-parameters#masking-sensitive-fields) member masked as
 `{"_redacted": true}`: re-queueing it would run the train with the mask in place of the value.
+An execution whose train is no longer registered is refused with
+`"Train {name} is no longer registered, so execution {id} cannot be re-queued."`, and one whose
+saved input no longer reads as the train's input type, because the type changed shape since, with
+`"The saved input of run {id} no longer reads as {InputType.FullName}: "` and the parser's message,
+never as an invalid `InputJson` the caller did not send.
 Enqueue refusals (a throwing `OnQueue`, an unusable
 subject key, a deferred entry cancelled before confirmation) come back as `success: false`, with
 the message rule [`queueTrain`](#queuetrain) describes, and an infrastructure failure is a masked GraphQL error, as for `queueTrain`. An enqueue reads a missing input as `{}`, so re-queueing it would re-run the train with
