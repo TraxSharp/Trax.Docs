@@ -72,14 +72,29 @@ question at all is refused when the chain is read.
 
 ### Question keys
 
-Each question is keyed by the full name of the type it is about, as `QuestionKey.For<T>()`
-returns it: the namespace and every enclosing type joined by dots, with generic arguments in
-square brackets (`Support.TicketTrack`, `Shop.Orders.Queue.Lane` for an enum nested in a class,
-`Shop.Orders.Flag[Shop.Orders.Refund]`). A decider finds each answer's question by it, a model
-adapter may send it as the question's id, as the System One adapter does, and recording and
-replay look answers up by it. It is not hidden from a model, so do not name a type anything you
-would not show one. Renaming or moving the type changes the key, so the next re-queue asks that
-question afresh rather than replaying an answer recorded under the old one.
+Each question is keyed by the name of the type it is about, as `QuestionKey.For<T>()` returns
+it: the type's name after the name of every type it is nested in, joined by dots, with generic
+arguments in angle brackets, and no namespace (`TicketTrack`, `Queue.Lane` for an enum nested in a
+class, `Flag<Refund>` for a generic marker). A decider finds each answer's question by it, a model
+adapter may send it as the question's id, as the System One adapter does (Nimble puts it in its
+prompt), recording and replay look answers up by it, and it is part of every asking's
+[fingerprint](#observing-and-replaying). It is not hidden from a model, so do not name a type
+anything you would not show one.
+
+Moving the type to another namespace leaves the key as it was. Renaming it, or a type it is nested
+in, changes the key, so the next re-queue asks that question afresh rather than replaying an
+answer recorded under the old one. `[Asks(..., Key = "...")]` sets the key explicitly, to keep the
+old one across a rename or to give a type a key of its own:
+
+```csharp
+[Asks("Which team should handle this support ticket?", Key = "TicketTrack")]
+public enum SupportRoute { ... }
+```
+
+An explicit key is 1 to 100 characters, each an ASCII letter or digit, `_`, `-` or `.`. Two
+different types that one train asks about under the same key (in one `Decide`, across steps, or
+inside a track) are refused by the startup check, and at run time for a host that skips it,
+because their answers could not be told apart; set `Key` on one of them.
 
 ## Asking inline, or asking first
 
@@ -148,6 +163,9 @@ usually answers properly:
 - a score below 0 or above the top level
 - the wrong kind of answer, or no answer to a question that was asked
 
+Every bad answer in one `Decide` is named in the failure, not only the first, and each is reported
+to the observer's [`Refused`](#observing-and-replaying) before the step fails.
+
 A fault in the declaration, or a decision the declaration gives nowhere to go, is classified
 `Permanent`, because running it again gets the same refusal:
 
@@ -167,9 +185,26 @@ answer per question. It is found the way a junction input is: in Memory, then th
 registration serves every decision in every train; `Decide(q => q.DecidedBy<TDecider>())` names a
 different one for a single step.
 
-`DecisionRequest.State` is the object in the train's Memory, not a copy, because an arbitrary state
-cannot be cloned safely. A decider reads it and never changes it; the same object is handed to any
-shadows at the same time.
+The live decider is handed the object in the train's Memory as `DecisionRequest.State`, not a
+copy, and reads it without changing it. Each shadow is handed a copy of its own (see
+[Comparing a new decider without trusting it](#comparing-a-new-decider-without-trusting-it)).
+
+A decider that can tell from the declaration alone that it cannot answer a question (too many
+options for its model, a question with no words, a state type it cannot send) implements
+`IVetsQuestions`. When a chain is read, each decider a step names, the live one and each shadow, is
+looked up as the run finds it, among the services handed to `AddServices` and then in the
+container, and shown the step's questions as `DeclaredQuestions` (the train, the step, the state's
+declared type, the questions). Each problem it names refuses the chain, so the startup check
+reports it before the host takes traffic. No decider is asked to decide while the chain is read,
+and one the container can only build inside a request is not vetted and refuses at run time
+instead. `CascadingDecider` vets with each of its tiers.
+
+```csharp
+public interface IVetsQuestions
+{
+    IEnumerable<string> Problems(DeclaredQuestions declared);
+}
+```
 
 | Decider | Package | For |
 |---|---|---|
@@ -247,7 +282,18 @@ traffic before switching over. A shadow handed to `AddServices` is passed as an 
 service there is; from the container, a concrete type does. A shadow from the container is built
 in a DI scope of its own, disposed when the shadow ends, so it never shares the run's scoped
 services (a `DbContext`, say) with the live decider or with the junctions that run after the
-decision. A shadow that neither supplies is a mistake in the host: the startup check reports it,
+decision. A shadow that has not finished a second after it was cancelled has its scope disposed
+under it, on a timer the run never waits for, and whatever it then fails with is recorded as its
+own failure.
+
+Each shadow is handed its own copy of the state: the state is written to JSON once per asking,
+with the web defaults the System One adapter uses, and read back separately for each shadow, so a
+shadow that changes its copy changes nothing the run or another shadow sees. A state type JSON
+cannot write and read back is refused by the startup check when shadows are declared on it and
+the type alone says so; otherwise a shadow whose copy cannot be made is recorded as not having
+answered, and the run goes on.
+
+A shadow that neither supplies is a mistake in the host: the startup check reports it,
 and a run that reaches it fails, `Permanent`, as it does for a missing live decider.
 
 ## What the startup check verifies
@@ -262,8 +308,10 @@ neither Memory nor the container supplies, a shadow named twice or declared on a
 nothing, a negative or unbounded `WaitForShadows`, a track declared twice, a track on a value the
 enum does not define (`When((Lane)7, ...)`, or the same in `AtLeast`), a switch with no tracks, a
 gate with no Yes or No track or with bars that cross, a scale on an enum with fewer than two
-levels, and a scale with no track for its lowest level. Reading the chain asks no decider and runs
-no track. A routing step that asks its own question checks its tracks before it asks, so a host
+levels, a scale with no track for its lowest level, a `Key` on `[Asks]` that is not a valid key,
+two types asked about under one key, shadows on a state type JSON cannot copy, and whatever a
+decider that implements `IVetsQuestions` names. Reading the chain asks no decider and runs no
+track. A routing step that asks its own question checks its tracks before it asks, so a host
 that skips the check still never pays for a decision on a declaration it would refuse.
 
 ## Observing and replaying
@@ -281,8 +329,16 @@ public interface IDecisionObserver
     bool Required => false;
     Task Decided(DecisionMade decision, CancellationToken cancellationToken);
     Task Routed(TrackRouted routing, CancellationToken cancellationToken);
+    Task Refused(DecisionRefused refusal, CancellationToken cancellationToken) => Task.CompletedTask;
 }
 ```
+
+`Refused` is told once for each question whose live answer the step will not act on (missing, or
+not fitting the question), before the step fails, with the question, occurrence, fingerprint, the
+answer (null when there was none), the decider and the reason. A cascade that ended with an answer
+that fits is not a refusal, and a shadow's bad answer is reported in its `ShadowAnswer.Error`
+instead. A refusal is never replayed. An observer that cannot record one is logged, and never
+replaces the refusal as the reason the step failed, even when it is `Required`.
 
 By default an observer is best effort: what it throws is logged and ignored, because recording a
 decision must never change it. An observer whose record the host depends on, such as one a later
