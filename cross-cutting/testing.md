@@ -8,6 +8,13 @@ nav_order: 3
 
 # Testing
 
+The examples use NUnit. The assertions are NUnit's constraint model (`Assert.That`), which needs
+no extra package; Trax's own repositories assert with FluentAssertions instead (see
+[Test Conventions](/docs/reference/test-conventions)), and either works. A test project needs
+`Microsoft.NET.Test.Sdk`, `NUnit` and `NUnit3TestAdapter`, plus
+`Microsoft.AspNetCore.Mvc.Testing` to start a host, and a `ProjectReference` to the application.
+Every [project template](/docs/reference/templates) ships one set up this way under `tests/`.
+
 ## Unit Testing Junctions
 
 Junctions are easy to test because they're just classes with a `Run` method. Create simple fake implementations of your dependencies:
@@ -44,7 +51,7 @@ public async Task ValidateEmailJunction_ThrowsForDuplicateEmail()
     var request = new CreateUserRequest { Email = "taken@example.com" };
 
     // Act & Assert
-    await Assert.ThrowsAsync<ValidationException>(() => junction.Run(request));
+    Assert.ThrowsAsync<ValidationException>(() => junction.Run(request));
 }
 
 [Test]
@@ -64,16 +71,23 @@ public async Task CreateUserJunction_ReturnsNewUser()
     var result = await junction.Run(request);
 
     // Assert
-    Assert.Equal(1, result.Id);  // First user gets ID 1
-    Assert.Equal("new@example.com", result.Email);
+    Assert.That(result.Id, Is.EqualTo(1), "the first user gets id 1");
+    Assert.That(result.Email, Is.EqualTo("new@example.com"));
 }
 ```
 
 ## Unit Testing Trains
 
-Register your fakes in the service collection:
+Register your fakes in the service collection, then run the train through `ITrainBus`, the way the
+application does:
 
 ```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Trax.Effect.Data.InMemory.Extensions;   // UseInMemory, package Trax.Effect.Data.InMemory
+using Trax.Effect.Extensions;                 // AddTrax, AddEffects
+using Trax.Mediator.Extensions;               // AddMediator
+using Trax.Mediator.Services.TrainBus;        // ITrainBus
+
 [Test]
 public async Task CreateUserTrain_CreatesUser()
 {
@@ -81,6 +95,7 @@ public async Task CreateUserTrain_CreatesUser()
     var services = new ServiceCollection();
     services.AddSingleton<IUserRepository, FakeUserRepository>();
     services.AddSingleton<IEmailService, FakeEmailService>();
+    services.AddLogging();
     services.AddTrax(trax => trax
         .AddEffects(effects => effects.UseInMemory())
         .AddMediator(typeof(CreateUserTrain).Assembly)
@@ -98,22 +113,35 @@ public async Task CreateUserTrain_CreatesUser()
     });
 
     // Assert
-    Assert.NotNull(result);
-    Assert.Equal("test@example.com", result.Email);
+    Assert.That(result.Email, Is.EqualTo("test@example.com"));
 }
 ```
 
+`RunAsync` throws the exception that stopped the chain, so a failing junction fails the test with
+its own exception.
+
 ## Integration Testing with InMemory Provider
 
-For integration tests, use the InMemory data provider to avoid database dependencies:
+For integration tests, use the InMemory data provider to avoid database dependencies. Every run
+leaves a `Metadata` row, readable through the scoped `IDataContext`:
 
 ```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Trax.Effect.Data.InMemory.Extensions;
+using Trax.Effect.Data.Services.DataContext;  // IDataContext
+using Trax.Effect.Enums;                      // TrainState
+using Trax.Effect.Extensions;
+using Trax.Mediator.Extensions;
+using Trax.Mediator.Services.TrainBus;
+
 [Test]
 public async Task Train_PersistsMetadata()
 {
     // Arrange
     var services = new ServiceCollection();
     services.AddSingleton<IUserRepository, FakeUserRepository>();
+    services.AddLogging();
     services.AddTrax(trax => trax
         .AddEffects(effects => effects
             .UseInMemory()
@@ -123,17 +151,72 @@ public async Task Train_PersistsMetadata()
 
     var provider = services.BuildServiceProvider();
     var bus = provider.GetRequiredService<ITrainBus>();
-    var context = provider.GetRequiredService<IDataContext>();
 
     // Act
     await bus.RunAsync<User>(new CreateUserRequest { Email = "test@example.com" });
 
     // Assert
-    var metadata = await context.Metadatas.FirstOrDefaultAsync();
-    Assert.NotNull(metadata);
-    Assert.Equal(TrainState.Completed, metadata.TrainState);
+    using var scope = provider.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<IDataContext>();
+    var metadata = await context.Metadatas
+        .Where(m => m.Name == typeof(ICreateUserTrain).FullName)
+        .SingleAsync();
+    Assert.That(metadata.TrainState, Is.EqualTo(TrainState.Completed));
 }
 ```
+
+`Metadata.Name` is the full name of the train's interface. The in-memory provider's store is shared
+by every container in the test process, so a test that runs alongside others should pick out its
+own run, by name and by something unique in its input (with
+[`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters), `Metadata.Input`
+holds the input as JSON).
+
+## Testing the Host
+
+`WebApplicationFactory<Program>` (package `Microsoft.AspNetCore.Mvc.Testing`) starts the whole
+application in memory, `Program.cs` included, so a test fails when the host no longer starts or
+when something meant for Development reaches Production. The top-level `Program` class is public in
+.NET 10, so nothing needs adding to `Program.cs`:
+
+```csharp
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+[Test]
+public async Task Production_Dashboard_IsNotServed()
+{
+    await using var app = new WebApplicationFactory<Program>()
+        .WithWebHostBuilder(host => host.UseEnvironment("Production"));
+
+    var response = await app.CreateClient().GetAsync("/trax");
+
+    Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
+}
+
+[Test]
+public async Task Development_Dispatch_WithTheDemoKey_Runs()
+{
+    await using var app = new WebApplicationFactory<Program>()
+        .WithWebHostBuilder(host => host.UseEnvironment("Development"));
+    var client = app.CreateClient();
+    client.DefaultRequestHeaders.Add("X-Api-Key", "demo-key-do-not-use-in-production");
+
+    var response = await client.PostAsJsonAsync("/trax/graphql", new
+    {
+        query = "mutation { dispatch { helloWorld(input: { name: \"Test\" }) { metadataId } } }",
+    });
+
+    var body = await response.Content.ReadAsStringAsync();
+    Assert.That(body, Does.Not.Contain("\"errors\""), body);
+}
+```
+
+A GraphQL request answers HTTP 200 even when it is refused: the refusal is an entry in the
+response's `errors` array with `extensions.code` `TRAX_AUTHORIZATION`. Assert on the body, not the
+status code. The `trax-hub` template's `tests/<Name>.Tests/IntegrationTests/HostTests.cs` is a
+complete version of these tests.
 
 ## Testing Cancellation
 

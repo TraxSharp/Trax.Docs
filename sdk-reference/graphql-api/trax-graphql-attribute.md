@@ -81,6 +81,8 @@ public enum GraphQLOperation
 
 When no operations are passed to the `TraxMutationAttribute` constructor, both `Run` and `Queue` are enabled. The generated mutation accepts an optional `mode: ExecutionMode` parameter (default `RUN`) and an optional `priority: Int`. To restrict a mutation to only one execution mode, pass just `GraphQLOperation.Run` or `GraphQLOperation.Queue` to the constructor.
 
+`QUEUE` writes the run to the scheduler's work queue and answers with its `workQueueId`; a JobDispatcher picks it up from there. Only a scheduler on a database provider (`UsePostgres()`, `UseSqlite()`) runs one. On `UseInMemory()` the mutation still answers with a `workQueueId`, and the run never happens. A host on the in-memory provider, such as the [project templates](/docs/reference/templates), should expose `GraphQLOperation.Run` alone.
+
 ## Input Type Requirements
 
 Every train annotated with `[TraxQuery]` or `[TraxMutation]` must have a dedicated input record. `LanguageExt.Unit` is not allowed as an input type. Attempting to register a Unit-input train will throw `InvalidOperationException` at startup.
