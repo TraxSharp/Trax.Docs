@@ -76,7 +76,7 @@ realising. A repo-scoped ADR omits the key, because its path already says it.
 | [0001](./0001-architectural-rules-are-executable-guards.md) | Architectural rules are executable guards, not prose | core, effect, mediator, scheduler, dashboard, api, cli, samples | testing, platform |
 | [0002](./0002-cross-repo-dependencies-are-exact-pinned.md) | Cross-repo dependencies are exact-pinned and lockfiled | core, effect, mediator, scheduler, dashboard, api, cli, samples | packaging, ci |
 | [0003](./0003-a-repo-depends-only-on-what-is-upstream.md) | A repo depends only on what is upstream of it | core, effect, mediator, scheduler, dashboard, api, cli, samples | packaging, platform |
-| [0004](./0004-tests-assert-with-fluentassertions.md) | Tests assert with FluentAssertions | core, effect, mediator, scheduler, dashboard, api, cli, samples, docs | testing |
+| [0004](./0004-tests-assert-with-fluentassertions.md) | Tests assert with AwesomeAssertions | core, effect, mediator, scheduler, dashboard, api, cli, samples, docs | testing |
 | [0005](./0005-a-skipped-test-is-a-runtime-decision.md) | A skipped test is a runtime decision, never an attribute | core, effect, mediator, scheduler, dashboard, api, cli, samples, docs | testing |
 | [0006](./0006-tests-synchronise-on-a-signal.md) | Tests synchronise on a signal, never on a fixed delay | core, effect, mediator, scheduler, dashboard, api, cli, samples | testing |
 | [0007](./0007-the-canonical-train-name-is-the-interface-fullname.md) | The canonical train name is the interface FullName | effect, mediator, scheduler, dashboard, api, samples | naming, platform |
