@@ -875,7 +875,33 @@ mutation {
 
 ### deadLetters (nested namespace)
 
-The `operations.deadLetters` namespace exposes dead-letter requeue and acknowledge mutations: `requeueDeadLetter`, `acknowledgeDeadLetter`, batch variants (`requeueDeadLetters`, `acknowledgeDeadLetters`), and "all" variants (`requeueAllDeadLetters`, `acknowledgeAllDeadLetters`). The batch variants take 1 to 1000 ids; an empty or longer list returns `success: false` and changes nothing. The three requeues take an optional `askAfresh: Boolean` (default `false`): left false, a requeued run [replays the failed run's decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions) when that is sound; true, it asks its deciders afresh. See [scheduler/dead-letters-and-cleanup](/docs/scheduler/dead-letters-and-cleanup) for full details and examples.
+The `operations.deadLetters` namespace exposes dead-letter requeue and acknowledge mutations. The batch variants take 1 to 1000 ids; an empty or longer list returns a count of zero with the reason in `message` and changes nothing. The three requeues take an optional `askAfresh: Boolean` (default `false`): left false, a requeued run [replays the failed run's decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions) when that is sound; true, it asks its deciders afresh. See [scheduler/dead-letters-and-cleanup](/docs/scheduler/dead-letters-and-cleanup) for full details and examples.
+
+```graphql
+mutation {
+  operations {
+    deadLetters {
+      requeueDeadLetter(id: 42) { success workQueueId message }
+    }
+  }
+}
+```
+
+| Mutation | Arguments | Returns |
+|----------|-----------|---------|
+| `requeueDeadLetter` | `id: Long!`, `askAfresh: Boolean = false` | `DeadLetterOperationResult` |
+| `acknowledgeDeadLetter` | `id: Long!`, `note: String!` | `DeadLetterOperationResult` |
+| `requeueDeadLetters` | `ids: [Long!]!`, `askAfresh: Boolean = false` | `BatchDeadLetterResult` |
+| `acknowledgeDeadLetters` | `ids: [Long!]!`, `note: String!` | `BatchDeadLetterResult` |
+| `requeueAllDeadLetters` | `askAfresh: Boolean = false` | `BatchDeadLetterResult` |
+| `acknowledgeAllDeadLetters` | `note: String!` | `BatchDeadLetterResult` |
+
+| Type | Fields |
+|------|--------|
+| `DeadLetterOperationResult` | `success: Boolean!`, `workQueueId: Long` (the entry a requeue queued; `null` for an acknowledge or a refusal), `message: String!` |
+| `BatchDeadLetterResult` | `count: Int!` (dead letters resolved), `message: String!` (also counts the folded and skipped ones) |
+
+A requeue or acknowledge that cannot be done (the dead letter is not awaiting intervention, or its manifest already has a queued entry) returns `success: false` and the reason in `message`, not a GraphQL error. These types are not `OperationResponse`.
 
 ---
 

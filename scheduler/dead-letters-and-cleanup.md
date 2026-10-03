@@ -103,26 +103,44 @@ mutation {
 `false`), as `triggerManifest` and `triggerManifestDelayed` do; see
 [Retries replay decisions](#retries-replay-decisions).
 
-Query dead letters with optional status filtering:
+`requeueDeadLetter` and `acknowledgeDeadLetter` return `DeadLetterOperationResult`
+(`success: Boolean!`, `workQueueId: Long`, `message: String!`); `workQueueId` is the entry a
+requeue queued and `null` otherwise. The batch and "all" variants return `BatchDeadLetterResult`
+(`count: Int!`, `message: String!`). A requeue that cannot be done (the dead letter is already
+resolved, or its manifest already has a queued entry) is not a GraphQL error: it returns
+`success: false` with the reason in `message`.
+
+Read dead letters with `operations.deadLetters.deadLetters` (a page, optionally filtered by status)
+and `operations.deadLetters.deadLetter(id:)`:
 
 ```graphql
 query {
   operations {
     deadLetters {
-      getDeadLetters(status: AWAITING_INTERVENTION, take: 10) {
+      deadLetters(status: AWAITING_INTERVENTION, take: 10) {
         items {
           id
+          manifestId
           manifestName
           status
           reason
+          retryCountAtDeadLetter
           deadLetteredAt
         }
         totalCount
+      }
+      deadLetter(id: 42) {
+        status
+        resolvedAt
+        resolutionNote
+        retryMetadataId
       }
     }
   }
 }
 ```
+
+The fields and arguments are listed in [Queries: deadLetters](/docs/sdk-reference/graphql-api/queries#deadletters-nested-under-operations).
 
 ### Via ITraxScheduler
 
@@ -199,6 +217,24 @@ With defaults (`DefaultRetryDelay: 5m`, `RetryBackoffMultiplier: 2.0`, `MaxRetry
 Only a retry waits. Once a run succeeds or is cancelled, the next occurrence runs on time, however many failures are still inside the window; those failures still set the length of the next retry's delay and still count toward the dead letter. A requeued dispatch attempt is not a finished run and does not count either way.
 
 The delay is implemented by setting `ScheduledAt` on the WorkQueue entry. The JobDispatcher skips entries where `ScheduledAt > now`, so the retry won't be dispatched until the delay has elapsed.
+
+### When a retry runs
+
+A retry is not a timer of its own. It is the manifest's next due run, queued with that delay. A
+failed run does not move the point a schedule counts from (an interval counts from the last
+success, a cron from its last success's occurrence), so a manifest that failed while it was due is
+still due, and the ManifestManager queues the retry on its next cycle, `delay` from then:
+
+| The failed run was | Its retry is queued |
+|---|---|
+| A due interval or cron run | On the next ManifestManager cycle, dispatched once the delay passes |
+| A dependent's run | On the next cycle: the parent's success it was started for has still not been consumed |
+| A one-off's run | On the next cycle, while the one-off has not succeeded |
+| Started off-schedule by a trigger, with the manifest not due | Only once the manifest is next due by its schedule; then after the delay |
+
+So with `MaxRetries(2)`, `DefaultRetryDelay(2 s)` and the default multiplier, a due manifest that
+keeps failing runs three times within about ten seconds and is dead-lettered on the next cycle.
+The [Scheduling sample](/docs/samples/scheduling) runs exactly that.
 
 Configure via the scheduler builder:
 
@@ -364,7 +400,7 @@ System trains like `ManifestManagerTrain` run frequently (every 5 seconds by def
 
 The cleanup only targets metadata in **terminal states** (Completed, Failed, or Cancelled). Pending and InProgress metadata is never deleted, regardless of age. Associated work queue entries and log entries are deleted first to avoid foreign key constraint violations.
 
-Deletion uses EF Core's `ExecuteDeleteAsync` for efficient single-statement SQL. No entities are loaded into memory.
+Deletion is set-based (`ExecuteDeleteAsync`), in batches of up to `DeleteBatchSize` runs, each batch one transaction. No entities are loaded into memory.
 
 ### Enabling Cleanup
 
@@ -435,7 +471,11 @@ services.AddTrax(trax => trax
 );
 ```
 
-Jobs execute inline, so tests are fast and don't need database infrastructure.
+Jobs execute inline, so tests are fast and don't need database infrastructure. The in-memory
+provider has no work queue, though, so it does not show retry delays as Postgres runs them, nor
+replay decisions. To test retries, dead letters and requeues as they run in production, start the
+real host against a test Postgres and wait on the `trax.metadata` and `trax.dead_letter` rows, as
+the [Scheduling sample's E2E suite](/docs/samples/scheduling#testing-it) does.
 
 ## SDK Reference
 

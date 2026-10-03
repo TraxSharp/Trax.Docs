@@ -891,6 +891,64 @@ Build list views on keyset cursors: read the first page with `take`, then pass e
 
 The same suite times every operations mutation against those tables (each single-row or scoped write, including the manifest and group cancels that filter the metadata table, finishes in under ~50ms), the point reads behind the detail pages, the persisted-operations list, lookups and writes over a 100,000-operation catalog, and subscription fan-out to 1,000 subscribers. `onDataChanged` coalesces a storm of 200,000 change signals into one event per changed domain per subscriber, delivered to all of them in under half a second. `onTrainStateChanged` delivers each event to every subscriber when the rate is moderate, but at 1,000 subscribers and a sustained 80 or more state changes a second, a few subscribers miss some events: a live feed can lag behind the grid until its next refetch. `requeueAllDeadLetters` and `acknowledgeAllDeadLetters` are timed over every dead letter the seed leaves awaiting intervention, 500,000 of them: acknowledging all takes about 7.5 s and requeueing all, which also writes one work queue entry per manifest, about 36 s, so treat them as rare operator actions. The batch cancels and enable/disable mutations on a full 1,000-id selection, and `runTrain`, each finish in under 20 ms.
 
+## deadLetters (nested under operations)
+
+Dead letters, the manifests that failed more times than their `MaxRetries` (see
+[Dead Letters & Cleanup](/docs/scheduler/dead-letters-and-cleanup)). The requeue and acknowledge
+mutations are under `operations.deadLetters` on the mutation type
+([Mutations: deadLetters](/docs/sdk-reference/graphql-api/mutations#deadletters-nested-namespace)).
+
+```graphql
+query {
+  operations {
+    deadLetters {
+      deadLetters(status: AWAITING_INTERVENTION, take: 10) {
+        items { id manifestId manifestName status reason retryCountAtDeadLetter deadLetteredAt }
+        totalCount
+        nextCursor
+      }
+      deadLetter(id: 42) { status resolvedAt resolutionNote retryMetadataId }
+    }
+  }
+}
+```
+
+### deadLetters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `skip` | `Int!` | `0` | Number of records to skip (offset pagination) |
+| `take` | `Int!` | `25` | Number of records to return. See [Page size](#page-size) |
+| `status` | `DeadLetterStatus` | `null` | `AWAITING_INTERVENTION`, `RETRIED` or `ACKNOWLEDGED` |
+| `afterId` | `Long` | `null` | Keyset cursor. See [Pagination](#pagination) |
+
+**Returns**: `PagedResult<DeadLetterSummary>`
+
+### deadLetter
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | `Long!` | Yes | The dead letter's id |
+
+**Returns**: `DeadLetterSummary`, or `null` when no dead letter has that id.
+
+#### DeadLetterSummary fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | `Long!` | Dead letter id |
+| `manifestId` | `Long!` | The manifest that was dead-lettered |
+| `manifestName` | `String!` | The manifest's train name (the interface FullName), not its external id |
+| `status` | `DeadLetterStatus!` | `AWAITING_INTERVENTION` until an operator requeues (`RETRIED`) or acknowledges (`ACKNOWLEDGED`) it |
+| `deadLetteredAt` | `DateTime!` | When the ManifestManager wrote it |
+| `reason` | `String!` | For example `Max retries exceeded: (3) failures > (2) max retries` |
+| `retryCountAtDeadLetter` | `Int!` | The counted failures when it was written |
+| `resolvedAt` | `DateTime` | When it was requeued or acknowledged |
+| `resolutionNote` | `String` | The note an acknowledge took, or the note a batch requeue wrote |
+| `retryMetadataId` | `Long` | The run a requeue started, set once that run is dispatched |
+
+---
+
 ## config (nested under operations)
 
 The `operations.config` namespace returns the live scheduler runtime settings (the dashboard-editable subset of `SchedulerConfiguration`, `LocalWorkerOptions`, and `MetadataCleanupConfiguration`). The dashboard's Server Settings page and this query both read from the same in-memory singleton, so they agree. The page saves through the same operations call as `updateScheduler`, sending only the fields the operator changed, and reloads from this snapshot afterwards.
