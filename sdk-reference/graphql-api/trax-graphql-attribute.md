@@ -83,6 +83,8 @@ When no operations are passed to the `TraxMutationAttribute` constructor, both `
 
 `QUEUE` writes the run to the scheduler's work queue and answers with its `workQueueId`; a JobDispatcher picks it up from there. Only a scheduler on a database provider (`UsePostgres()`, `UseSqlite()`) runs one. On `UseInMemory()` the mutation still answers with a `workQueueId`, and the run never happens. A host on the in-memory provider, such as the [project templates](/docs/reference/templates), should expose `GraphQLOperation.Run` alone.
 
+The mutation's `externalId` is the external id the dispatched run carries, so a client correlates the queued mutation with that run's [subscription events](/docs/sdk-reference/graphql-api/subscriptions#watching-a-queued-run) by it (see [Following a queued run](/docs/sdk-reference/graphql-api/mutations#following-a-queued-run)). A queued run has no manifest, so if it fails it is not retried and does not become a dead letter: a train that must recover is scheduled through a manifest instead (see [Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions)).
+
 ## Input Type Requirements
 
 Every train annotated with `[TraxQuery]` or `[TraxMutation]` must have a dedicated input record. `LanguageExt.Unit` is not allowed as an input type. Attempting to register a Unit-input train will throw `InvalidOperationException` at startup.

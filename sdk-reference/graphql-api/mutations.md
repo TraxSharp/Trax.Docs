@@ -103,10 +103,16 @@ type BanPlayerResponse {
 
 | Field | Type | When Populated |
 |-------|------|----------------|
-| `externalId` | `String!` | Always present. Identifies the execution or work queue entry |
+| `externalId` | `String!` | Always present. RUN: the execution's external id. QUEUE: a 32-character hex id chosen at enqueue, stamped on the work queue entry, and carried by the run the scheduler later dispatches from it (see below) |
 | `metadataId` | `Long` | RUN mode. Metadata ID of the completed execution |
 | `output` | `{OutputType}` | RUN mode, only for trains with non-`Unit` output |
 | `workQueueId` | `Long` | QUEUE mode. Database ID of the created WorkQueue entry |
+
+#### Following a queued run
+
+A QUEUE mutation returns before any run exists, so it has no `metadataId`. Its `externalId` is the correlation key: the JobDispatcher copies it onto the execution (`trax.metadata.external_id`) it creates for the entry, so the run's lifecycle events, its `operations.executions` row and the work queue entry (`trax.work_queue.external_id`) all carry the same value. If a delivery to the runner fails and the entry is requeued (`MaxDispatchAttempts`), each attempt gets its own execution row with that same external id, and the failed attempts are recorded `Failed` by the dispatcher without a lifecycle event. Only an attempt a runner actually started emits events. To watch a queued run from a client, subscribe before you queue and filter by `externalId`: see [Watching a queued run](/docs/sdk-reference/graphql-api/subscriptions#watching-a-queued-run).
+
+A queued run that fails is not retried: retries belong to [manifests](/docs/scheduler/scheduling-options), and a work queue entry with no manifest runs once. An operator requeues a failed queued run with [`requeueExecution`](#requeueexecution) or the dashboard's Re-queue button.
 
 The wrapper is named `{TrainName}Response` by default. If the train's output CLR class is also named `{TrainName}Response` (for example `IAddressValidationTrain` returning `AddressValidationResponse`), the wrapper falls back to `{TrainName}MutationResponse` so the schema can build without a name collision. Trains whose output type follows a different naming convention are unaffected.
 

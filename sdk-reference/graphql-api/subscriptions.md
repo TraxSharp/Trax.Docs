@@ -16,7 +16,7 @@ Subscriptions are powered by HotChocolate's built-in subscription infrastructure
 **Which trains emit lifecycle events depends on what the host exposes:**
 
 - **User-facing host** (subscriptions but no operations surface): only trains decorated with [`[TraxBroadcast]`](/docs/sdk-reference/graphql-api/trax-broadcast-attribute) emit. This is the opt-in for streaming a curated subset of trains to your app's own clients; others are silently skipped.
-- **Admin host** (calls `ExposeOperationQueries()` / `ExposeOperationMutations()`): **every** train emits, regardless of `[TraxBroadcast]`. An operations dashboard should observe all server activity, so exposing the operations surface flips the lifecycle subscriptions to stream everything. You do not decorate trains for the admin dashboard to see them.
+- **Admin host** (calls `ExposeOperationQueries()` / `ExposeOperationMutations()`): **every** train emits, but only to subscribers that satisfy the operations authorization. An operations dashboard should observe all server activity, so you do not decorate trains for the admin dashboard to see them. Every other subscriber on that host still receives only `[TraxBroadcast]` trains whose posture admits it, and one that no train admits is refused with `Not authorized.` (`TRAX_AUTHORIZATION`). A train your app's own clients watch carries `[TraxBroadcast]` on an admin host too.
 
 Data-change signals (`onDataChanged`) are unrelated to `[TraxBroadcast]` and fire for the scheduler/admin domains regardless.
 
@@ -26,7 +26,7 @@ Each subscription carries the authorization of the data it streams, decided for 
 
 - **Operations view.** When the operations surface is exposed, a subscriber that satisfies the operations authorization receives every train, with the same detail `operations.executions` shows. That is the `GateOperations(...)` gate, or no further check when the host chose `AllowAnonymousOperations()` or gated the whole endpoint with `RequireAuthorization(...)`.
 - **Broadcast view.** Any other subscriber receives only `[TraxBroadcast]` trains whose own posture admits them: `[TraxAllowAnonymous]` admits everyone who can open a socket (on a host with an API-key or JWT scheme, only a connection that brings a credential; see [Authentication](#authentication)), and `[TraxAuthorize]` an authenticated caller meeting its policies and roles. For these subscribers `failureReason` is shown only when the train failed with a `TrainException` (whose message is written for clients); otherwise it reads `Unexpected Execution Error`. This holds for a train that ran on another node and reached this one over [`UseBroadcaster()`](/docs/sdk-reference/configuration/use-broadcaster): the message carries the exception type, so the reason is shown or masked exactly as for a local run. A message from a publisher older than Trax.Effect 1.57.4 has no exception type, and its reason is masked. `hostName` and `hostEnvironment` are withheld.
-- A subscriber who could receive nothing is refused with `TRAX_AUTHORIZATION` when it subscribes.
+- A subscriber who could receive nothing is refused with `TRAX_AUTHORIZATION` when it subscribes: the subscription gets a `graphql-transport-ws` message `{"id":"1","type":"error","payload":[{"message":"Not authorized.","extensions":{"code":"TRAX_AUTHORIZATION"}}]}` and the socket stays open. On a host that exposes operations, a non-operator subscriber is refused this way when none of the trains it is allowed to watch carries `[TraxBroadcast]`.
 - `onDataChanged` needs the operations authorization when the operations surface is exposed, and an authenticated caller when it is not.
 
 On an open endpoint a `[TraxBroadcast]` train must declare `[TraxAuthorize]` or `[TraxAllowAnonymous]`, or the host does not start. The `output` field carries the train's output as JSON, objects and arrays included.
@@ -66,7 +66,7 @@ type TrainLifecycleEvent {
 | `metadataId` | The database metadata row ID for this execution |
 | `externalId` | The external identifier assigned to this execution |
 | `trainName` | The canonical train name (the service interface's fully-qualified name, e.g. `MyApp.Trains.IProcessOrderTrain`) |
-| `trainState` | The current state of the train (`InProgress`, `Completed`, `Failed`, `Cancelled`) |
+| `trainState` | The current state of the train, as the GraphQL enum values `IN_PROGRESS`, `COMPLETED`, `FAILED` or `CANCELLED` (C# `TrainState.InProgress` and so on) |
 | `timestamp` | When the event occurred (end time if available, otherwise current UTC time) |
 | `failureJunction` | The junction that failed (only present on failed trains) |
 | `failureReason` | The failure message (only present on failed trains; masked outside the operations view unless the train raised a `TrainException`) |
@@ -217,6 +217,43 @@ subscription { onTrainFailed { metadataId trainName failureJunction failureReaso
 # Tab 4
 subscription { onTrainCancelled { metadataId trainName trainState } }
 ```
+
+### Watching a queued run
+
+A [`[TraxMutation]`](/docs/sdk-reference/graphql-api/trax-graphql-attribute) mutation called with `mode: QUEUE` returns an `externalId` and a `workQueueId`, but no `metadataId`: the run does not exist yet. The run the scheduler later dispatches carries the same `externalId` (see [Following a queued run](/docs/sdk-reference/graphql-api/mutations#following-a-queued-run)), so a client watches it like this:
+
+1. Open the socket and subscribe to `onTrainStateChanged` **before** sending the mutation. There is no replay, and a short train can finish before a subscription opened afterwards is registered.
+2. Send the mutation over HTTP and keep its `externalId`. Buffer any events that arrive before the response does.
+3. Keep only events whose `externalId` matches. The lifecycle fields take no filter argument, so the client filters.
+4. Stop at the first terminal state: `COMPLETED` (read `output`), `FAILED` (read `failureReason`) or `CANCELLED`.
+
+```graphql
+subscription {
+  onTrainStateChanged {
+    externalId
+    metadataId
+    trainState
+    sequence
+    output
+    failureReason
+  }
+}
+```
+
+```text
+mutation  -> { "externalId": "66b533589bf747f1aac661a5deeea356", "workQueueId": 2 }
+event     -> { "externalId": "66b5...a356", "metadataId": 55, "trainState": "IN_PROGRESS", "sequence": 1 }
+event     -> { "externalId": "66b5...a356", "metadataId": 55, "trainState": "COMPLETED", "sequence": 2, "output": { ... } }
+```
+
+What the subscriber needs and what it should expect:
+
+- The train carries `[TraxBroadcast]` and a posture that admits the caller (for example the same `[TraxAuthorize(Roles = ...)]` that lets it call the mutation), unless the caller satisfies the operations authorization. Without it the subscription is refused with `TRAX_AUTHORIZATION`, as [Who receives what](#who-receives-what) says, even on a host that exposes operations.
+- A failed delivery that the dispatcher requeues (`MaxDispatchAttempts`) creates a new execution row with the same `externalId` and emits no event; the client sees events only from the attempt a runner started. A run whose deliveries are exhausted never emits a terminal event, so give the wait a timeout.
+- A `sequence` that skips a number means events were lost. An operator can look the run up in `operations.executions`; a client without that access should read the outcome from the app's own data (a [query model](/docs/sdk-reference/graphql-api/query-models) over what the train wrote).
+- A queued run that fails is not retried.
+
+A runnable C# version of this loop over `System.Net.WebSockets` is the `GraphQLWebSocketClient` in `tests/Trax.Samples.ChatService.E2E/Utilities` of [Trax.Samples](https://github.com/TraxSharp/Trax.Samples); see [Testing subscriptions](/docs/cross-cutting/e2e-testing#testing-subscriptions).
 
 ## Data Change Signals
 

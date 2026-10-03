@@ -600,7 +600,7 @@ When any filter is supplied the count is exact (`isEstimatedCount: false`); an u
 | `id` | `Long!` | Metadata ID |
 | `externalId` | `String!` | External identifier |
 | `name` | `String!` | Train type name |
-| `trainState` | `TrainState!` | Current state (`Pending`, `InProgress`, `Completed`, `Failed`, `Cancelled`) |
+| `trainState` | `TrainState!` | Current state: `PENDING`, `IN_PROGRESS`, `COMPLETED`, `FAILED` or `CANCELLED` on the wire |
 | `startTime` | `DateTime!` | When execution began |
 | `endTime` | `DateTime` | When execution finished (null if still running) |
 | `failureJunction` | `String` | Name of the junction that failed (null if no failure) |
