@@ -21,13 +21,18 @@ over two snapshot state machines, authored with the fluent API and driven throug
 
 ## What it proves
 
-| Feature | Where |
-|---|---|
-| One-line discovery: `AddStateMachines(assembly)` before `AddMediator` | `Api/Program.cs` |
-| The two bindings a host supplies: `ISnapshotPrincipal` (whose draft) and the effect (`ICharge`) | `Api/Program.cs`, `SnapshotPrincipal.cs` |
-| An effect that runs once per intent, however often `sendSnapshot` is retried | `Machines.cs`, `RunsOnce<ICharge>` |
-| A v1 draft upgraded to v2 on load by `MigrateFrom(1, ...)` | `CheckoutMachineTests` |
-| Server authority over what a client autosaves: a draft whose total disagrees with its items is refused | `CheckoutTotalAuthorityTests` |
+Each row is proved over GraphQL against the running host by `tests/Trax.Samples.StateMachine.E2E` (see
+[Tests](#tests)).
+
+| Feature | Code | Proved by |
+|---|---|---|
+| One-line discovery: `AddStateMachines(assembly)` before `AddMediator`; both machines driven through the four mutations | `Api/Program.cs` | `TurnstileTests`, `CheckoutTests` |
+| Illegal transitions refused as data (`guard-failed`, `no-transition`, `invalid-context`), the stored draft unchanged | `Machines.cs` | `TurnstileTests`, `CheckoutTests` |
+| An effect that runs once per intent, however often `sendSnapshot` is repeated, and only a send reaches `Paid` | `Machines.cs`, `RunsOnce<ICharge>` | `CheckoutTests` |
+| A v1 draft upgraded to v2 by `MigrateFrom(1, ...)`, on load and on save | `Machines.cs` | `ForwardMigrationTests` |
+| Server authority over what a client autosaves: a draft whose total disagrees with its items is refused, and the charge takes the stored draft's total | `Machines.cs`, `LoggingCharge` | `ServerOwnedTotalTests` |
+| The two bindings a host supplies: `ISnapshotPrincipal` (whose draft) and the effect (`ICharge`); each caller sees only their own drafts | `Api/Program.cs`, `SnapshotPrincipal.cs` | `TurnstileTests` |
+| Anonymous callers refused; the demo keys exist only in Development | `Api/Program.cs` | `AuthenticationTests` |
 
 ## Run
 
@@ -81,6 +86,45 @@ The `sendSnapshot` answer is the `Paid` snapshot with a `receipt`, and the host 
 `Charged 999 cents for checkout Review -> receipt rcpt_...`. Send it again and the same snapshot comes
 back with no second charge. Save a draft with `"items":["book","pen"]` and `"total":1` under another
 id and the answer is `problem { code: "invalid-context" }`.
+
+The turnstile shows a refused transition. Save it `Locked`, then try a penny and a quarter:
+
+```graphql
+mutation {
+  dispatch { stateMachine { saveSnapshot(input: {
+    machine: "turnstile", id: "33333333-3333-3333-3333-333333333333",
+    snapshot: "{\"machine\":\"turnstile\",\"version\":1,\"state\":\"Locked\",\"context\":{}}"
+  }) { output { snapshot problem { code } } } } }
+}
+
+mutation {
+  dispatch { stateMachine { advanceSnapshot(input: {
+    machine: "turnstile", id: "33333333-3333-3333-3333-333333333333",
+    trigger: "Coin", input: "{\"coin\":\"penny\"}"
+  }) { output { snapshot problem { code message } } } } }
+}
+```
+
+The penny comes back as `problem { code: "guard-failed", message: "Only a quarter or a dollar is accepted." }`
+and the draft stays `Locked`. The same mutation with `"quarter"` answers the `Unlocked` snapshot with
+`"paidWith":"quarter"`.
+
+To see the migration, save a version 1 checkout, which has no `total`:
+
+```graphql
+mutation {
+  dispatch { stateMachine { saveSnapshot(input: {
+    machine: "checkout", id: "44444444-4444-4444-4444-444444444444",
+    snapshot: "{\"machine\":\"checkout\",\"version\":1,\"state\":\"Review\",\"context\":{\"items\":[\"book\",\"pen\"],\"receipt\":null}}"
+  }) { output { snapshot problem { code } } } } }
+}
+```
+
+The answer is the draft at version 2 with `"total":1998`, which is what is stored.
+
+Without the `X-Api-Key` header, each of these mutations answers HTTP 200 with
+`errors: [{ message: "Not authorized.", extensions: { code: "TRAX_AUTHORIZATION" } }]`; only `listMachines` is
+anonymous.
 
 ## How it works
 
@@ -141,7 +185,8 @@ already validated. See [State Machines: Persistence](/docs/statemachine#persiste
 ### The forward migration
 
 Version 2 added `total`. A draft an older host stored at version 1 has none, so it would fail the v2
-invariants; `MigrateFrom(1, ...)` backfills it from the item count when the draft is loaded:
+invariants; `MigrateFrom(1, ...)` backfills it from the item count whenever the server reads a version 1
+snapshot: a stored draft on load, advance or send, and a snapshot an older client sends to `saveSnapshot`:
 
 ```csharp
 m.Id("checkout").Version(2).StartsAt(CheckoutState.Cart, Fresh)
@@ -153,18 +198,66 @@ m.Id("checkout").Version(2).StartsAt(CheckoutState.Cart, Fresh)
     });
 ```
 
-See [Migrations](/docs/sdk-reference/statemachine-api/migrations).
+A snapshot newer than the server's version is refused as `version-mismatch`. See
+[Migrations](/docs/sdk-reference/statemachine-api/migrations).
 
 ## Tests
 
 ```bash
-dotnet test tests/Trax.Samples.StateMachine.Tests
+dotnet test tests/Trax.Samples.StateMachine.Tests    # the machines over an in-memory store, no database
+dotnet test tests/Trax.Samples.StateMachine.E2E      # the real host over GraphQL, needs Postgres
 ```
 
-The tests drive both machines through the real draft service over an in-memory store, so they need no
-database: the v1 to v2 migration, the guard that makes it necessary, autosave then advance, the
-canonical wire format, and `CheckoutTotalAuthorityTests` (a mismatched total is refused, a matching
-one is saved, the charge reads the snapshot's total).
+`Trax.Samples.StateMachine.Tests` drives both machines through the draft service over an in-memory store: the
+v1 to v2 migration, autosave then advance, the canonical wire, and the total check.
+
+`Trax.Samples.StateMachine.E2E` starts the real host with `WebApplicationFactory<Program>` against a Postgres
+database named `statemachine_e2e_tests` (`Host=localhost;Port=5432;Username=trax;Password=trax123`; set
+`TRAX_TEST_PG_PORT` when your Postgres listens elsewhere) and sends every request to `/trax/graphql`, as the web
+client does. Without the database the suite fails; it never skips. Three techniques carry over to testing any
+state machine host:
+
+- **Observe the effect by replacing it.** The factory binds a recording `ICharge` in place of the sample's
+  logging one, which is the binding a real host swaps for a payment gateway anyway. The recording charge reads
+  the amount the same way, `CheckoutMachine.AmountCents(snapshot)`, so a test can count charges and check the
+  amount:
+
+  ```csharp
+  using Microsoft.AspNetCore.Hosting;
+  using Microsoft.AspNetCore.TestHost;
+  using Microsoft.Extensions.DependencyInjection;
+
+  protected override void ConfigureWebHost(IWebHostBuilder builder)
+  {
+      builder.UseSetting("ConnectionStrings:TraxDatabase", connectionString);
+      builder.UseEnvironment("Development");   // the demo keys exist only here
+      builder.ConfigureTestServices(services => services.AddSingleton<ICharge>(charges));
+  }
+  ```
+
+- **Seed what an older host stored through the store.** `ISnapshotStore` does not validate, so writing a version
+  1 draft through it reproduces a row the old host left behind, which `loadSnapshot` then upgrades. Drafts are
+  keyed by `ISnapshotPrincipal.CurrentUserKey`, which for the sample's `TraxCallerSnapshotPrincipal` is the
+  scheme-qualified principal id, `TraxApiKey:alice` for the demo key:
+
+  ```csharp
+  using var scope = factory.Services.CreateScope();
+  var store = scope.ServiceProvider.GetRequiredService<ISnapshotStore>();
+  await store.Insert("TraxApiKey:alice", id, new Snapshot
+  {
+      Machine = "checkout",
+      Version = 1,
+      State = "Review",
+      Context = new JsonObject { ["items"] = new JsonArray("book"), ["receipt"] = null },
+  });
+  ```
+
+- **Isolate tests by id and data, not by database.** Every test uses a fresh draft id and puts an item no other
+  test uses in its cart, so one host and one database serve the whole suite and each test sees only its own
+  drafts and charges.
+
+`AuthenticationTests` also starts the host in Production: no API key scheme is registered there, the demo key is
+refused, and registering a `do-not-use-in-production` key makes the host refuse to start.
 
 ## SDK Reference
 
