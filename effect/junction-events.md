@@ -17,10 +17,17 @@ a timeline.
 They are off unless the host calls `AddJunctionEvents()`:
 
 ```csharp
+using Trax.Effect.Data.Extensions;            // AddJunctionEvents (package Trax.Effect.Data)
+using Trax.Effect.Data.Postgres.Extensions;   // UsePostgres (package Trax.Effect.Data.Postgres)
+
 services.AddTrax(trax => trax.AddEffects(effects => effects
     .UsePostgres(connectionString)
     .AddJunctionEvents()));
 ```
+
+Only an `EffectJunction<TIn, TOut>` (namespace `Trax.Effect.Services.EffectJunction`) is reported:
+a train built from plain `Junction<TIn, TOut>` classes publishes its questions and routes, but none of
+its junctions.
 
 It comes after a data provider, and is a compile error before one. Calling it more than once
 registers it once. Withholding a track depends on its decision observer hearing every routing, so
@@ -37,6 +44,11 @@ and every run; register your own before `AddTrax` (see
 | `Score` | A question answered by a level (`Scale`) | `Decided` or `DecisionRefused` |
 | `YesNo` | A question answered by the probability of yes (`Gate`) | `Decided` or `DecisionRefused` |
 | `Route` | The track a routing step sent the run down | `Routed` |
+
+A question or a route is a single moment: its `StartedAt` is when the answer arrived or the track
+was taken, its `EndedAt` the same, and its `DurationMs` 0. The time a decider took is the gap between
+the previous step's end and the question's `StartedAt`; a replayed answer closes that gap to almost
+nothing.
 
 Each step has a `Position` from 0, in the order the run reached it. A junction's start and end
 share one position, so ordering by position gives the run's timeline. Only `EffectJunction`s are
@@ -59,7 +71,7 @@ a `JunctionEventPayload`:
 | `StartedAt`, `EndedAt`, `DurationMs` | UTC times, and the junction's duration once it ends |
 | `FailureClass`, `FailureException` | How a failed junction's failure is [classified](/docs/core/trains-and-junctions#classifying-failures), and its exception's type name |
 | `QuestionKey`, `Answer`, `Confidence` | For a question or track: its [key](/docs/core/decisions#question-keys), the option, score or probability the run acted on, and the decider's confidence. Null on a withheld track. |
-| `Replayed` | True when the answer was [replayed](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions) from an earlier run |
+| `Replayed` | True when the answer was [replayed](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions) from an earlier run. Set on the question's step only: a `Route` step carries false even when the decision it routes on was replayed. False on a retry that asked afresh, whatever the reason; why is in `trax.decision` (see [Building a train that recovers](/docs/effect/decisions#building-a-train-that-recovers)). |
 | `Decider` | The decider's type name. Live events only, and null on a withheld track. |
 | `AnswerWithheld` | True when the question is about a `[TraxSensitive]` type, and for every question or route on a withheld track |
 | `NameWithheld` | True for every step (a junction, a question or a route) after a route whose answer is withheld; its `Name` is `(withheld)` (`JunctionEventPayload.WithheldName`) |
@@ -248,7 +260,10 @@ after a route, of any kind, arrives with its name `(withheld)`, `nameWithheld` s
 `questionKey` null, unless the host calls `AllowJunctionAnswersForBroadcastSubscribers()` on
 `AddTraxGraphQL`: the same default the SignalR payload has. Its kind, position, state, timing and
 failure class still arrive, so keep a train whose tracks must not be told apart off broadcast. The
-operations view always sees answers. A `[TraxSensitive]` answer, and every step the run withheld
+operations view always sees answers. A host with an API-key or JWT scheme refuses a socket
+that brings no credential in `connection_init`, even for a train marked `[TraxAllowAnonymous]`, so a
+broadcast subscriber on such a host is an authenticated caller without the operations gate's role or
+policy. A `[TraxSensitive]` answer, and every step the run withheld
 after it, are withheld from every view. Both fields refuse a `metadataId` of 0 or less with
 `TRAX_INVALID_ARGUMENT`.
 

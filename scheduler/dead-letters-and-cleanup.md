@@ -214,7 +214,11 @@ Configure via the scheduler builder:
 
 A retry exists because something after a decision failed: a tool step threw, a database timed out.
 Trax has no per-junction retry, so a retry runs the chain from its first junction, and asking a
-model again costs a call per question and can be answered differently. So when a manifest's run
+model again costs a call per question and can be answered differently. Only a manifest's run is retried this
+way: a train run directly or queued through `queueTrain` has no retry and never replays, so a train
+meant to recover runs from a manifest (`Schedule`, or `ScheduleOnceAsync` for a single run).
+[Building a train that recovers](/docs/effect/decisions#building-a-train-that-recovers) lists every
+piece it needs. So when a manifest's run
 fails, its retry, queued by the ManifestManager, and a requeue of its dead letter replay the
 [decisions](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions) the failed
 run recorded: the retry takes the tracks the failed run's deciders chose instead of asking them

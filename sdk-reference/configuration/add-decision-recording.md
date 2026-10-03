@@ -186,3 +186,7 @@ asks it; a host that requeues runs its own way should too.
 ```
 dotnet add package Trax.Effect.Data
 ```
+
+The extension is in namespace `Trax.Effect.Data.Extensions`; `DecisionRecordingOptions` is in
+`Trax.Effect.Data.Decisions`. A data provider package (`Trax.Effect.Data.Postgres`,
+`Trax.Effect.Data.Sqlite`) brings `Trax.Effect.Data` with it.

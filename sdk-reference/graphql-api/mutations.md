@@ -532,7 +532,15 @@ mutation {
 | `id` | `Long!` | Yes | The execution's metadata id |
 | `askAfresh` | `Boolean` | No | Default `false`. When `true`, the new run asks its deciders afresh instead of replaying the execution's decisions |
 
-**Returns**: `OperationResponse`.
+**Returns**: `OperationResponse`. On success, `id` is the new **work queue entry**'s id, not the new
+run's (the message reads `"Work queue entry 7 created."`). The run's metadata id appears on the entry
+once the dispatcher has dispatched it:
+
+```graphql
+query {
+  operations { workQueue { workQueue(id: 7) { status metadataId } } }
+}
+```
 
 ---
 

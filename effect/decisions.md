@@ -20,6 +20,17 @@ services.AddTrax(trax => trax.AddEffects(effects => effects
     .AddNimbleDecider(o => o.Endpoint = new Uri("http://localhost:8000/v1/systemone"))));
 ```
 
+| Call | Package | `using` |
+|---|---|---|
+| `AddDecisionRecording` | `Trax.Effect.Data` (comes with any data provider package) | `Trax.Effect.Data.Extensions` |
+| `AddJunctionEvents` | `Trax.Effect.Data` | `Trax.Effect.Data.Extensions` |
+| `UsePostgres` | `Trax.Effect.Data.Postgres` | `Trax.Effect.Data.Postgres.Extensions` |
+| `AddNimbleDecider`, `AddSystemOneDecider` | `Trax.Effect.Decisions.SystemOne` | `Trax.Effect.Decisions.SystemOne.Extensions` |
+| `IDecider`, `StateHashKey`, `RuleDecider`, `ScriptedDecider`, `[Asks]` | `Trax.Core` | `Trax.Core.Decisions` |
+
+A train that should recover from a crash without asking its model again needs more than the
+recording; [Building a train that recovers](#building-a-train-that-recovers) lists every piece.
+
 ## Nimble
 
 [Nimble](https://docs.bespokelabs.ai/nimble/overview) is Bespoke Labs' typed decision model, and
@@ -393,6 +404,67 @@ names is gone or belongs to another train, the host does not record decisions, o
 cannot be read) it logs a warning, asks afresh and is marked `replay_abandoned`. A manual requeue
 still fails, `Permanent`. A run in the chain that recorded its decisions but reached no questions is
 not a failure: there is nothing of its own to repeat, and the replay goes on to the run before it.
+
+### Building a train that recovers
+
+A run replays the decisions of another run only when it was queued to: by a manifest's automatic
+retry, a requeue of the manifest's dead letter, or a requeue of an execution
+(`requeueExecution`, the dashboard's **Re-queue**). A train run directly (`Run`, a `[TraxQuery]` or
+`[TraxMutation]` in Run mode) or queued with `queueTrain` / `QueueTrainAsync` never replays, and
+neither does a manifest's scheduled run that is not a retry. So a train whose crash should be
+recovered without asking the model again has to run from a manifest, and every one of these must
+hold:
+
+| Piece | Why | What fails without it |
+|---|---|---|
+| `AddDecisionRecording()` after the data provider, on every host that runs the train | It writes the answers a retry replays, and is the `IDecisionReplay` | Before a data provider: a compile error. On a host that runs a deciding train without it: the host refuses to start, naming the trains |
+| An `IDecider` the container or Memory supplies | Something must answer the first time | The startup check refuses the chain |
+| Postgres or Sqlite, not InMemory | Retry replay compares the work queue entry's input, which the InMemory scheduler does not keep | Nothing fails; the retry asks afresh |
+| The run comes from a manifest with `MaxRetries` of 1 or more | Only a manifest's retry replays on its own | No retry, or a retry with nothing to replay |
+| The manifest's input is byte-identical between attempts | The scheduler links a retry only to a failed run queued with exactly the same input | The retry asks afresh |
+| `ReplayDecisionsOnRetry` left on (the default) | It is the manifest's switch | The retry asks afresh |
+| The state at each decision is the same on the retry | Each answer replays only into a state with the same hash: no timestamp, random id, counter or cache in it | That answer is asked afresh, with `replay_refused` |
+| A state hash key, when a state can reach a `[TraxSensitive]` member | Without one, such a decision is stored with no hash | That answer never replays, and a warning names the state type once |
+| The crash happens after the decisions | Trax has no per-junction retry: the retry runs the chain from its first junction, and only the answers are replayed | Nothing to save |
+| Any `IDecisionObserver` of your own registered before `AddTrax` | One registered after it replaces the composite recording depends on | The host refuses to start, naming the observer |
+
+Trax.Api has no GraphQL operation that creates a manifest. A host whose callers start such runs over
+GraphQL exposes its own mutation, a `[TraxMutation]` train whose junction calls
+[`ITraxScheduler.ScheduleOnceAsync`](/docs/sdk-reference/scheduler-api/manifest-management#scheduleonceasync)
+with `options => options.MaxRetries(n)`, and returns the manifest's `Id`, which
+`operations.executions(manifestId:)` takes to list each attempt. Keep anything that varies between
+attempts, a fault-injection flag for instance, out of the manifest's input. The
+[Recovery sample](/docs/samples/recovery) does exactly this.
+
+What a retry does in each case:
+
+| Between the failure and the retry | The retry |
+|---|---|
+| Nothing changed | Is linked to the failed run (`replay_decisions_of`); every answer replays, `replayed` set, no decider asked |
+| Data the state is built from changed | Is still linked; the replay refuses each answer whose state hashes differently, stores the reason in `replay_refused` and asks afresh. Not `replay_abandoned` |
+| The manifest's input was edited | Is not linked: asks afresh |
+| `triggerManifest(askAfresh: true)` before the dispatcher claimed the retry | Is not linked: asks afresh |
+| The failed run was deleted, or the retry ran on a host without `AddDecisionRecording()` | Was linked, could not honour it: asks afresh and is marked `replay_abandoned` |
+| The failed run had itself replayed another run | Is not linked: a retry replays at most once in a row |
+
+To see why an answer was asked afresh, read `trax.decision` through `IDataContext.RecordedDecisions`
+(entity `RecordedDecision`, namespace `Trax.Effect.Models.RecordedDecision`): `Replayed`, and in
+the `Answer` JSON a `replay_refused` property with the reason. The run's
+`Metadata.ReplayDecisionsOf` and `Metadata.ReplayAbandoned` say whether it was linked and whether the
+link was abandoned. Neither GraphQL nor junction events carry these: a step says `replayed`, not why
+it was not.
+
+```csharp
+using System.Text.Json.Nodes;
+using Microsoft.EntityFrameworkCore;
+
+await using var context = await dataContextFactory.CreateDbContextAsync(ct);   // IDataContextProviderFactory
+var rows = await context.RecordedDecisions.AsNoTracking()
+    .Where(d => d.MetadataId == metadataId).OrderBy(d => d.Id).ToListAsync(ct);
+var refused = rows.Select(d => d.Answer is null
+    ? null
+    : JsonNode.Parse(d.Answer)?["replay_refused"]?.GetValue<string>());
+```
 
 ### A host that does not record
 

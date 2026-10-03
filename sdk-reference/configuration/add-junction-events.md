@@ -105,13 +105,13 @@ public sealed record JunctionEventPayload(
 | `Name` | The junction's class name without its namespace, or a question's key; `WithheldName` when `NameWithheld` is set |
 | `State` | `InProgress`, `Completed`, `Failed` or `Cancelled` |
 | `StartedAt` | When the junction started, or when the question was answered or the track taken (UTC) |
-| `EndedAt`, `DurationMs` | When the junction returned and how long it took; null for a start |
+| `EndedAt`, `DurationMs` | When the junction returned and how long it took; null for a start. A question or route has `EndedAt` equal to `StartedAt` and `DurationMs` 0. |
 | `FailureClass` | How a failed junction's failure is classified; null unless it failed |
 | `FailureException` | The type name of the exception a junction failed or was cancelled with, never its message |
 | `QuestionKey` | The question's key, for a question or a track; null when `NameWithheld` is set |
 | `Answer` | The option, score or probability of yes the run acted on; null for a junction, a refused answer and a withheld one |
 | `Confidence` | The decider's confidence, for a choice or score; null when withheld |
-| `Replayed` | True when the answer came from an earlier run |
+| `Replayed` | True when the answer came from an earlier run. Set on a question's step only; a `Route` step carries false. |
 | `Decider` | The full name of the decider's type; null when `NameWithheld` is set. Not stored. |
 | `AnswerWithheld` | True when the question is about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type), and for a question or route after a withheld route |
 | `Attempt` | Which attempt of its manifest the run is, or null for a run with no manifest |
@@ -192,3 +192,5 @@ The API's `operations.junctionRuns` and the dashboard's timeline read through it
 ```
 dotnet add package Trax.Effect.Data
 ```
+
+The extension is in namespace `Trax.Effect.Data.Extensions`.

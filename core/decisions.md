@@ -224,6 +224,66 @@ var policy = new RuleDecider().Choice<LoanApplication, Underwriting>(application
     });
 ```
 
+### Writing a decider
+
+Every type below is in `Trax.Core.Decisions` (package `Trax.Core`, which Trax.Effect brings in):
+
+```csharp
+public interface IDecider
+{
+    Task<DecisionResult> Decide(DecisionRequest request, CancellationToken cancellationToken);
+}
+
+public sealed record DecisionRequest(string Train, object State, IReadOnlyList<Question> Questions);
+
+public abstract record Question(string Key, string Instructions);
+public sealed record ChoiceQuestion(string Key, string Instructions, IReadOnlyList<Criterion> Options) : Question(Key, Instructions);
+public sealed record ScoreQuestion(string Key, string Instructions, IReadOnlyList<Criterion> Levels) : Question(Key, Instructions);
+public sealed record YesNoQuestion(string Key, string Instructions, string? Yes, string? No) : Question(Key, Instructions);
+public sealed record Criterion(string Name, string? Description);
+
+public sealed record DecisionResult(IReadOnlyDictionary<string, Answer> Answers);
+public abstract record Answer { public string? Model { get; init; } }
+public sealed record ChoiceAnswer(string Choice, double Confidence = 1.0, IReadOnlyDictionary<string, double>? Probabilities = null) : Answer;
+public sealed record ScoreAnswer(double Score, double Confidence = 1.0, IReadOnlyList<double>? Probabilities = null) : Answer;
+public sealed record YesNoAnswer(double Probability) : Answer;
+```
+
+Return one answer per question, keyed by `Question.Key`, of the kind the question asks for: a
+`ChoiceAnswer` naming one of the options' `Criterion.Name` (the enum member's name), a
+`ScoreAnswer` from 0 (the first level) to one less than the number of levels, or a `YesNoAnswer`
+with the probability of yes. Set `Model` to the model and version that answered, or leave it null
+for a decider that is not a model. `State` is the object in Memory, typed as `object`: match on its
+type. An answer that does not fit, or a question left unanswered, fails the run (see
+[When the run fails instead](#when-the-run-fails-instead)); throwing fails it with your exception.
+
+```csharp
+using Trax.Core.Decisions;
+
+public sealed class TicketRules : IDecider
+{
+    public Task<DecisionResult> Decide(DecisionRequest request, CancellationToken cancellationToken)
+    {
+        var ticket = (Ticket)request.State;
+        var answers = request.Questions.ToDictionary(
+            q => q.Key,
+            q => q switch
+            {
+                ChoiceQuestion => (Answer)new ChoiceAnswer(ticket.MentionsRefund ? "Refund" : "SelfServe", 0.9),
+                YesNoQuestion => new YesNoAnswer(ticket.IsAngry ? 0.8 : 0.1),
+                _ => throw new InvalidOperationException($"Cannot answer {q.Key}."),
+            });
+        return Task.FromResult(new DecisionResult(answers));
+    }
+}
+
+services.AddSingleton<IDecider, TicketRules>();   // any lifetime; one serves every train
+```
+
+A decider whose runs should be replayable answers from the state alone. Replay checks the hash of
+the state and nothing else, so an answer that depended on something the decider looked up
+elsewhere is replayed even after that changed.
+
 ### Escalating what the fast decider is unsure of
 
 ```csharp

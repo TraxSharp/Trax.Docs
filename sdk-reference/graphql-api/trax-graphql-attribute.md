@@ -134,7 +134,8 @@ public record GetChatHistoryInput
 var take = Math.Clamp(input.Take ?? 50, 1, 100);
 ```
 
-Clamp a caller-supplied page size there as well: the value reaches your query as the caller wrote it.
+Value types follow the same rule: `bool` is `Boolean!`, `bool?` is optional. Clamp a caller-supplied page size there
+as well: the value reaches your query as the caller wrote it.
 
 ### The last property
 
