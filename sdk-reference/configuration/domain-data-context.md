@@ -66,6 +66,8 @@ public interface IEntityReference;
 
 Registers a pooled context factory for `TContext`, and `TInterface` as a scoped service created from it. Application code injects the interface.
 
+A pooled context is constructed from its options alone, so a context whose constructor takes a scoped service (the caller an owner-scope query filter reads, for one) cannot be registered this way. Register it with `AddDbContextFactory<TContext>(..., ServiceLifetime.Scoped)` instead; see [Owner-scoped contexts](/docs/effect/effect-providers/domain-data-contexts#owner-scoped-contexts).
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `configureProvider` | `Action<DbContextOptionsBuilder>` | Configures the EF provider, for example `o => o.UseNpgsql(connectionString)` |

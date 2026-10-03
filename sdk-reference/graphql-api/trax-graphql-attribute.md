@@ -108,6 +108,36 @@ public class RefreshCacheTrain : ServiceTrain<RefreshCacheInput, Unit>, IRefresh
 
 When using `trax-cli` to generate trains from OpenAPI or GraphQL schemas, operations with no input parameters automatically get an empty input record.
 
+### Optional fields
+
+A property's nullability decides whether its GraphQL field is required. A property initializer is
+not carried into the schema as a default value, so this field is still `take: Int!`, and a request
+that leaves it out is refused with "`take` is a required field and cannot be null":
+
+```csharp
+public record GetChatHistoryInput
+{
+    public Guid ChatRoomId { get; init; }
+    public int Take { get; init; } = 50;   // still required in GraphQL
+}
+```
+
+Make the property nullable and apply the default in the junction:
+
+```csharp
+public record GetChatHistoryInput
+{
+    public Guid ChatRoomId { get; init; }
+    public int? Take { get; init; }        // optional: take: Int
+}
+
+var take = Math.Clamp(input.Take ?? 50, 1, 100);
+```
+
+Clamp a caller-supplied page size there as well: the value reaches your query as the caller wrote it.
+
+### The last property
+
 Adding or removing the **last** property of an input record therefore changes the field's arity: the `input` argument appears or disappears. That is a breaking schema change for clients, and it does not look like one in the diff, because the record gained or lost a single property like any other.
 
 ## Naming Convention

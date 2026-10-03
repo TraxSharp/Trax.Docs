@@ -11,7 +11,7 @@ nav_order: 6
 
 The `[TraxBroadcast]` attribute opts a train into real-time GraphQL [subscription](/docs/sdk-reference/graphql-api/subscriptions) events. Only trains decorated with this attribute will have their lifecycle transitions (`onTrainStarted`, `onTrainCompleted`, `onTrainFailed`, `onTrainCancelled`) published to WebSocket subscribers.
 
-Trains without this attribute run normally but are silently skipped by both the local `GraphQLSubscriptionHook` and the remote `GraphQLTrainEventHandler` (used with [`UseBroadcaster()`](/docs/sdk-reference/configuration/use-broadcaster)).
+Trains without this attribute run normally but are silently skipped by both the local `GraphQLSubscriptionHook` and the remote `GraphQLTrainEventHandler` (used with [`UseBroadcaster()`](/docs/sdk-reference/configuration/use-broadcaster)). It filters only those two: a lifecycle hook of your own, registered with [`AddLifecycleHook`](/docs/sdk-reference/configuration/add-lifecycle-hook), runs for every train with or without the attribute, and filters by train name itself (see [Your own subscription fields](/docs/sdk-reference/graphql-api/subscriptions#your-own-subscription-fields)).
 
 The attribute governs the **user-facing** subscription surface. If the host exposes the operations (admin) surface via [`ExposeOperationQueries()`/`ExposeOperationMutations()`](/docs/sdk-reference/graphql-api/add-trax-graphql), it is treated as an observability host and streams **every** train regardless of this attribute. `[TraxBroadcast]` only matters on hosts that do not expose operations, where it picks the subset of trains that end users are allowed to watch.
 

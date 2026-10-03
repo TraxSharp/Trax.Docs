@@ -36,7 +36,8 @@ Each context ships a companion `I{Name}DbContext` interface deriving `IDomainDat
 ## Registration and bootstrap
 
 ```csharp
-// One pooled factory + a scoped resolver bound to the interface.
+// One pooled factory + a scoped resolver bound to the interface. A context that takes the
+// caller cannot be pooled: see Owner-scoped contexts below.
 services.AddDomainDataContext<ICatalogDbContext, CatalogDbContext>(o => o.UseNpgsql(connectionString));
 
 // Create the schema and tables at startup (demo convenience; use migrations in production).
@@ -79,6 +80,103 @@ services.AddDomainDataContext<ICatalogDbContext, CatalogDbContext>(o =>
 
 `UsePostgres` does both for Trax's own enums (`TrainState`, `LogLevel`, `ScheduleType` and the
 rest) on the metadata store, so this only concerns enum types your own contexts add.
+
+## Owner-scoped contexts
+
+A context whose rows belong to users (a member's loans, a customer's orders) narrows every query to
+the caller with an EF query filter, and the filter needs the caller. That changes how the context is
+built and registered, because `AddDomainDataContext` registers a **pooled** factory, and a pooled
+context can only be constructed from its options: it cannot take a scoped service such as the
+caller. Register such a context with an unpooled, scoped factory instead.
+
+The context takes the caller through an interface of its own, so the data layer does not depend on
+how callers are authenticated:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Trax.Effect.Data.Services.DomainContext;
+
+public interface ILendingCaller
+{
+    string? PrincipalId { get; }   // the qualified principal id, or null when anonymous
+    bool IsLibrarian { get; }
+}
+
+public sealed class NoLendingCaller : ILendingCaller
+{
+    public static readonly NoLendingCaller Instance = new();
+    public string? PrincipalId => null;
+    public bool IsLibrarian => false;
+}
+
+public class LendingDbContext : DomainDataContext<LendingDbContext>, ILendingDbContext
+{
+    private readonly ILendingCaller _caller;
+
+    [ActivatorUtilitiesConstructor]
+    public LendingDbContext(DbContextOptions<LendingDbContext> options, ILendingCaller caller)
+        : base(options) => _caller = caller;
+
+    // For tools that build the context from its options alone: it sees no owner's rows.
+    public LendingDbContext(DbContextOptions<LendingDbContext> options)
+        : this(options, NoLendingCaller.Instance) { }
+
+    public DbSet<Member> Members => Set<Member>();
+    public DbSet<Loan> Loans => Set<Loan>();
+
+    protected override string Schema => "lending";
+
+    protected override void ConfigureModel(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Member>().HasQueryFilter(m =>
+            _caller.IsLibrarian || (_caller.PrincipalId != null && m.PrincipalId == _caller.PrincipalId));
+
+        modelBuilder.Entity<Loan>().HasQueryFilter(l =>
+            _caller.IsLibrarian
+            || Set<Member>().Any(m => m.Id == l.MemberId
+                && _caller.PrincipalId != null && m.PrincipalId == _caller.PrincipalId));
+    }
+}
+```
+
+Register it with a scoped factory, and the interface from it:
+
+```csharp
+services.AddScoped<ILendingCaller, TraxLendingCaller>();
+services.AddDbContextFactory<LendingDbContext>(o => o.UseNpgsql(connectionString), ServiceLifetime.Scoped);
+services.AddScoped<ILendingDbContext>(sp =>
+    sp.GetRequiredService<IDbContextFactory<LendingDbContext>>().CreateDbContext());
+```
+
+Each piece is there for a reason:
+
+- **The filter reads the caller through a field of the context.** EF Core evaluates
+  `_caller.PrincipalId` when each query runs, against the context running it, so one model serves
+  every request.
+- **Bind the interface over [`TraxCaller`](/docs/sdk-reference/api-auth/trax-caller)**, which never
+  throws for an anonymous caller and reads the principal on each access. A principal authenticated
+  after the context was built (Trax authenticates multi-scheme GraphQL requests just before they
+  execute) still applies. `TraxCaller` is registered by every Trax auth scheme; a host whose scheme
+  is registered only in some environments also calls `AddTraxPrincipalAccessor()`.
+- **`ServiceLifetime.Scoped` on the factory.** A singleton factory resolves the context's
+  constructor from the root container, where the scoped caller cannot be resolved. A scoped one
+  builds each context with the caller of the request resolving it. `AddDbContextFactory` also
+  registers `LendingDbContext` itself as scoped, which is what `AddTraxGraphQL().AddDbContext<LendingDbContext>()`
+  resolves for the query models, so they read through the same filters as the trains.
+- **Two constructors.** The [architecture guards](/docs/reference/architecture-guards) build every
+  context in `DomainContexts` offline from its options alone, so an options-only constructor must
+  exist; it passes a caller who sees nothing, so anything that builds the context that way fails
+  closed. With two constructors, `[ActivatorUtilitiesConstructor]` tells the container and EF's
+  factory which to use; without it the factory throws "Multiple constructors accepting all given
+  argument types have been found".
+
+A read that must see past the filter (whether anyone has a book out, a seed that runs at startup
+with no caller) calls `IgnoreQueryFilters()` on that one query. The owner-scope census reports
+every such call unless the file is listed in its `FilterBypassAllowlist` with a reason.
+
+The [Bookworm sample](/docs/samples/bookworm) is a working owner-scoped context, with the census
+adopted and cross-user E2E tests.
 
 ## Cross-schema reads
 

@@ -80,7 +80,7 @@ app.UseAuthorization();
 app.UseTraxGraphQL();
 ```
 
-Enforcement runs inside HotChocolate's execution pipeline, after the document is parsed and before it is validated, so it needs no ASP.NET middleware and covers every transport the same way: a JSON POST, a GET, a multipart POST, a WebSocket `subscribe`, and a request your own code builds in-process. `UsePersistedOperationsEnforcement()` still compiles for existing hosts and adds nothing.
+Enforcement runs inside HotChocolate's execution pipeline, after the document is parsed and before it is validated, so it needs no ASP.NET middleware and covers every transport the same way: a JSON POST, a GET, a multipart POST, a WebSocket `subscribe`, and a request your own code builds in-process. `UsePersistedOperationsEnforcement()` still compiles for existing hosts and adds nothing; a host that mapped it in a `UseWhen(...)` branch can delete the branch. A JSON-array batch is refused by the endpoint with `HC0009` ("Invalid GraphQL Request") before enforcement runs, so no entry of a batch executes, persisted or not.
 
 Host code that builds a request itself and should run an inline document can say so with HotChocolate's own override:
 
@@ -103,7 +103,18 @@ Persisted operations refuse to start until you say how a change reaches every no
 | One process serves the endpoint and writes the store | `SingleNode()` |
 | More than one node, or the store is written from another process | `UseRabbitMqInvalidation(rabbitConnectionString)` |
 
-Calling neither, or both, fails at startup with a message naming the fix. An existing single-node host adds `.SingleNode()` to its `UsePersistedOperations(...)` call; the samples and templates need the same one line.
+Calling neither, or both, fails at startup with a message naming the fix:
+
+```
+Persisted operations need to know how a change reaches every node. Each node caches the documents
+it serves, and HotChocolate's caches do not expire, so an upload, deactivation or restore made on
+one node is seen by another only if it is broadcast. Call UseRabbitMqInvalidation(connectionString)
+when more than one node serves this endpoint, or SingleNode() when exactly one process serves it and
+writes the store.
+```
+
+An existing single-node host adds `.SingleNode()` to its `UsePersistedOperations(...)` call. The
+[Persisted Operations sample](/docs/samples/persisted-operations) is one.
 
 `SingleNode()` is a claim nothing can check at runtime. A second node, or a CI uploader writing the store from its own process, makes it false: a change made there does not reach this node until it restarts.
 
@@ -182,6 +193,8 @@ Introspection requests bypass enforcement automatically. A request is introspect
 There are three surfaces, all backed by the same `IPersistedOperationStore` and the same shape-diff and schema-validation guardrails. The dashboard and the GraphQL fields both go through `IPersistedOperationsService`, so they accept and refuse the same things with the same codes.
 
 ### From the dashboard
+
+The dashboard refuses to start until its options name a posture (`RequirePolicy`, `RequireRoles` or `AllowAnonymousDashboard()`; see [UseTraxDashboard](/docs/sdk-reference/dashboard-api/use-trax-dashboard)). It also needs the scheduler's services for its other pages, so a GraphQL host that adds it registers `AddScheduler(...)` even with no queued work.
 
 When the host registers `IPersistedOperationsService`, the Trax dashboard exposes a **Persisted Operations** entry under **Data**. `UsePersistedOperations(...)` registers it on a GraphQL host, and `AddPersistedOperationStore(...)` on a host that serves no GraphQL, such as a dashboard running in a process of its own. The page lists `trax.persisted_operation` a page at a time, filters by tenant, status and id prefix, and offers Upload / Edit / Deactivate / Restore actions against the row's own tenant. It goes through the same `IPersistedOperationsService` as the `operations.persistedOperations` fields, so an upload or deactivation the API refuses is refused with the same message. The editor renders parse, schema-validation, and shape-diff errors inline so the operator never has to read a stack trace.
 

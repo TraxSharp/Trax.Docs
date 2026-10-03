@@ -67,9 +67,16 @@ public class AddJobJunction : Junction<AddJobInput, Job>
 
 The API-side resolver populates `InitiatorUserId` from the authenticated `TraxPrincipal`; the scheduler replays whatever was persisted on the work queue.
 
+### Ask `TraxCaller`
+
+For code that needs to know *whether* a user is present, inject [`TraxCaller`](/docs/sdk-reference/api-auth/trax-caller).
+It never throws: `Principal` is `null` for an anonymous caller, and `IsTrusted` says whether the
+scheduler or a runner is executing. It is also the right dependency for an EF query filter or a
+subscription resolver.
+
 ### Probe via `IHttpContextAccessor`
 
-For junctions that need to know *whether* a user is present:
+The same check by hand:
 
 ```csharp
 public class DualPathJunction(IHttpContextAccessor accessor) : Junction<MyInput, MyOutput>

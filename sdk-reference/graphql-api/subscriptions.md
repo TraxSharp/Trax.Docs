@@ -276,6 +276,109 @@ public class MyService(ITraxChangeSignal changeSignal)
 
 `Notify` never throws and never blocks the caller. Each domain is held once while it waits to be read, so repeated signals for a domain collapse into one and a burst for one domain never crowds out another's. A value outside `ChangeDomain` (a cast integer) signals nothing and logs a throttled warning. A background coalescer flushes the distinct set of changed domains to the `onDataChanged` topic. Trax's own scheduler and GraphQL write paths already call `Notify`, so the dashboard gets live updates out of the box; call it yourself only from custom write paths that should nudge a dashboard view.
 
+## Your own subscription fields
+
+The lifecycle fields stream train events. A domain feed of your own, such as a chat room's
+messages, is a field you add to the same root and feed from a lifecycle hook. The
+[Chat Service sample](/docs/samples/chat-service) is a complete one.
+
+### Add the field
+
+Trax's subscription root is named `LifecycleSubscriptions`, so a type extension targets that name:
+
+```csharp
+using HotChocolate;
+using HotChocolate.Execution;
+using HotChocolate.Subscriptions;
+using HotChocolate.Types;
+using Trax.Api.Auth;
+using Trax.Effect.Attributes;
+
+[ExtendObjectType("LifecycleSubscriptions")]
+public class ChatSubscriptions
+{
+    [TraxAuthorize(Roles = "User")]
+    [Subscribe(With = nameof(SubscribeToChatEventAsync))]
+    public ChatEvent OnChatEvent(Guid chatRoomId, [EventMessage] ChatEvent message) => message;
+
+    public async ValueTask<ISourceStream<ChatEvent>> SubscribeToChatEventAsync(
+        Guid chatRoomId,
+        TraxCaller caller,
+        ChatDbContext db,
+        ITopicEventReceiver receiver,
+        CancellationToken cancellationToken)
+    {
+        var userId = caller.Principal?.Id;
+        if (userId is null || !await db.Participants.AnyAsync(
+                p => p.RoomId == chatRoomId && p.UserId == userId, cancellationToken))
+            throw new GraphQLException(ErrorBuilder.New()
+                .SetMessage("Not authorized.").SetCode("TRAX_AUTHORIZATION").Build());
+
+        return await receiver.SubscribeAsync<ChatEvent>($"ChatRoom:{chatRoomId}", cancellationToken);
+    }
+}
+
+// Program.cs
+builder.Services.AddTraxGraphQL(graphql => graphql.AddTypeExtension<ChatSubscriptions>());
+```
+
+- **Target `"LifecycleSubscriptions"`, not `OperationTypeNames.Subscription`.** HotChocolate drops an
+  extension whose target type does not exist, with no startup error, so an extension of
+  `"Subscription"` leaves the field out of the schema and a client's subscribe fails with "The field
+  `onChatEvent` does not exist on the type `LifecycleSubscriptions`". Check the served schema with
+  `{ __schema { subscriptionType { name fields { name } } } }`.
+- **Declare a posture on the field.** A field on a root type inherits no gate, so the host refuses
+  to start when the field carries neither `[TraxAuthorize]` nor `[TraxAllowAnonymous]` (see
+  [Fields Added by a Type Extension](/docs/authorization#fields-added-by-a-type-extension)).
+- **Check the record in the subscribe resolver.** `[TraxAuthorize]` decides who may use the field;
+  which topic a caller may listen to (their own room, their own orders) is the resolver's job. It
+  runs once, when the client subscribes, and a refusal reaches the client as an `error` message for
+  that subscription. The method named by `Subscribe(With = ...)` is not exposed as a field. A
+  resolver parameter of a service type, such as `TraxCaller` or a `DbContext`, is resolved from the
+  container.
+
+### Publish to it
+
+Send to the topic from an [`ITrainLifecycleHook`](/docs/sdk-reference/configuration/add-lifecycle-hook)
+when the train whose result the feed carries completes:
+
+```csharp
+public class ChatLifecycleHook(ITopicEventSender eventSender) : ITrainLifecycleHook
+{
+    public async Task OnCompleted(Metadata metadata, CancellationToken ct)
+    {
+        if (metadata.Name != typeof(ISendMessageTrain).FullName || metadata.Output is null)
+            return;
+
+        using var doc = JsonDocument.Parse(metadata.Output);
+        var roomId = doc.RootElement.GetProperty("chatRoomId").GetGuid();
+        await eventSender.SendAsync($"ChatRoom:{roomId}", new ChatEvent(roomId, metadata.Output), ct);
+    }
+}
+
+public class ChatLifecycleHookFactory(IServiceProvider services) : ITrainLifecycleHookFactory
+{
+    public ITrainLifecycleHook Create() => ActivatorUtilities.CreateInstance<ChatLifecycleHook>(services);
+}
+
+// Program.cs
+builder.Services.AddTrax(trax => trax
+    .AddEffects(effects => effects.UseSqlite(connectionString).AddJson().AddLifecycleHook<ChatLifecycleHookFactory>())
+    .AddMediator(typeof(ChatLifecycleHook).Assembly));
+```
+
+`metadata.Name` is the train's canonical name, its service interface's `FullName`.
+`metadata.Output` is the output serialized as camelCase JSON, and it begins with a `"$id"`
+property; read the fields you need rather than forwarding it as your schema. A hook fires for every
+train, so it filters by name itself; `[TraxBroadcast]` on the train is not needed for your own hook,
+only for the lifecycle fields. Events your code sends through `ITopicEventSender` carry no
+`sequence` and never cause a skip in the lifecycle fields' numbering.
+
+The in-memory transport reaches subscribers on the process that sent the event. A hook that runs on
+a worker process reaches no API node's subscribers; bridge it the way the lifecycle fields are
+bridged, with [`UseBroadcaster()`](/docs/sdk-reference/configuration/use-broadcaster), or keep the
+train on the API node.
+
 ## WebSocket Connection
 
 Subscriptions use the GraphQL over WebSocket protocol. Connect to the same endpoint as queries and mutations:
@@ -335,6 +438,12 @@ With one scheme registered, every connection goes to it. With API-key and JWT au
 - A payload with none of the three is rejected.
 
 A credential is checked by one strategy only. A JWT that fails validation is rejected, not retried as an API key.
+
+A refused connection is closed before the `connection_ack`. A connection with no credential at all,
+on a host with a token scheme, is closed with code `4403` and the reason
+`Missing auth token in connection_init payload.` The payload key must be one of those above: a
+client that sends its key as `{ "X-Api-Key": "..." }` (the HTTP header's name) has sent no credential
+and is closed the same way. With `graphql-ws`, that is `connectionParams: { apiKey }`.
 
 The schemes are read from the finished container on the first connection, so it does not matter whether your `AddTrax*Auth` call comes before or after `AddTraxGraphQL()`.
 
