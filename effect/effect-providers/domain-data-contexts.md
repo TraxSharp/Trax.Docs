@@ -44,13 +44,117 @@ services.AddDomainDataContext<ICatalogDbContext, CatalogDbContext>(o => o.UseNpg
 await app.Services.EnsureSchemaCreatedAsync<CatalogDbContext>();
 ```
 
+To serve the context's `[TraxQueryModel]` entities over GraphQL, name the concrete type on the
+GraphQL builder: `AddTraxGraphQL(graphql => graphql.AddDbContext<CatalogDbContext>())`. The pooled
+factory above is all it needs; see [Query Models](/docs/sdk-reference/graphql-api/query-models).
+
 `EnsureSchemaCreatedAsync` creates the default schema with `IF NOT EXISTS`, then runs the model's
-whole create script and swallows any `DbException` it throws. On a second start the script fails
-on its first statement because the tables exist, and that is the steady state. The same swallow
-also hides everything else: a table added to the model later is never created (the script stops at
-the first table that exists), and any other DDL error, such as a permission failure, passes
-silently and surfaces later as a missing table. Once the model changes after its first deployment,
-move the context to migrations.
+whole create script and catches any `DbException` it throws. Trax logs nothing about it, but EF
+Core logs the command itself:
+
+- **First start:** the create script appears at `Information`
+  (`Microsoft.EntityFrameworkCore.Database.Command[20101] Executed DbCommand`).
+- **Every start after that:** the script fails on its first statement because the tables exist,
+  and EF Core logs it at **`Error`**, with the whole script:
+  `fail: Microsoft.EntityFrameworkCore.Database.Command[20102] Failed executing DbCommand`. The host
+  carries on. That line is the steady state, not a fault, but an alert on `Error` logs will see it.
+
+Catching the exception hides everything else too: a table added to the model later is never
+created (the script stops at the first table that exists), and any other DDL error, such as a
+permission failure, is logged the same way and surfaces later as a missing table. Once the model
+changes after its first deployment, move the context to migrations, below.
+
+## Moving to EF migrations
+
+A `DomainDataContext` takes ordinary EF Core migrations. Trax's own tables are migrated separately
+(by `UsePostgres`, during service registration, tracked in `trax.migrations`), so the two never
+touch each other's history. Four pieces:
+
+**1. Packages.** The EF tools need the design package in the project that holds the context, and
+the `dotnet-ef` tool at the same EF Core version as the rest of the app:
+
+```bash
+dotnet add package Microsoft.EntityFrameworkCore.Design
+dotnet new tool-manifest
+dotnet tool install dotnet-ef
+```
+
+**2. One place for the provider options**, so the app and the tools agree. Put the migrations
+history table in the domain's own schema; without this it lands in `public."__EFMigrationsHistory"`,
+shared by every context that does the same:
+
+```csharp
+using Npgsql.EntityFrameworkCore.PostgreSQL.Infrastructure;
+
+public static class ShopDatabase
+{
+    public static void Npgsql(NpgsqlDbContextOptionsBuilder npgsql) =>
+        npgsql.MigrationsHistoryTable("__EFMigrationsHistory", "shop");
+}
+```
+
+**3. A design-time factory.** `dotnet ef` builds the context from it instead of starting your host
+(which would run Trax's migrations and the rest of `Program.cs`). The base's sealed `OnModelCreating`
+is no obstacle: the tools build the model through it, schema and UTC converter included, so the
+migrations carry `EnsureSchema("shop")` and every table in that schema.
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Design;
+
+public class ShopDbContextFactory : IDesignTimeDbContextFactory<ShopDbContext>
+{
+    public ShopDbContext CreateDbContext(string[] args) =>
+        new(new DbContextOptionsBuilder<ShopDbContext>()
+            .UseNpgsql("Host=localhost;Port=5432;Database=shop;Username=app;Password=app", ShopDatabase.Npgsql)
+            .Options);
+}
+```
+
+`dotnet ef migrations add` builds the model offline and does not connect to that database.
+
+**4. Apply them at startup** (or from a deployment step) in place of `EnsureSchemaCreatedAsync`:
+
+```csharp
+builder.Services.AddDomainDataContext<IShopDbContext, ShopDbContext>(o =>
+    o.UseNpgsql(connectionString, ShopDatabase.Npgsql));
+builder.Services.AddTrax(trax => trax.AddEffects(e => e.UsePostgres(connectionString)) /* ... */);
+
+var app = builder.Build();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ShopDbContext>>();
+    await using var db = await factory.CreateDbContextAsync();
+    await db.Database.MigrateAsync();
+}
+```
+
+Then:
+
+```bash
+dotnet ef migrations add Initial -o Data/Migrations
+```
+
+On a fresh database the first `MigrateAsync` logs one `Error` from EF Core, a failed
+`SELECT ... FROM shop."__EFMigrationsHistory"` before it creates that table; later starts log none.
+`MigrateAsync` refuses to start the host (`PendingModelChangesWarning`) when the model has changed
+without a migration. The `NoPendingModelChanges` [architecture guard](/docs/reference/architecture-guards)
+catches that in CI: list the context in `MigrationContexts`.
+
+**A database `EnsureSchemaCreatedAsync` already created** has the tables and no history, so the
+first `MigrateAsync` fails with `42P07: relation "Orders" already exists`. Generate `Initial` from the
+model exactly as deployed, then record it as applied once, before the new code starts:
+
+```sql
+CREATE TABLE IF NOT EXISTS shop."__EFMigrationsHistory" (
+    "MigrationId" character varying(150) NOT NULL PRIMARY KEY,
+    "ProductVersion" character varying(32) NOT NULL);
+INSERT INTO shop."__EFMigrationsHistory" VALUES ('20261003182101_Initial', '10.0.12');
+```
+
+Use the migration's full id (its file name) and your EF Core version. Every later migration then
+applies normally.
 
 ## PostgreSQL enum columns
 

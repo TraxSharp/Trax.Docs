@@ -16,6 +16,7 @@ Query models expose EF Core entities directly as GraphQL queries with automatic 
 1. Mark your entity with `[TraxQueryModel]`:
 
 ```csharp
+[TraxAuthorize] // or [TraxAllowAnonymous]: without a posture the host refuses to start (see Authorization)
 [TraxQueryModel(Description = "Player profiles")]
 public class PlayerRecord
 {
@@ -44,6 +45,26 @@ builder.Services.AddDbContextFactory<GameDbContext>(options =>
 builder.Services.AddTraxGraphQL(graphql =>
     graphql.AddDbContext<GameDbContext>());
 ```
+
+For an application's own data, the recommended base is a
+[`DomainDataContext`](/docs/effect/effect-providers/domain-data-contexts) registered with
+`AddDomainDataContext`, and it works here unchanged: `AddDbContext<T>()` names the concrete context
+type, and the pooled factory `AddDomainDataContext` registers serves it.
+
+```csharp
+public class GameDbContext(DbContextOptions<GameDbContext> options)
+    : DomainDataContext<GameDbContext>(options), IGameDbContext
+{
+    public DbSet<PlayerRecord> Players => Set<PlayerRecord>();
+    protected override string Schema => "game";
+    protected override void ConfigureModel(ModelBuilder modelBuilder) { }
+}
+
+builder.Services.AddDomainDataContext<IGameDbContext, GameDbContext>(o => o.UseNpgsql(connectionString));
+builder.Services.AddTraxGraphQL(graphql => graphql.AddDbContext<GameDbContext>());
+```
+
+The [Bookworm sample](/docs/samples/bookworm) serves its catalog this way.
 
 This generates a `playerRecords` query field under `discover`:
 
@@ -512,7 +533,7 @@ builder.Services.AddTraxGraphQL(graphql => graphql
 
 Only `DbSet<T>` properties where `T` has `[TraxQueryModel]` are exposed. Other `DbSet` properties on the same DbContext are ignored.
 
-The DbContext must be registered in DI separately (via `AddDbContext`, `AddDbContextFactory`, or `AddPooledDbContextFactory`).
+The DbContext must be registered in DI separately (via `AddDomainDataContext`, `AddDbContext`, `AddDbContextFactory`, or `AddPooledDbContextFactory`). Each request resolves the concrete type you named.
 
 ## vs TraxQuery
 
