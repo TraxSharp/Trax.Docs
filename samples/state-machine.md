@@ -38,7 +38,7 @@ docker compose up -d       # Postgres on 5432
 dotnet run --project samples/StateMachine/Trax.Samples.StateMachine.Api
 ```
 
-The host listens on <http://localhost:5220> in Development (`Properties/launchSettings.json`), the
+The host listens on <http://localhost:5280> in Development (`Properties/launchSettings.json`), the
 only environment that registers the demo keys `alice-key-do-not-use-in-production` and
 `bob-key-do-not-use-in-production`. The `snapshot_draft` and `effect_claim` tables come from the Trax
 Postgres provider's own migrations; the sample writes no schema.
@@ -54,7 +54,7 @@ npm run dev                # http://localhost:5173
 ## Try it
 
 Send `X-Api-Key: alice-key-do-not-use-in-production` with each request (Nitro at
-<http://localhost:5220/trax/graphql>, or curl).
+<http://localhost:5280/trax/graphql>, or curl).
 
 ```graphql
 # What machines are there? (anonymous)
