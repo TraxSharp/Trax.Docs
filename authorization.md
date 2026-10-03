@@ -10,13 +10,16 @@ section: Guides
 
 # Authorization
 
-Trax supports three levels of authorization for the API layer:
+Trax supports four levels of authorization for the API layer:
 
-- **Endpoint-level**: gate all Trax endpoints behind a single policy using the `configure` callback on `UseTraxGraphQL`. This is standard ASP.NET Core endpoint authorization.
+- **Endpoint-level**: gate every GraphQL operation behind one policy with `RequireAuthorization()` on the GraphQL builder (`AddTraxGraphQL(graphql => graphql.RequireAuthorization())`). See [Combining with Endpoint-Level Auth](#combining-with-endpoint-level-auth).
+- **The operations namespace**: gate only the built-in `operations` queries and mutations with `GateOperations(policy, roles)`, leaving the rest of the endpoint open. See [The Operations Surface](#the-operations-surface).
 - **Per-train**: restrict individual trains using the `[TraxAuthorize]` attribute on the train class. When a request comes in to run or queue a train, Trax checks the attribute against the current HTTP user before executing anything.
 - **Per-model**: restrict `[TraxQueryModel]`-exposed entities using the same `[TraxAuthorize]` attribute on the entity class. The directive is enforced at GraphQL type level, so the gate also applies when the entity is reached through a navigation property on an ungated parent, whether the request selects it or filters or sorts through it.
 
 A surface exposed via GraphQL can also be explicitly opened to anonymous access with `[TraxAllowAnonymous]`. See [Anonymous Access via TraxAllowAnonymous](#anonymous-access-via-traxallowanonymous) below.
+
+The [Auth sample](/docs/samples/auth) uses every one of these in one host, with API keys and JWTs side by side, and its E2E suite proves each gate.
 
 Endpoint-level auth answers "can this user reach the Trax API at all?" Per-train auth answers "can this user execute *this particular* train?" Per-model auth answers "can this user read rows of *this particular* type, regardless of how they navigated to it?"
 
@@ -216,17 +219,18 @@ Identical to the per-train surface. The table below repeats them for reference; 
 
 `QueryModelAuthorizationValidator` runs as a hosted service at host start. It throws if any entity references an authorization policy that has not been registered via `services.AddAuthorization(...)`. This catches typoed policy names (`"AdmnPolicy"`) before the first request rather than turning the gate into a silent deny-all in production. Roles are not validated against the principal store (Trax has no view of what roles can exist); attribute shape (empty or whitespace-only `Policy`, all-empty `Roles` CSV) is validated at `TraxGraphQLBuilder.Build` time.
 
-### Authentication for Per-Model Gating
+### Which Scheme Authenticates a GraphQL Request
 
-Per-model `[TraxAuthorize]` enforcement runs HotChocolate's `@authorize` directive, which evaluates against `HttpContext.User`. ASP.NET Core's `UseAuthentication()` middleware only populates `HttpContext.User` from the **default authentication scheme**, so multi-scheme hosts (api-key + JWT, api-key + cookie, etc.) where no scheme is configured as the default would otherwise leave HC seeing an anonymous principal.
+`[TraxAuthorize]` on a train and the `@authorize` directive on a query model both read `HttpContext.User`. ASP.NET Core's `UseAuthentication()` middleware fills it only from the **default authentication scheme**, and no Trax `AddTrax*Auth` call sets one, so on a host with API keys and JWTs side by side it would otherwise stay anonymous.
 
-Trax handles this automatically. When any registered `[TraxQueryModel]` entity carries `[TraxAuthorize]`, `AddTraxGraphQL` wires a HotChocolate `IHttpRequestInterceptor` (`QueryModelAuthenticationInterceptor`) that runs before each GraphQL HTTP request. The interceptor:
+Trax fills it itself. `AddTraxGraphQL` installs a HotChocolate request interceptor (`TraxHttpAuthenticationInterceptor`) that runs before every GraphQL HTTP request:
 
-1. Returns early if the request is already authenticated by upstream middleware or endpoint-level `RequireAuthorization`.
-2. Otherwise, walks every registered authentication scheme and attempts `AuthenticateAsync` against each. The first successful scheme wins; the resulting principal is assigned to `HttpContext.User` for the duration of the request.
-3. If no scheme matches the request's credentials, the principal stays anonymous - gated queries will then reject with `TRAX_AUTHORIZATION`.
+1. With an endpoint policy (`RequireAuthorization(...)` on the builder), it authenticates the request with that policy's schemes, as ASP.NET Core does for an endpoint gated by the same policy.
+2. Otherwise, if the request is already authenticated (a default scheme, or other middleware), it leaves it alone.
+3. Otherwise it tries every registered authentication scheme **in registration order** and keeps the first principal that authenticates. A request carrying both an API key and a bearer token is therefore authenticated by whichever scheme was registered first.
+4. If no scheme authenticates the request, the caller stays anonymous, and every gate refuses it with `TRAX_AUTHORIZATION`. A credential a scheme rejects (an unknown key, an expired or forged token) is the same as no credential.
 
-The interceptor runs only for GraphQL HTTP execution requests, so the Nitro IDE page and WebSocket subscription upgrades are not affected. Subscriptions authenticate separately, through `TraxCompositeSocketInterceptor` and the per-scheme strategies it delegates to (`TraxApiKeySocketInterceptor`, `TraxJwtSocketInterceptor`, `TraxJwtDispatcherSocketInterceptor`).
+The interceptor runs only for GraphQL HTTP execution requests, so the Nitro IDE page and WebSocket subscription upgrades are not affected. Subscriptions authenticate separately, from the `connection_init` payload, through `TraxCompositeSocketInterceptor` and the per-scheme strategies it delegates to (`TraxApiKeySocketInterceptor`, `TraxJwtSocketInterceptor`, `TraxJwtDispatcherSocketInterceptor`).
 
 No consumer configuration is required.
 
@@ -356,7 +360,16 @@ builder.Services.AddAuthorization(options =>
 });
 ```
 
-Trax evaluates these policies at runtime using ASP.NET Core's `IAuthorizationService`. If a train requires a policy that isn't registered, the authorization check fails.
+Trax evaluates these policies at runtime using ASP.NET Core's `IAuthorizationService`. Register every policy before you name it:
+
+| A policy that is not registered, named by | Fails |
+|---|---|
+| A `[TraxQueryModel]` entity's `[TraxAuthorize]` | at startup, naming the entity and the policy |
+| The builder's `RequireAuthorization(policy)` | at startup, naming the policy |
+| A train's `[TraxAuthorize]` | at request time: every call to the train fails with HotChocolate's masked `"Unexpected Execution Error"`, not `TRAX_AUTHORIZATION`, and the train never runs |
+| `GateOperations(policy: ...)` | at request time: every `operations` call fails |
+
+Roles need no registration: a role is matched against the caller's role claims as it is written.
 
 ## How It Works
 

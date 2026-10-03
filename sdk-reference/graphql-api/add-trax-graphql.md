@@ -69,7 +69,7 @@ builder.Services.AddTraxGraphQL(graphql => graphql
 | `ExposeOperationQueries()` | Adds the `operations` namespace under `RootQuery`, exposing `health`, `trains`, `manifests`, `manifest`, `manifestGroups`, `executions`, `execution`, and the nested `operations.deadLetters` read queries. **Off by default**, since these endpoints reveal the topology and execution history of the deployment: `operations.hosts` reports internal hostnames and per-instance execution counts, `operations.config` the scheduler's settings. Exposing them without a gate fails at startup unless you answer with `GateOperations(policy, roles)`, `RequireAuthorization()` or `AllowAnonymousOperations()`. |
 | `ExposeOperationMutations()` | Adds the `operations` namespace under `RootMutation`, exposing `triggerManifest`, `disableManifest`, `enableManifest`, `cancelManifest`, `triggerGroup`, `cancelGroup`, `triggerManifestDelayed`, `setEffectEnabled`, and the nested `operations.deadLetters` requeue/acknowledge mutations. **Off by default**, since these mutations call the scheduler directly and an unauthenticated caller could disrupt scheduled work. Because of that, exposing them without a gate fails at startup unless you answer with `GateOperations(policy, roles)`, `RequireAuthorization()` or `AllowAnonymousOperations()`. |
 | `RequireAuthorization(string? policy = null)` | Gates every GraphQL operation behind an authorization policy, over HTTP and over a subscription socket alike; an unauthenticated caller never satisfies it. The GraphQL IDE (HTML GET) and the schema download are not gated by it; they follow `AllowIntrospection`. Pass no argument to use the combined Trax auth policy that every `AddTrax*Auth` extension contributes a scheme to; pass an explicit policy name (e.g. `ApiKeyDefaults.PolicyName`) to require something more specific. Failed checks return a GraphQL error with code `TRAX_AUTHORIZATION` rather than HTTP 401. A socket is checked at `connection_init` and again for every operation it carries. |
-| `GateOperations(policy, roles)` | Puts `@authorize` on the `operations` field of both root types, gating the namespace while the rest of the endpoint stays open. This is the answer for a host with public pre-login surfaces, which cannot use `RequireAuthorization()` without taking those surfaces down too. Policy and roles combine exactly as repeated `[TraxAuthorize]` attributes do: policies AND, roles union and OR. A policy or roles is required: a call with neither (or only blank strings) fails at startup, because "any signed-in user" on a host with public sign-up is everyone, and the namespace reads execution inputs, outputs and logs and requeues, cancels and reconfigures work. Calling it with the namespace not exposed also fails at startup, because there is no field to put the gate on. |
+| `GateOperations(string? policy = null, string? roles = null)` | Puts `@authorize` on the `operations` field of both root types, gating the namespace while the rest of the endpoint stays open. This is the answer for a host with public pre-login surfaces, which cannot use `RequireAuthorization()` without taking those surfaces down too. Policy and roles combine exactly as repeated `[TraxAuthorize]` attributes do: policies AND, roles union and OR. A policy or roles is required: a call with neither (or only blank strings) fails at startup, because "any signed-in user" on a host with public sign-up is everyone, and the namespace reads execution inputs, outputs and logs and requeues, cancels and reconfigures work. Calling it with the namespace not exposed also fails at startup, because there is no field to put the gate on. `roles` is a comma-separated list, as on `[TraxAuthorize]`: `GateOperations(roles: "Operator")`, `GateOperations(roles: "Operator,Admin")`, `GateOperations(policy: "Ops", roles: "Operator")`. A policy named here must be registered with `AddAuthorization`; it is not checked at startup, so a misspelt one fails every `operations` call. |
 | `GateOperationsToAuthenticatedUsers()` | Gates the `operations` namespace to any authenticated caller, with no policy or role. It is the explicit spelling of what a parameterless `GateOperations()` used to do. Use it only when every principal that can authenticate is an operator, such as a host whose only identities are service accounts. |
 | `AllowAnonymousOperations()` | Acknowledges that the `operations` namespace is reachable with no gate at all. Exposing the namespace without one otherwise fails at startup, since an unauthenticated control plane is almost always a mistake. Call this only when the surface is protected another way (a private network, a sidecar, ASP.NET endpoint authorization) or is intentionally public. Setting it together with `RequireAuthorization()` or `GateOperations()` is a contradiction and also fails at startup. |
 
@@ -188,6 +188,36 @@ builder.Services.AddTraxGraphQL(graphql => graphql.RequireAuthorization());
 ```
 
 The two are independent. Use the builder method when you want developers to load the IDE without credentials and only enforce auth on actual GraphQL operations; use the endpoint method when even the IDE shell should be gated.
+
+## Gating the operations namespace
+
+A host that serves public trains or query models and an operations namespace for operators:
+
+```csharp
+using Trax.Api.GraphQL.Extensions;
+
+builder.Services.AddTraxGraphQL(graphql => graphql
+    .ExposeOperationQueries()
+    .ExposeOperationMutations()
+    .GateOperations(roles: "Operator"));
+```
+
+An anonymous caller or one without the role gets `TRAX_AUTHORIZATION` (`"Not authorized."`) from
+any `operations { ... }` field, read or mutation, while `[TraxAllowAnonymous]` surfaces stay
+reachable. `queueTrain`, `runTrain` and `requeueExecution` also apply the queued train's own
+`[TraxAuthorize]`, so the operator role alone does not let a caller queue a train they may not
+run. The [Auth sample](/docs/samples/auth) proves each of these end to end.
+
+What refuses startup:
+
+| Configuration | Message begins |
+|---|---|
+| `ExposeOperationMutations()` with no gate | `ExposeOperationMutations() exposes scheduler-control mutations (...) but the GraphQL endpoint is not gated and the namespace carries no gate of its own, so an unauthenticated caller can reach it. Pick one: GateOperations(policy, roles) ...` |
+| `ExposeOperationQueries()` with no gate | `ExposeOperationQueries() exposes the scheduler control plane's read surface (...) but the GraphQL endpoint is not gated ...` |
+| `GateOperations()` with no policy and no roles | `GateOperations() needs a policy or roles: GateOperations(policy: "...") or GateOperations(roles: "...").` |
+| `GateOperations(...)` without exposing the namespace | `GateOperations() was called but the operations namespace is not exposed, so there is no field to put the gate on` |
+| `AllowAnonymousOperations()` with `GateOperations(...)` or `RequireAuthorization()` | `AllowAnonymousOperations() was called together with ...` |
+| The namespace exposed without `IOperationsService` (and, with the mutations, `ITraxScheduler` and an `IJobSubmitter`) | names the missing service; `AddScheduler(...)` registers all three |
 
 ## Registration order
 

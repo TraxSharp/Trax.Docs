@@ -20,7 +20,96 @@ Trax ships three pluggable authentication schemes, all feeding the same [`TraxPr
 - `Trax.Api.Auth.Jwt` - JWT bearer tokens for SPA and machine-to-machine API clients.
 - `Trax.Api.Auth.Oidc` - OpenID Connect code flow for interactive browser sign-in.
 
-Multiple schemes can coexist in a single host. Every `AddTrax*Auth` call contributes its scheme to the combined `TraxAuthClaimTypes.TraxAuthPolicy`, so endpoints protected by that policy accept credentials from any registered scheme.
+Multiple schemes can coexist in a single host. Every `AddTrax*Auth` call contributes its scheme to the combined `TraxAuthClaimTypes.TraxAuthPolicy`, so endpoints protected by that policy accept credentials from any registered scheme. None of them becomes the default scheme; Trax authenticates each GraphQL request against the registered schemes itself (see [Which Scheme Authenticates a GraphQL Request](/docs/authorization#which-scheme-authenticates-a-graphql-request)).
+
+## A Secured Host, End to End
+
+This is the shape of a host with public surfaces, gated trains, an operator-only operations namespace and an audit trail, accepting API keys and JWTs. It is the [Auth sample](/docs/samples/auth)'s `Program.cs`, trimmed; the sample's E2E suite proves every gate in it.
+
+Packages: `Trax.Effect.Data.Postgres`, `Trax.Effect.Provider.Json`, `Trax.Mediator`, `Trax.Scheduler`, `Trax.Api`, `Trax.Api.Auth.ApiKey`, `Trax.Api.Auth.Jwt`, `Trax.Api.GraphQL`, `Trax.Api.GraphQL.Audit`.
+
+```csharp
+using Trax.Api.Auth;
+using Trax.Api.Auth.ApiKey;
+using Trax.Api.Auth.Jwt;
+using Trax.Api.GraphQL.Audit;
+using Trax.Api.GraphQL.Extensions;
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+using Trax.Effect.Provider.Json.Extensions;
+using Trax.Mediator.Extensions;
+using Trax.Scheduler.Extensions;
+
+var builder = WebApplication.CreateBuilder(args);
+var connectionString = builder.Configuration.GetConnectionString("TraxDatabase")!;
+
+// 1. Authentication. Demo credentials only in Development; real ones from configuration.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddTraxApiKeyAuth(keys => keys
+        .Add("ops-key-do-not-use-in-production", id: "ops", "Operator")
+        .Add("editor-key-do-not-use-in-production", id: "editor", "Editor"));
+    builder.Services.AddTraxJwtAuth(jwt => jwt.UseSymmetricKey(
+        "my-app-dev", "my-app", "my-app-dev-signing-key-do-not-use-in-production"u8.ToArray()));
+}
+else
+{
+    var ops = builder.Configuration.GetSection("Auth:OpsKey");
+    if (ops.Exists())
+        builder.Services.AddTraxApiKeyAuth(keys => keys.AddHashed(
+            Convert.FromBase64String(ops["Salt"]!), Convert.FromBase64String(ops["Hash"]!),
+            id: "ops", "Operator"));
+    if (builder.Configuration["Auth:Jwt:Authority"] is { Length: > 0 } authority)
+        builder.Services.AddTraxJwtAuth(authority, builder.Configuration["Auth:Jwt:Audience"]!);
+}
+builder.Services.AddAuthentication();       // the calls above are conditional
+builder.Services.AddTraxPrincipalAccessor(); // so is the TraxPrincipal they register
+
+// 2. Policies any [TraxAuthorize("...")] names. Roles need no registration.
+builder.Services.AddAuthorization(o =>
+    o.AddPolicy("VerifiedEmail", p => p.RequireClaim("email_verified", "true")));
+
+// 3. Trax. AddScheduler backs the operations namespace.
+builder.Services.AddTrax(trax => trax
+    .AddEffects(effects => effects.UsePostgres(connectionString).AddJson())
+    .AddMediator(typeof(Program).Assembly)
+    .AddScheduler(scheduler => scheduler));
+
+// 4. GraphQL: operators only on `operations`, everything else per surface, every request audited.
+builder.Services.AddTraxGraphQL(graphql => graphql
+    .ExposeOperationQueries()
+    .ExposeOperationMutations()
+    .GateOperations(roles: "Operator")
+    .AddAudit<MyAuditSink>());
+
+var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseTraxGraphQL();
+app.Run();
+```
+
+`MyAuditSink` is your [`ITraxAuditSink`](/docs/sdk-reference/api-audit/i-trax-audit-sink): the sample's writes each entry to a table. Every `[TraxQuery]`/`[TraxMutation]` train and `[TraxQueryModel]` entity then declares `[TraxAuthorize]` (optionally with a policy or roles) or `[TraxAllowAnonymous]`. A caller who fails a gate gets `TRAX_AUTHORIZATION` with the message `"Not authorized."`, and the train does not run.
+
+### What Refuses Startup
+
+Trax refuses to start a host whose security posture is missing or contradictory, rather than serving it open. Each refusal names what to change.
+
+| Cause | Fix |
+|---|---|
+| A `[TraxQuery]`/`[TraxMutation]` train or `[TraxQueryModel]` entity with neither `[TraxAuthorize]` nor `[TraxAllowAnonymous]` (on an endpoint without `RequireAuthorization()`) | Add one of the two. See [Required Exposure Posture](/docs/authorization#required-exposure-posture) |
+| An entity a query model reaches through a navigation, or a field an `[ExtendObjectType]` adds to a public or root type, with no posture | Add `[TraxAuthorize]` or `[TraxAllowAnonymous]` to it. See [Fields Added by a Type Extension](/docs/authorization#fields-added-by-a-type-extension) |
+| Both markers on one surface, or `[TraxAllowAnonymous]` under `RequireAuthorization()` | Pick one |
+| HotChocolate's `[Authorize]` or `[AllowAnonymous]` on a surface | Use `[TraxAuthorize]` / `[TraxAllowAnonymous]` |
+| `ExposeOperationQueries()`/`ExposeOperationMutations()` with no gate | `GateOperations(policy, roles)`, `RequireAuthorization()` or `AllowAnonymousOperations()`. See [Gating the operations namespace](/docs/sdk-reference/graphql-api/add-trax-graphql#gating-the-operations-namespace) |
+| `GateOperations()` with no policy and no roles | Name a role or policy, or call `GateOperationsToAuthenticatedUsers()` deliberately |
+| The operations namespace exposed without `IOperationsService` / `ITraxScheduler` / `IJobSubmitter` | `AddScheduler(...)` on the same host |
+| A demo API key (containing `do-not-use-in-production`) registered outside Development | Register demo keys only inside `IsDevelopment()`; use `AddHashed` or a resolver elsewhere |
+| `RequireAuthorization(policy)` or a query model naming a policy that is not registered | `AddAuthorization(o => o.AddPolicy(...))` |
+| A `[TraxAuthorize]` train with no `ITrainAuthorizationService` | `AddTraxGraphQL()` registers one; a scheduler-only host calls `AllowMissingAuthorizationService()` |
+| A junction that injects `TraxPrincipal` on a host where no `AddTrax*Auth` ran | `services.AddTraxPrincipalAccessor()`. See [Injecting TraxPrincipal](/docs/sdk-reference/api-auth/injecting-trax-principal#when-no-scheme-is-registered) |
+
+Not refused at startup: a train's or `GateOperations`'s policy name that is not registered (every call then fails at request time), and an `AddTrax*Auth` call missing altogether (every gated surface then refuses every caller).
 
 ## API-Key Authentication
 
@@ -315,6 +404,8 @@ services.AddTraxGraphQL(graphql =>
 | `SkipIntrospection` | true | Drop introspection operations (every top-level selection is `__schema`, `__type` or `__typename`) from the log. |
 | `SkipSubscriptions` | true | Subscriptions don't fit the request/response model. |
 | `DefaultPrincipalId` | `<anonymous>` | Used when the request has no Trax principal. |
+
+An entry's `PrincipalId` is the scheme-qualified id (`TraxApiKey:alice`, `TraxJwt:alice`), and its `OperationName` is the request's `operationName` field, `null` when the client sends none even if the document names the operation.
 | `MaxRetries` | 3 | Sink retry attempts before dropping a batch. Dropped entries increment `trax.audit.dropped`. |
 | `RetryBackoff` | 100ms | Initial backoff, doubles on each retry. |
 
@@ -377,7 +468,7 @@ Trax does none of these for you:
 - **Transport:** serve all GraphQL traffic over HTTPS. Never accept credentials over plaintext HTTP.
 - **Key storage:** read API keys, JWT secrets, and DB credentials from a secret manager. Never commit them.
 - **Rotation:** rotate keys on a schedule and on any suspected exposure. Invalidate in the resolver.
-- **Rate limiting:** use ASP.NET Core's rate-limit middleware keyed on `trax:principal-id`.
+- **Rate limiting:** use ASP.NET Core's rate-limit middleware keyed on `trax:principal-id`. It is scheme-qualified (`TraxApiKey:alice`, `TraxJwt:alice`), so one person signing in two ways gets two buckets.
 - **Introspection:** off outside Development by default. If you open it with `AllowIntrospection`, make the predicate check the caller rather than returning `true`.
 - **Audit dashboards:** alert on non-zero `trax.audit.dropped`. A dropped entry is an invisible operation.
 - **Redaction:** variables are not recorded by default. If you register an `ITraxAuditRedactor` to record them, remove every field that could carry a token, PII, or a secret, at any depth.

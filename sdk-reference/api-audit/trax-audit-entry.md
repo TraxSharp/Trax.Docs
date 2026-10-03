@@ -35,7 +35,7 @@ public sealed record TraxAuditEntry(
 |---|---|
 | `PrincipalId` | From `trax:principal-id` claim (qualified by scheme, `{scheme}:{id}`), or `TraxAuditOptions.DefaultPrincipalId` when absent. |
 | `PrincipalType` | From `trax:principal-type` claim. `apikey`, `jwt`, or similar. `null` for anonymous. |
-| `OperationName` | The GraphQL operation name, if any. |
+| `OperationName` | The request's `operationName` field, as the client sent it. A client that names its operation only inside the document (`query Feed { ... }`) and sends no `operationName` gets `null`, so a trail you search by operation needs clients that send it. |
 | `Document` | The GraphQL document with every string literal replaced by `""` and every numeric literal by `0`; field names, aliases, input field names, booleans, enum values and `null` are kept. Past `TraxAuditOptions.MaxDocumentLength` it is cut to that length, marked `...[truncated]`, and followed by `[selected fields: Type.field, ...]`: every field the compiled operation selects, after fragment expansion, each schema coordinate listed once. |
 | `Variables` | What the registered [ITraxAuditRedactor](/docs/sdk-reference/api-audit/i-trax-audit-redactor) returned, as a `JsonObject`. `null` by default: the default redactor records no variables. |
 | `DurationMs` | Elapsed request time in milliseconds. |
