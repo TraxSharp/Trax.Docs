@@ -89,6 +89,29 @@ app.UseTraxGraphQL();
 app.Run();
 ```
 
+The trains and entities carry the rest of the posture. A queue-only mutation for one role, which its
+caller can watch over a subscription, and a table any signed-in caller can read:
+
+```csharp
+using Trax.Effect.Attributes;
+using Trax.Effect.Services.ServiceTrain;
+
+[TraxAuthorize(Roles = "Billing")]
+[TraxMutation(GraphQLOperation.Queue, Namespace = "billing")]
+[TraxBroadcast]
+public class IssueInvoiceTrain : ServiceTrain<IssueInvoiceInput, IssueInvoiceOutput>, IIssueInvoiceTrain { /* ... */ }
+
+[TraxAuthorize]
+[TraxQueryModel(Namespace = "billing")]
+public class Invoice { /* ... */ }
+```
+
+The query model also needs its context on the GraphQL builder (`.AddDbContext<InvoicingDbContext>()`).
+A Billing key queues `dispatch { billing { issueInvoice(...) } }` and follows the run with
+`onTrainStateChanged`; any key reads `discover { billing { invoices { ... } } }`; only an Operator key
+reaches `operations`. Without `[TraxBroadcast]` a Billing subscriber is refused with
+`TRAX_AUTHORIZATION`, operations or not.
+
 `MyAuditSink` is your [`ITraxAuditSink`](/docs/sdk-reference/api-audit/i-trax-audit-sink): the sample's writes each entry to a table. Every `[TraxQuery]`/`[TraxMutation]` train and `[TraxQueryModel]` entity then declares `[TraxAuthorize]` (optionally with a policy or roles) or `[TraxAllowAnonymous]`. A caller who fails a gate gets `TRAX_AUTHORIZATION` with the message `"Not authorized."`, and the train does not run.
 
 ### What Refuses Startup
@@ -405,9 +428,10 @@ services.AddTraxGraphQL(graphql =>
 | `SkipSubscriptions` | true | Subscriptions don't fit the request/response model. |
 | `DefaultPrincipalId` | `<anonymous>` | Used when the request has no Trax principal. |
 
-An entry's `PrincipalId` is the scheme-qualified id (`TraxApiKey:alice`, `TraxJwt:alice`), and its `OperationName` is the request's `operationName` field, `null` when the client sends none even if the document names the operation.
 | `MaxRetries` | 3 | Sink retry attempts before dropping a batch. Dropped entries increment `trax.audit.dropped`. |
 | `RetryBackoff` | 100ms | Initial backoff, doubles on each retry. |
+
+An entry's `PrincipalId` is the scheme-qualified id (`TraxApiKey:alice`, `TraxJwt:alice`), and its `OperationName` is the request's `operationName` field, `null` when the client sends none even if the document names the operation.
 
 ### What an Entry Records
 

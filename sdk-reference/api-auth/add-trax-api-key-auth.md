@@ -46,9 +46,14 @@ if (builder.Environment.IsDevelopment())
 {
     services.AddTraxApiKeyAuth(keys => keys
         .Add("admin-key-do-not-use-in-production",  id: "admin",  "Admin", "Player")
-        .Add("player-key-do-not-use-in-production", id: "player", "Player"));
+        .Add("player-key-do-not-use-in-production", id: "player", "Player")
+        .Add("reader-key-do-not-use-in-production", id: "reader"));
 }
 ```
+
+The roles after `id` are optional. A key with none (`reader` above) authenticates as a caller with
+no roles: it passes a bare `[TraxAuthorize]` and an authenticated query model, and is refused
+(`TRAX_AUTHORIZATION`) by anything that names a role.
 
 A key written into source is a demo key: give it the `do-not-use-in-production` marker and
 register it only in Development, as above (see [Demo keys start only in Development](/docs/sdk-reference/api-auth/add-trax-api-key-auth#demo-keys-start-only-in-development)).
