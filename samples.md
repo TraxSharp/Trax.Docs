@@ -15,6 +15,10 @@ that runs against the real host, so what a page here tells you to copy is someth
 sample for the feature you need, then read its page: it lists the packages, the full `Program.cs`, what refuses
 startup and why, and a "Try it" walkthrough whose commands were run as written.
 
+Features without a sample of their own are proven by a test in their own repository; the
+[feature-coverage table](https://github.com/TraxSharp/Trax.Samples#feature-coverage) lists every major feature and
+the test class that proves it.
+
 Starting a new server rather than learning one feature? The [project templates](/docs/reference/templates)
 (`trax-hub`, `trax-api`, `trax-scheduler`) scaffold a runnable host with a README and a test project:
 `dotnet new install Trax.Samples.Templates && dotnet new trax-hub -n MyApp`.
