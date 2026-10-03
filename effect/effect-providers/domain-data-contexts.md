@@ -31,7 +31,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 }
 ```
 
-Each context ships a companion `I{Name}DbContext` interface deriving `IDomainDataContext`; application code depends on the interface, never the concrete type.
+Each context ships a companion `I{Name}DbContext` interface deriving `IDomainDataContext`; application code depends on the interface, never the concrete type. Put the interface in its own file, `I{Name}DbContext.cs`, in the same directory as the context: the `CompanionInterfaces` guard (`Trax.Effect.Data.Testing`) looks for that file next to the context and fails when the interface is declared inside the context's file.
 
 ## Registration and bootstrap
 
