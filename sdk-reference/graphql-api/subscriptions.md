@@ -109,6 +109,8 @@ subscription {
       confidence
       replayed
       answerWithheld
+      nameWithheld
+      trackPosition
       attempt
     }
   }
@@ -126,20 +128,27 @@ surface is exposed), and each subscriber's view is the one [Who receives what](#
 describes, including the refusal of a subscriber who could receive nothing. Outside the operations
 view a step loses host detail, as a train event does: `decider` is null, and `failureException` is
 shown only for a `TrainException`. A broadcast subscriber also gets `answer` and `confidence` as
-null unless the host calls [`AllowJunctionAnswersForBroadcastSubscribers()`](/docs/sdk-reference/graphql-api/add-trax-graphql#builder-methods);
-it still sees that a question was asked, its key and the step that followed. The operations view
-always sees answers.
+null, and the name of every junction with a `trackPosition` (one after a routing step) as
+`(withheld)` with `nameWithheld` true, unless the host calls
+[`AllowJunctionAnswersForBroadcastSubscribers()`](/docs/sdk-reference/graphql-api/add-trax-graphql#builder-methods):
+which junctions ran after a route says which track it took. It still sees that a question was
+asked, its key, and how many steps ran. The operations view always sees answers and names.
 
 | Field | Description |
 |-------|-------------|
 | `metadataId`, `externalId`, `trainName`, `timestamp` | As on `TrainLifecycleEvent` |
 | `eventType` | `JUNCTION_STARTED`, `JUNCTION_COMPLETED`, `JUNCTION_FAILED`, `JUNCTION_CANCELLED`, `DECIDED`, `DECISION_REFUSED` or `ROUTED` |
-| `junction` | The step, a `JunctionStep`: `position`, `kind`, `name`, `state`, `startedAt`, `endedAt`, `durationMs`, `failureClass`, `failureException`, `questionKey`, `answer`, `confidence`, `replayed`, `decider`, `answerWithheld`, `attempt` |
+| `junction` | The step, a `JunctionStep`: `position`, `kind`, `name`, `state`, `startedAt`, `endedAt`, `durationMs`, `failureClass`, `failureException`, `questionKey`, `answer`, `confidence`, `replayed`, `decider`, `answerWithheld`, `nameWithheld: Boolean!`, `trackPosition: Int`, `attempt` |
 | `sequence` | Numbered as lifecycle events are. See [Lost events](#lost-events) |
 
 A step never carries the train's input or output or a failure's message. An answer to a question
 about a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) type
-is null, with `answerWithheld` true.
+is null, with `answerWithheld` true, and the junctions after it are named `(withheld)`, with
+`nameWithheld` true, in every view.
+
+A `metadataId` of 0 or less is refused with `TRAX_INVALID_ARGUMENT`. Publishing a step to the
+subscription waits at most 250 ms on the run's path; a step that cannot be published in time is
+dropped and shows as a skip in `sequence`.
 
 The feed carries every run's steps on one topic, filtered by run as each subscriber reads it, so a
 skip in `sequence` reports a loss whichever run it came from. To follow a run already under way,

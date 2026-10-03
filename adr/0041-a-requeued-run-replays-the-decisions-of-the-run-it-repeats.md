@@ -64,12 +64,16 @@ decisions, and it was queued by the manifest with the input the retry is queued 
 else asks afresh, which is never an error. Answers that were replayed into a failure are not
 replayed again, so one unusable answer cannot hold a manifest in a loop of retries and requeues.
 An operator can ask afresh on purpose: the dead-letter requeues and the manifest trigger take
-`askAfresh`.
+`askAfresh`. A manifest's run whose replay cannot be honoured when it runs (the run it names was
+deleted, the host does not record decisions, an answer cannot be read) asks afresh with a warning,
+because the scheduler queued it, not a caller who asked for the original's decisions; a manual
+requeue still fails, as below.
 
 **An answer replays only into the same state, and only while it is fresh.** Matching by question,
 occurrence and fingerprint says the answer was given to the same asking, not about the same
 data. Each recorded answer now carries the hash of the state it was given about
-(`DecisionMade.StateHash`, stored as `state_hash`), and Trax.Core replays it only when the state
+(`DecisionMade.StateHash`, a digest over every field of the state's runtime type, stored as
+`state_hash`), and Trax.Core replays it only when the state
 asked about now hashes the same (`core/0004`); a different or missing hash asks afresh, with the
 reason in `ReplayRefused`. The journal also replays an answer only while it is younger than
 `ReplayAnswersFor` (24 hours by default), measured from when a decider gave it, following replayed
@@ -94,7 +98,8 @@ deploy) keeps every decision it acted on, so its re-queue can repeat them. The j
 `Required` observer: a decision that cannot be written fails its step, classified transient,
 because acting on a decision a later replay cannot see would make the replay ask afresh.
 
-**A replay that cannot be honoured fails the run.** A run that names an original to replay fails
+**A replay that cannot be honoured fails the run**, unless the run belongs to a manifest (see
+*Retries replay, once*). A run that names an original to replay fails
 before its first junction, classified permanent, when the host does not record decisions, or a run
 in its chain does not exist, belongs to another train, or ran without recording its decisions, or
 the chain loops or runs past its limit, or a recorded answer cannot be read; and classified
@@ -185,6 +190,9 @@ junctions do is not in any fingerprint; nothing flags that the replayed run took
 original chain could not have.
 
 ## Changelog
+
+- **2026-10-02**: A manifest's run whose replay cannot be honoured asks afresh with a warning,
+  while a manual requeue still fails; the state hash covers every field of the state's runtime type.
 
 - **2026-10-02**: A manifest's retry and a dead-letter requeue replay the failed run's decisions,
   at most once in a row and only under the checks of `scheduler/0017`; a recorded answer replays

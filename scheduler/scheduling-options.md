@@ -156,7 +156,7 @@ Every host start schedules its manifests again (an upsert by `ExternalId`). The 
 | Manifest `Timeout(...)` | Written at every start | New manifest: no timeout of its own (`DefaultJobTimeout` applies). Existing: keeps its value |
 | Manifest `Priority(...)` | Written at every start | New manifest: 0. Existing: keeps its value |
 | Manifest `FailureWindow(...)` | Written at every start | New manifest: none (`FailureCountWindow` applies). Existing: keeps its value |
-| Manifest `ReplayDecisionsOnRetry(...)` | Written at every start | New manifest: replays. Existing: keeps its value, including a runtime change |
+| Manifest `ReplayDecisionsOnRetry(...)` | Written at every start, so `true` re-enables replay over a runtime opt-out | New manifest: replays. Existing: keeps its value, including a runtime change |
 | Group `MaxActiveJobs(...)` | Written at every start | New group: no limit. Existing: keeps its value |
 | Group `Priority(...)` | Written at every start | New group: the manifest's priority. Existing: keeps its value |
 | Group `Enabled(...)` | Written at every start | New group: enabled. Existing: keeps its value |

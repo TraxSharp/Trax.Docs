@@ -335,7 +335,7 @@ public interface IDecisionObserver
 
 `Refused` is told once for each question whose live answer the step will not act on (missing, or
 not fitting the question), before the step fails, with the question, occurrence, fingerprint, the
-answer (null when there was none), the decider and the reason. A cascade that ended with an answer
+answer (null when there was none), the decider, the reason and the `QuestionType`. A cascade that ended with an answer
 that fits is not a refusal, and a shadow's bad answer is reported in its `ShadowAnswer.Error`
 instead. A refusal is never replayed. An observer that cannot record one is logged, and never
 replaces the refusal as the reason the step failed, even when it is `Required`.
@@ -348,8 +348,8 @@ nothing. An observer that cannot be resolved at all fails the step either way.
 
 `DecisionMade` carries the question, the answer, the decider, whether it was replayed, the
 shadows' answers, `Occurrence` (how many times the run asked that question before, from 0),
-`Fingerprint` and `StateHash`. The replay is asked by the same coordinates, on the run's path, once
-per question:
+`Fingerprint`, `StateHash` and `QuestionType`. The replay is asked by the same coordinates, on the
+run's path, once per question:
 
 ```csharp
 public interface IDecisionReplay
@@ -395,22 +395,38 @@ afresh: the data may have changed while the run waited to be retried, and a loop
 in another order, so its second asking is about a different item. A recorded answer is replayed
 only into the state it was given about. Approving a refund of 20 does not approve one of 2000.
 
-`StateHash` is a SHA-256, as 64 lowercase hex characters, over the state's runtime type and the JSON
-it is written as (`JsonSerializerDefaults.Web`, what a decider that sends the state on sees), taken
-before the decider is asked. The check is made in Trax.Core, so every replay implementation inherits
-it and only stores and returns the hash.
+`StateHash` is a SHA-256, as 64 lowercase hex characters, taken before the decider is asked. It
+covers every instance field of the state's runtime type, public or not, and every value they hold,
+recursively: auto-properties, tuple items, record members, and the members of a derived type held
+where a base type or an interface is declared all count, because an in-process decider can read all
+of them. Each value is written with its runtime type, fields base type first and by name, and a
+framework collection as its elements in order. The check is made in Trax.Core, so every replay
+implementation inherits it and only stores and returns the hash.
 
 | The replayed answer's state hash | What happens |
 |---|---|
 | Equal to the hash of the state asked about now | Replayed |
 | Different | Asked afresh, with the reason in `ReplayRefused` |
 | Null (an answer recorded before states were hashed) | Asked afresh, with the reason in `ReplayRefused` |
-| The state asked about now cannot be written as JSON | Asked afresh, with the reason in `ReplayRefused`. Hashing never fails the run. |
+| The state asked about now cannot be hashed (below) | Asked afresh, with the reason in `ReplayRefused`. Hashing never fails the run. |
 
-A state whose JSON changes from run to run although nothing that matters changed (a timestamp, a
-generated id, a dictionary filled in another order) is asked afresh on every repeat. Keep such
-values out of the state a question is asked about when replay matters. Only the hash leaves the
-run, never the state. `Trax.Core/docs/adr/0004` records why.
+A state has no hash, and so never replays, when it cannot be read the same way every time:
+
+- it holds a reference cycle
+- it is nested deeper than 64 levels, or holds more than 1,000,000 values or 16 MiB
+- it holds a delegate (an ORM's lazy-loading proxy, for instance), a pointer or native handle
+- it holds a `Type`, a `MemberInfo` or an `Assembly`
+- it holds a stream, a wait handle, a task or a thread
+- reading one of its fields throws
+
+A state whose fields differ from run to run although nothing that matters changed (a timestamp, a
+cache, a counter, a generated id, a dictionary filled in another order) is asked afresh on every
+repeat. Keep such values out of the state a question is asked about when replay matters. Only the
+hash leaves the run, never the state. `Trax.Core/docs/adr/0004` records why.
+
+`QuestionType` is the type the question was asked about (the enum a choice or score is between, or
+the marker type of a yes or no question), so a host can treat questions by type, with inheritance,
+where a key would match only one name. It is null only on a record built outside a run.
 
 Trax.Effect implements both, to record decisions against the run and to make a re-queued or
 retried run take the tracks the original took. See [Decision Recording and Models](/docs/effect/decisions).

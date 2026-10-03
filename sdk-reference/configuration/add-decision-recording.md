@@ -63,7 +63,7 @@ public sealed class DecisionRecordingOptions
 
 | Member | Default | Description |
 |---|---|---|
-| `ReplayAnswersFor(TimeSpan)` | 24 hours | Replays a recorded answer into a repeated run only while it is younger than this, counted from when a decider gave it, not from a later run that replayed it. An older answer is asked afresh and the reason logged at `Information`. Throws `ArgumentOutOfRangeException` under one second. |
+| `ReplayAnswersFor(TimeSpan)` | 24 hours | Replays a recorded answer into a repeated run only while it is younger than this, counted from when a decider gave it, not from a later run that replayed it. An older answer is asked afresh and the reason logged at `Information`. `TimeSpan.MaxValue`, or any span longer than the calendar goes back, means no bound. Throws `ArgumentOutOfRangeException` under one second. |
 | `MaxReplayAge` | 24 hours | The bound in effect |
 
 ```csharp
@@ -94,16 +94,23 @@ Calling `AddDecisionRecording()` more than once registers these once.
   not replayed.
 - Each decision is stored with `DecisionMade.StateHash` in `state_hash`, and a replay hands it back
   as `RecordedAnswer.StateHash`, so Trax.Core replays the answer only into a state that hashes the
-  same. A row with no hash (the state could not be written as JSON, or the row predates the column)
-  is never replayed. See
+  same. A row with no hash (the state could not be hashed, or the row predates the column) is never
+  replayed. See
   [Only into the same state, and only while fresh](/docs/effect/decisions#only-into-the-same-state-and-only-while-fresh).
 - An answer older than `ReplayAnswersFor` is left out of the replay, so the question is asked
   afresh. The age counts from the row a decider wrote, following replayed rows back to it; a
   replayed row whose answering run is no longer in the chain is asked afresh.
 - An `IDecisionObserver` registered after `AddTrax` would replace the composite, so the journal
   would never be told. The host then refuses to start, and every run that would record its
-  decisions refuses too, with an `InvalidOperationException` naming the observer. Register your own
-  observer before `AddTrax`.
+  decisions refuses too, with an `InvalidOperationException` naming the observer. Decorating
+  `IDecisionObserver` is refused the same way, and an observer the container cannot build refuses
+  with what building it threw. Register your own observer before `AddTrax`.
+- An answer to a question about a `[TraxSensitive]` type, and the track taken on it, are written to
+  the log as withheld. `trax.decision` keeps them, because a replay reads them from there.
+- A run of a manifest (a retry, or a dead letter's requeue) whose replay cannot be honoured, because
+  the run it names is gone or belongs to another train, the host does not record decisions, or a
+  recorded answer cannot be read, logs a warning and asks afresh. Any other run fails there, as
+  below.
 - A decision that cannot be written fails its step before any track is taken, classified
   `Transient`, or `Permanent` when the store refuses the value. A live answer of a type the journal
   has no stored form for fails its step, `Permanent`, because it could never be read back.
@@ -130,7 +137,8 @@ Calling `AddDecisionRecording()` more than once registers these once.
   chain reached is asked afresh. See
   [A requeue of a requeue](/docs/effect/decisions#a-requeue-of-a-requeue).
 - On a host without `AddDecisionRecording()`, a run that names a run to replay fails before its
-  first junction, classified `Permanent`, because it has nothing to replay from.
+  first junction, classified `Permanent`, because it has nothing to replay from. A manifest's run
+  asks afresh instead, with a warning.
 - Runs that share an external id, as a retried dispatch's rows can, each write under their own
   row and replay their own answers.
 - A host with no logging registered still records.

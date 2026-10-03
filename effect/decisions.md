@@ -193,8 +193,10 @@ may be replayed; see [Only into the same state, and only while fresh](#only-into
 
 A question about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type)
 is recorded in full here, because a replay reads its answer from this table. The mark withholds the
-answer from [junction events](/docs/effect/junction-events) and `trax.junction_run`, not from
-`trax.decision`.
+answer from [junction events](/docs/effect/junction-events) and `trax.junction_run`, and the
+journal's log line writes it as withheld, but `trax.decision` keeps it. Which questions are
+sensitive is decided by the type the question is about (`DecisionMade.QuestionType`), with
+inheritance, so a subclass of a marked type is withheld even when no scan saw it.
 
 | Column | Holds |
 |---|---|
@@ -210,7 +212,7 @@ answer from [junction events](/docs/effect/junction-events) and `trax.junction_r
 | `decider` | The decider's type, or null for a replayed answer |
 | `replayed` | Whether the answer came from an earlier run |
 | `shadows` | Each shadow's answer, whether it agreed, and why it gave none (jsonb) |
-| `state_hash` | The SHA-256 of the state the question was asked about, 64 lowercase hex characters, or null when the state could not be written as JSON or the row predates the column. A row with no hash is never replayed. |
+| `state_hash` | The SHA-256 of the state the question was asked about, 64 lowercase hex characters, or null when the state could not be hashed or the row predates the column. A row with no hash is never replayed. |
 | `routes` | Every track a routing step took on this decision, in order, as a jsonb array of `{"track": ..., "fallback_reason": ...}`; `fallback_reason` says why the decision was not followed, and is null when it was. Null when nothing routed on it. |
 | `decided_at` | When it was answered |
 
@@ -235,7 +237,9 @@ Register your own observer before `AddTrax`. One registered after it replaces th
 container, so decision recording would never be told about a decision. While decision recording is
 registered, such a host refuses to start with an `InvalidOperationException` naming the observer,
 and every run that would record its decisions refuses too, for a host built without the generic
-host. No decision is acted on unrecorded.
+host. No decision is acted on unrecorded. Decorating `IDecisionObserver` (Scrutor's `Decorate`,
+say) replaces the composite the same way and is refused the same way, and an observer the container
+cannot build refuses too, with what building it threw.
 
 ```csharp
 services.AddSingleton<IDecisionObserver, DecisionAuditor>();   // before AddTrax: told alongside Trax's own
@@ -298,7 +302,8 @@ effects.UsePostgres(connectionString)
     .AddDecisionRecording(o => o.ReplayAnswersFor(TimeSpan.FromHours(6)))
 ```
 
-`ReplayAnswersFor` takes at least one second. An answer outside either bound is asked afresh, and
+`ReplayAnswersFor` takes at least one second; `TimeSpan.MaxValue`, or any span longer than the
+calendar goes back, means no bound. An answer outside either bound is asked afresh, and
 that is never a failure. A changed state is reported in the new row's `replay_refused`; an aged-out
 answer is left out of the replay and logged at `Information`. Rows written before `state_hash`
 existed have none, so the first requeue after upgrading asks afresh. Both bounds apply to every
@@ -335,7 +340,12 @@ sweep.
 | A database failure while loading the chain | The run fails before its first junction, `Transient` |
 
 A run that cannot honour its replay fails instead of asking afresh, because it was queued to
-repeat the original. A run in the chain that recorded its decisions but reached no questions is
+repeat the original.
+
+A manifest's retry, or a requeue of its dead letter, is the exception. The scheduler queued it, not
+someone who asked for the original's decisions, so when its replay cannot be honoured (the run it
+names is gone or belongs to another train, the host does not record decisions, or a recorded answer
+cannot be read) it logs a warning and asks afresh. A manual requeue still fails, `Permanent`. A run in the chain that recorded its decisions but reached no questions is
 not a failure: there is nothing of its own to repeat, and the replay goes on to the run before it.
 
 ### A host that does not record

@@ -753,6 +753,8 @@ query {
       confidence
       replayed
       answerWithheld
+      nameWithheld
+      trackPosition
       attempt
     }
   }
@@ -761,14 +763,16 @@ query {
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `metadataId` | `Long!` | none | The execution's id |
+| `metadataId` | `Long!` | none | The execution's id. 0 or less is refused with `TRAX_INVALID_ARGUMENT` |
 | `afterPosition` | `Int` | `null` | Only steps after this position, a keyset cursor for the next page |
 | `take` | `Int` | `500` | Page size, from 1 to 500 |
 
 **Returns**: `[JunctionStep!]!`, the same type the [`onJunctionEvent`](/docs/sdk-reference/graphql-api/subscriptions#onjunctionevent)
 subscription carries. A step carries no input, output or failure message, and an answer to a
 question about a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type)
-type is never present. The recorded decider is not kept, so `decider` is always null here.
+type is never present, and a junction after such a question is named `(withheld)`, with
+`nameWithheld` true. `trackPosition` is the position of the routing step whose track a junction is
+on. The recorded decider is not kept, so `decider` is always null here.
 
 It answers to the operations gate, as [`execution`](#execution) does, so a caller refused one is
 refused the other. The rows trail the live subscription by moments: a client following a running

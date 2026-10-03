@@ -89,15 +89,20 @@ public sealed record JunctionEventPayload(
     bool Replayed = false,
     string? Decider = null,
     bool AnswerWithheld = false,
-    int? Attempt = default
-);
+    int? Attempt = default,
+    bool NameWithheld = false,
+    int? TrackPosition = default
+)
+{
+    public const string WithheldName = "(withheld)";
+}
 ```
 
 | Field | Description |
 |---|---|
 | `Position` | Where the step falls in the run, from 0. A junction's start and end share it. |
 | `Kind` | `Junction`, `Choice` (`Decide`, `Switch`), `Score` (`Scale`), `YesNo` (`Gate`) or `Route` |
-| `Name` | The junction's class name without its namespace, or a question's key |
+| `Name` | The junction's class name without its namespace, or a question's key; `WithheldName` when `NameWithheld` is set |
 | `State` | `InProgress`, `Completed`, `Failed` or `Cancelled` |
 | `StartedAt` | When the junction started, or when the question was answered or the track taken (UTC) |
 | `EndedAt`, `DurationMs` | When the junction returned and how long it took; null for a start |
@@ -110,6 +115,8 @@ public sealed record JunctionEventPayload(
 | `Decider` | The full name of the decider's type. Not stored. |
 | `AnswerWithheld` | True when the question is about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) |
 | `Attempt` | Which attempt of its manifest the run is, or null for a run with no manifest |
+| `NameWithheld` | True for a junction that runs after a route whose answer is withheld, because which junctions ran would give the track away |
+| `TrackPosition` | For a junction, the position of the latest route the run took before it, or null before any route. Every junction after a route counts as on its track. A consumer that does not show a reader answers should not show these junctions' names either. |
 
 It never carries a junction's input or output, the train's input or output, a failure's message,
 or the state, instructions or criteria of a question.
@@ -161,7 +168,10 @@ The API's `operations.junctionRuns` and the dashboard's timeline read through it
 - A step is stored by a background writer, in order and in batches, through a data context of its
   own, so the run never waits on the database. A full queue drops a step, counted and logged.
 - A run's rows are deleted with its metadata row, by the foreign key's cascade.
-- Only `EffectJunction`s are steps. A junction skipped because an earlier one failed is not a step.
+- Only `EffectJunction`s are steps. A junction skipped because an earlier one failed is not a step,
+  and a run that is not saved (no metadata row) publishes none.
+- A custom `ITrainEventBroadcaster` is handed every junction event too, on the run's path; it should
+  queue rather than wait, and may route steps apart from train events.
 - A run of a manifest carries its attempt: 1 plus the manifest's failed runs since its last
   completed or cancelled one, read once when the run begins and waited on for at most a second. A
   failure to read it leaves it out.

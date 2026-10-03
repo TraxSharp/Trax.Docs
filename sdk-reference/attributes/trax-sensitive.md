@@ -73,16 +73,19 @@ dashboard's timeline show it as withheld.
 public enum CreditTier { Prime, NearPrime, Subprime }
 ```
 
-- It is honoured wherever the question's key is built from the marked type: a closed form of a
-  marked generic type, a type nested in a marked type, a type that takes a marked type as a type
-  argument, and a type that inherits the mark from a base class.
+- It is decided by the type the question is about, with inheritance, so a type that inherits the
+  mark is withheld even when it was built at run time or lives in an assembly no scan saw. The key
+  is checked as well: a closed form of a marked generic type, a type nested in a marked type, and
+  a type that takes a marked type as a type argument are withheld.
 - It fails closed: a question whose key shares a name with a marked type is withheld too.
 - On a type it does nothing else. It does not mask a property of that type in a train's input or
   output; mark the property for that.
 - [`trax.decision`](/docs/effect/decisions#recording-decisions) keeps the full answer either way,
   because a requeue or retry replays it from there.
-- The junctions a track runs are still named in their own steps, so the path a run took stays
-  visible.
+- The path is withheld with the answer: every junction after the route is published and stored
+  with its name as `(withheld)` and `NameWithheld` set, in every view. How many steps ran and how
+  long each took stays visible.
+- The decision journal's log writes the answer and the track as withheld.
 
 ## Example
 

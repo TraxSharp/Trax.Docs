@@ -36,7 +36,7 @@ public static BroadcasterBuilder UseSignalRHub(
 | `OnlyForTrains` | `params Type[]` | Same as the generic overloads. Throws if any type is not an interface. |
 | `WithProjection<TClient>` | `Func<TrainLifecycleEventMessage, TClient>` | Replace the default `TraxClientEvent` projection. Last call wins. |
 | `WithJunctionEvents` | none | Also send [junction events](#junction-events) through the `"JunctionEvent"` client method, without answers. Off by default. |
-| `WithJunctionAnswers` | none | As `WithJunctionEvents`, with each question's answer and confidence |
+| `WithJunctionAnswers` | none | As `WithJunctionEvents`, with each question's answer and confidence and the names of junctions on a track |
 | `WithJunctionProjection<TClient>` | `Func<TrainLifecycleEventMessage, TClient>` | As `WithJunctionEvents`, with junction events in a shape of your own. Replaces `WithJunctionAnswers` when both are called. `WithProjection` shapes train events only. |
 | `WithDeliveryQueueCapacity` | `int capacity` | How many events may wait for delivery to clients. Default `SignalRSinkOptions.DefaultDeliveryQueueCapacity` (1024). Throws `ArgumentOutOfRangeException` below 1. See [Delivery](#delivery). |
 
@@ -117,7 +117,7 @@ By default each step is projected to a `TraxJunctionClientEvent` and sent throug
 | `MetadataId`, `ExternalId`, `TrainName`, `EventType`, `Timestamp` | | As on `TraxClientEvent` |
 | `Position` | `int` | Where the step falls in the run, from 0 |
 | `Kind` | `string` | `Junction`, `Choice`, `Score`, `YesNo` or `Route` |
-| `Name` | `string` | The junction's class name, or the question's key |
+| `Name` | `string` | The junction's class name, or the question's key. `(withheld)` for a junction on a track unless `WithJunctionAnswers()` was called, and always for one the run withheld after a `[TraxSensitive]` route. |
 | `State` | `string` | `InProgress`, `Completed`, `Failed` or `Cancelled` |
 | `StartedAt`, `EndedAt`, `DurationMs` | | When the step started and ended, and its duration |
 | `FailureClass`, `FailureException` | `string?` | How a failed junction's failure is classified, and its exception's type name |
@@ -125,9 +125,12 @@ By default each step is projected to a `TraxJunctionClientEvent` and sent throug
 | `Answer`, `Confidence` | | Null, and left off the wire, unless `WithJunctionAnswers()` was called |
 | `Replayed` | `bool` | Whether the answer was replayed from an earlier run |
 | `AnswerWithheld` | `bool` | True for a question about a `[TraxSensitive]` type |
+| `NameWithheld` | `bool` | True when `Name` is withheld |
+| `TrackPosition` | `int?` | For a junction, the position of the route whose track it is on; left off the wire when null |
 
 Every client the hub admits receives every train's events, so the default payload carries no
-answer or confidence. `WithJunctionAnswers()` adds them; answers to questions about a
+answer or confidence, and no name for a junction on a track, since which junctions ran names the
+track taken. `WithJunctionAnswers()` adds them; answers to questions about a
 [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) type stay
 withheld. No payload carries an input, output or failure message. When the delivery queue is full,
 an incoming train event takes the place of the oldest queued junction event before it is dropped

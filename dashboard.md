@@ -184,7 +184,9 @@ When a detail page (metadata, dead letter, work queue entry, manifest or manifes
 **Replays Decisions Of.** When the run was queued to replay an earlier run's [decisions](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions), by a re-queue or by a manifest's retry, this field links to that run.
 
 **Junction Timeline.** On a host that calls [`AddJunctionEvents()`](/docs/effect/junction-events), the page draws one row per step the run took, read from `trax.junction_run` through `JunctionRunQueries.ForRun`, the query the API's `operations.junctionRuns` uses:
+- Each step's number, and for a junction on a routing step's track, an indent and "on track of step #N"
 - A bar placed against the run's start and coloured by state; a running step extends to now on each refresh
+- A junction whose name the run withheld, after a `[TraxSensitive]` route, shown as "withheld"; its stored name never reaches the page
 - For a question, its key, the answer the run acted on, the confidence, and a **replayed** badge when the answer came from an earlier run; an answer to a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) question reads "withheld"
 - For a failed or cancelled step, its failure class and exception type, never its message
 - The run's attempt, when it is a run of a manifest

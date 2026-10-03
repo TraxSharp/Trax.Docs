@@ -221,20 +221,31 @@ run recorded: the retry takes the tracks the failed run's deciders chose instead
 again. Only the answers are replayed. Every ordinary junction runs again, side effects included.
 
 The scheduler reads the run to replay from the database, never from a caller: it is the manifest's
-latest finished run, when that run failed. It links the retry to it only when all of these hold:
+latest finished run, and only when the next run is a retry of it, that is, the run failed and its
+failure still counts toward the retries (the same test that applies the backoff). A failure that an
+acknowledged dead letter or the failure window has set aside is not retried, so the next
+occurrence asks afresh. It links the retry only when all of these hold:
 
 | Check | Otherwise |
 |---|---|
 | The manifest replays decisions on retry (`ReplayDecisionsOnRetry`, on by default) | Asked afresh |
 | The failed run asked its deciders itself, rather than replaying another run's answers | Asked afresh |
-| No other run already replayed the failed run's answers and failed with them | Asked afresh |
+| Nothing else replays the failed run: no run in any state (queued, running or finished) and no queued entry | Asked afresh |
+| The failed run is inside its train's metadata retention | Asked afresh |
+| For a dependent manifest, its parent has not succeeded again since the failed run started; a new parent success fires a new run, not a retry | Asked afresh |
 | The failed run is a run of the manifest's train, recorded its decisions and acted on at least one | Asked afresh |
 | The failed run was queued by this manifest, with no subject key, and with exactly the input and input type the retry is queued with | Asked afresh |
 
 So a retry replays at most once in a row: answers that were replayed into a failure are not
 replayed again, and the next retry asks afresh. A manifest edited between the failure and the retry
 asks afresh, because the answers were given about the old input. Asking afresh is never an error,
-and a lookup that fails is logged and asks afresh rather than holding up the retry.
+and a lookup that fails is logged and asks afresh rather than holding up the retry. The retention
+check assumes every host that runs metadata cleanup uses the same retention, as one deployment's
+hosts do.
+
+A link can still become impossible to honour after it is written: the failed run can be deleted
+before the retry runs, or the retry can land on a host that does not record decisions. A manifest's
+run then logs a warning and asks afresh, rather than failing as a manual requeue would.
 
 Within the replay, each answer is still checked one by one: it replays only into a question asked
 the same way, about a state that hashes the same, and only while it is younger than
@@ -257,10 +268,14 @@ scheduler.Schedule<IScoreLeadsTrain>(
 ```
 
 The flag is stored on the manifest as `replay_decisions_on_retry`, so every scheduler host reads the
-same value. Stated in code, it is written on every seed; left unstated, a new manifest replays and
-an existing one keeps its value. [`IOperationsService.SetManifestsReplayDecisionsOnRetryAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#batch-actions)
+same value. Stated in code, it is written on every seed, so `ReplayDecisionsOnRetry(true)` in code
+turns replay back on at each restart over an operator's runtime opt-out, as every stated setting
+does. Where operators manage the flag at runtime, leave it out of code. Left unstated, a new
+manifest replays and an existing one keeps its value. [`IOperationsService.SetManifestsReplayDecisionsOnRetryAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#batch-actions)
 sets it at runtime. Turning it off reaches a retry already queued: the write clears the link on the
-manifest's queued entry, and the dispatcher checks the flag again when it claims an entry.
+manifest's queued entry, and the dispatcher checks the flag again when it claims an entry. An
+opt-out committed in the instant between that check and the run's start still lets that one run
+replay.
 
 For a single occasion, the dead-letter requeues and `TriggerAsync` take `askAfresh`. A requeue
 asked afresh queues no link, and a trigger asked afresh clears the link of the queued retry it

@@ -160,11 +160,19 @@ effects.UseBroadcaster(b =>
 #### Junction events and rollout order
 
 On a host that calls [`AddJunctionEvents()`](/docs/sdk-reference/configuration/add-junction-events),
-each step of a run is published to the junction exchange, `trax.lifecycle.junctions` by default,
-which the publisher and the receiver both declare. A receiver binds its queue to both exchanges. A
-receiver from a Trax version before junction events binds only the train exchange, so it never
-receives one, and a fleet can be upgraded in any order: an old receiver never sees a step, an old
-publisher never sends one, and a new receiver gets steps from new publishers as soon as they start.
+each step of a run is published to the junction exchange, `trax.lifecycle.junctions` by default.
+It is used only where steps are: a publisher declares it when it first has a step to send, and a
+receiver binds it only on a host with an `IJunctionEventHandler` registered, each on a channel of
+its own. A junction exchange the broker refuses (one declared elsewhere with another type, say)
+drops steps, logged, and never closes the channel train events use. A receiver takes train events
+only from the train exchange and steps only from the junction exchange, and drops anything that
+arrives on the other. A receiver from a Trax version before junction events binds only the train
+exchange, so it never receives one.
+
+No upgrade order is required. Upgrade the hosts that should show steps (they bind the junction
+exchange once they have a junction event handler), then turn on `AddJunctionEvents` on the
+workers; until a host binds it, the steps a worker publishes go nowhere. Rolling a worker back
+stops its steps and nothing else.
 
 A step and its run's own events travel through different exchanges, so a subscriber can see a
 run's `Completed` before its last step. Each step carries its position and timestamps; order by
@@ -262,6 +270,12 @@ public static BroadcasterBuilder UseMyTransport(
     return builder;
 }
 ```
+
+On a host that calls [`AddJunctionEvents()`](/docs/sdk-reference/configuration/add-junction-events),
+the broadcaster is also handed every junction event, a message whose `Junction` is set
+(`TrainLifecycleEventMessage.IsJunctionEvent`), on the run's path. Queue rather than wait, and
+consider routing steps apart from train events, so a receiver that predates junction events never
+sees one.
 
 ## Packages
 
