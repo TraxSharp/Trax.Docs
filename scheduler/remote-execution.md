@@ -181,7 +181,9 @@ If you do use HTTP with Lambda, the `TraxLambdaFunction` base class handles serv
 - **Heterogeneous compute**: different train types need different hardware (GPU, high memory)
 - **Scaling**: the remote endpoint can auto-scale independently of the scheduler
 
-**Sample:** See `Trax.Samples.ContentShield.Api` and `Trax.Samples.ContentShield.Runner` in the `samples/EphemeralWorkers/` directory of the Trax.Samples repository. The API serves GraphQL and dispatches queued mutations to the Runner via HTTP. No `background_job` table, no DB polling. The Runner uses `UseBroadcaster` with RabbitMQ so GraphQL subscriptions on the API are notified when queued trains complete.
+`UseRemoteRun` takes **every** synchronous run off the scheduler process: mutations in `RUN` mode and `[TraxQuery]` queries alike, because both go through the same run executor. A host that wants its queries answered locally registers `UseRemoteWorkers` alone.
+
+**Sample:** [Content Shield](/docs/samples/content-shield) (`samples/EphemeralWorkers/` in Trax.Samples). The API serves GraphQL and dispatches queued mutations and synchronous runs to the Runner via HTTP, signed with a shared key. No `background_job` table, no DB polling. The Runner uses `UseBroadcaster` with RabbitMQ so GraphQL subscriptions on the API are notified when queued trains complete.
 
 ### Model 2b: SQS Workers (Queue-Based, AWS Lambda)
 
@@ -391,6 +393,12 @@ A separate, always-on process polls the `background_job` table and runs trains. 
 **Scheduler side** (scheduling only, no local execution):
 
 ```csharp
+using Trax.Effect.Data.Postgres.Extensions;
+using Trax.Effect.Extensions;
+using Trax.Mediator.Extensions;
+using Trax.Scheduler.Extensions;
+using Trax.Scheduler.Services.JobSubmitter;   // IJobSubmitter, PostgresJobSubmitter
+
 services.AddTrax(trax => trax
     .AddEffects(effects => effects
         .UsePostgres(connectionString)
@@ -445,7 +453,11 @@ app.Run();
 - **Process isolation**: scheduler crash doesn't kill in-flight trains
 - **Kubernetes/ECS**: deploy workers as a separate service with independent scaling
 
-**Sample:** See `Trax.Samples.EnergyHub.Hub` and `Trax.Samples.EnergyHub.Worker` in the `samples/DistributedWorkers/` directory of the Trax.Samples repository for a working example. The Hub combines GraphQL API, scheduler, and dashboard in one process while offloading all train execution to the Worker.
+**Trains gated with `[TraxAuthorize]`.** The mediator refuses to start a host that has `[TraxAuthorize]` trains and no `ITrainAuthorizationService`, and a standalone worker has no API to register one. The check belongs to the process that accepts submissions; the worker only runs work that passed it there. Declare that on the worker with `AddMediator(mediator => mediator.ScanAssemblies(...).AllowMissingAuthorizationService())` (see [Authorization: Opting Out for Scheduler-Only Hosts](/docs/authorization#opting-out-for-scheduler-only-hosts)).
+
+**Synchronous work still runs on the scheduler process.** `OverrideSubmitter` moves queued and scheduled jobs off the hub, but a `[TraxQuery]` or a mutation in `RUN` mode is executed by the process that answers the request. Declare mutations `GraphQLOperation.Queue` when every dispatch should reach a worker.
+
+**Sample:** [Energy Hub](/docs/samples/energy-hub) (`samples/DistributedWorkers/` in Trax.Samples) combines GraphQL API, scheduler, and dashboard in one process and runs every queued job on the Worker; its E2E suite proves the hub has no `LocalWorkerService`.
 
 ## Which Model Should I Use?
 

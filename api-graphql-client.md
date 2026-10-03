@@ -272,6 +272,12 @@ Available methods (extension methods on `TraxGraphQLClientBuilder`):
 
 External consumers install only `Trax.Api.GraphQL.Client` and never see these methods.
 
+## Sample
+
+The [GraphQL Client sample](/docs/samples/graphql-client) runs two Trax servers and a consumer with a
+keyed client for each, plus the three query modes against one server, and its E2E suite shows how to
+point a client at a `WebApplicationFactory` host with `.ConfigureHttpClient(factory.CreateClient())`.
+
 ## SDK Reference
 
 > [AddTraxGraphQLClient](/docs/sdk-reference/graphql-client/add-trax-graphql-client) | [AddKeyedTraxGraphQLClient](/docs/sdk-reference/graphql-client/add-keyed-trax-graphql-client) | [TraxGraphQLClientBuilder](/docs/sdk-reference/graphql-client/builder) | [ValidateGraphQLClientAssembliesAsync](/docs/sdk-reference/graphql-client/validate-assemblies) | [IGraphQLClientRequest](/docs/sdk-reference/graphql-client/i-graphql-client-request) | [GraphQLResourceRequest](/docs/sdk-reference/graphql-client/graphql-resource-request) | [ResponseStrictness](/docs/sdk-reference/graphql-client/response-strictness)

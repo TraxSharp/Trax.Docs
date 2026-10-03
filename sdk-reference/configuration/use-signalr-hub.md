@@ -91,7 +91,34 @@ b.UseSignalRHub(opts => opts.WithProjection(msg =>
     }))
 ```
 
-The projection is invoked once per matching event, after filtering. The hub serializes the result via SignalR's configured `IHubProtocol` (JSON by default).
+The projection is invoked once per matching event, after filtering. The hub serializes the result via SignalR's configured `IHubProtocol` (JSON by default), so a C# record arrives in a JavaScript client with camelCase property names.
+
+### Sending a failure reason safely
+
+`FailureException` carries the short type name of the exception the run recorded. Sending the reason
+only for a `TrainException`, the type a train author throws for a message meant to be read, is the
+rule GraphQL subscriptions apply to clients outside the operations view:
+
+```csharp
+using Trax.Core.Exceptions;
+using Trax.Effect.Services.TrainEventBroadcaster;
+
+public sealed record LiveTrainEvent(
+    string ExternalId, string TrainName, string EventType, DateTime Timestamp, string? FailureReason)
+{
+    public static LiveTrainEvent From(TrainLifecycleEventMessage message) =>
+        new(message.ExternalId, message.TrainName, message.EventType, message.Timestamp,
+            message.EventType != "Failed" ? null
+            : message.FailureException == nameof(TrainException) ? message.FailureReason
+            : "The run failed.");
+}
+
+b.UseSignalRHub(opts => opts.WithProjection(LiveTrainEvent.From));
+```
+
+A subclass of `TrainException` reports its own type name; list it as well if you throw one. The
+[SignalR Broadcaster sample](/docs/samples/signalr-broadcaster) uses this projection and tests both
+cases.
 
 ## Junction events
 

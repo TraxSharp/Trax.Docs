@@ -130,8 +130,8 @@ An unauthenticated caller gets the opaque authorization error at HTTP 200, not a
 reaches a mutation with no user key (`ISnapshotPrincipal.CurrentUserKey` is null) is refused as
 `unauthenticated`.
 
-A complete, runnable version of this (two machines, a GraphQL host, exactly-once over the wire) lives in the
-`StateMachine` sample under `Trax.Samples`.
+A complete, runnable version of this (two machines, a GraphQL host, exactly-once over the wire, a forward
+migration and a server-checked total) is the [State Machine sample](/docs/samples/state-machine).
 
 ## Keep the two runtimes in parity
 

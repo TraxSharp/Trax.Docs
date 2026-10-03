@@ -85,7 +85,7 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 | [UseRemoteWorkers](/docs/sdk-reference/scheduler-api/use-remote-workers) | Routes specific trains to a remote HTTP endpoint for execution |
 | [UseSqsWorkers](/docs/sdk-reference/scheduler-api/use-sqs-workers) | Routes specific trains to an Amazon SQS queue for execution (`Trax.Scheduler.Sqs`) |
 | [UseRemoteRun](/docs/sdk-reference/scheduler-api/use-remote-run) | Offloads synchronous `run` execution to a remote endpoint (blocks until complete) |
-| `OverrideSubmitter(Action<IServiceCollection>)` | Registers a custom job submitter implementation |
+| `OverrideSubmitter(Action<IServiceCollection>)` | Registers the job submitter yourself, in place of the default. With it no `LocalWorkerService` starts, so `OverrideSubmitter(s => s.AddScoped<IJobSubmitter, PostgresJobSubmitter>())` (both in `Trax.Scheduler.Services.JobSubmitter`) gives a scheduler that writes jobs to `background_job` for [standalone workers](/docs/sdk-reference/scheduler-api/add-trax-worker) and runs none itself |
 
 ### Global Options
 

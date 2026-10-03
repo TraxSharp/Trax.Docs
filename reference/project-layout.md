@@ -101,7 +101,7 @@ Trax.Samples.<Name>.Client     the consumer (or .Scheduler, .Worker, .Runner)
 ```
 
 A sample that demonstrates one thing is one project: `samples/Auth/` and
-`samples/SignalRDashboard/` are each a single web host with its trains under `Trains/`, because
+`samples/SignalRBroadcaster/` are each a single web host with its trains under `Trains/`, because
 neither has anything to say about a second process. Split when a second process has to exist
 for the sample to make its point, not before. Bookworm goes the other way with five, because
 cross-schema edges need a project of their own.

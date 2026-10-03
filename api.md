@@ -156,8 +156,8 @@ The GraphQL API registers on a **named HotChocolate schema** (`"trax"`) rather t
 The API is demonstrated in three samples, each using a different deployment topology:
 
 - **LocalWorkers (GameServer)** - API and scheduler as separate processes. The GraphQL API handles lightweight trains directly and queues heavy work for the scheduler. See `samples/LocalWorkers/Trax.Samples.GameServer.Api`.
-- **DistributedWorkers (EnergyHub)** - API, scheduler, and dashboard in a single hub process. The hub schedules and serves GraphQL but offloads execution to separate worker processes. See `samples/DistributedWorkers/Trax.Samples.EnergyHub.Hub`.
-- **EphemeralWorkers (ContentShield)** - API with `UseRemoteWorkers()` dispatches queued mutations directly to an ephemeral Runner via HTTP. No scheduled jobs, no `background_job` table, purely on-demand, serverless-style execution. See `samples/EphemeralWorkers/Trax.Samples.ContentShield.Api`.
+- **DistributedWorkers (EnergyHub)** - API, scheduler, and dashboard in a single hub process. The hub schedules and serves GraphQL but runs no queued job: `OverrideSubmitter` leaves them in `background_job` for separate worker processes. See [Energy Hub](/docs/samples/energy-hub).
+- **EphemeralWorkers (ContentShield)** - API with `UseRemoteWorkers()` and `UseRemoteRun()` sends queued mutations, run mutations and queries to an ephemeral Runner via signed HTTP requests. No scheduled jobs, no `background_job` table, purely on-demand, serverless-style execution. See [Content Shield](/docs/samples/content-shield).
 
 All follow the [trains library pattern](/docs/samples). Trains live in a shared library, executables are thin wrappers that pick which capabilities to enable.
 

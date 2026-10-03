@@ -49,6 +49,14 @@ A bare `RequireAuthorization()` keeps the host's fallback policy. ASP.NET Core a
 
 The posture is applied to the hub's endpoints (the negotiate request and the connection), so the host's `UseAuthentication()` and `UseAuthorization()` decide who connects. A refused client gets `401` or `403` from the negotiate request, and a SignalR client reports it as an `HttpRequestException` from `StartAsync`. A client that skips negotiation and opens a WebSocket directly is checked on the upgrade request in the same way. Browser clients pass their credential the way the host expects it, for example `accessTokenFactory` in the JavaScript client for a bearer token, which SignalR sends as the `access_token` query parameter on WebSocket requests.
 
+A browser page served by the same host as the hub can use a cookie: the browser sends it on the
+negotiate request and on the WebSocket upgrade by itself, so `withUrl("/hubs/trax-events")` needs no
+options. Register cookie authentication, sign the user in with a role, map the hub with
+`RequireRoles(...)`, and set `SameSite=Strict` on the cookie if any cookie-authenticated endpoint
+changes state. Set `OnRedirectToLogin` to answer `401`, or a refused negotiate request is redirected
+to a login page instead. The [SignalR Broadcaster sample](/docs/samples/signalr-broadcaster) is built
+this way.
+
 The choice and its alternatives are recorded in Trax.Effect's ADR 0016.
 
 ## Connection lifetime
@@ -162,6 +170,32 @@ connection.on("TrainEvent", (evt) => {
 
 await connection.start();
 ```
+
+### Testing the posture
+
+`Microsoft.AspNetCore.SignalR.Client` can join the hub through `WebApplicationFactory` by using the
+test server's handler and long polling. A refused connection throws from `StartAsync`:
+
+```csharp
+using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR.Client;
+
+var connection = new HubConnectionBuilder()
+    .WithUrl(new Uri(factory.Server.BaseAddress, "/hubs/trax-events"), options =>
+    {
+        options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler();
+        options.Transports = HttpTransportType.LongPolling;
+        options.Headers["Cookie"] = cookie;   // or an Authorization header; omit it to test refusal
+    })
+    .Build();
+
+var refused = await FluentActions.Awaiting(() => connection.StartAsync())
+    .Should().ThrowAsync<HttpRequestException>();
+refused.Which.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+```
+
+Register one handler per client method: the .NET client binds a method's arguments with the
+parameter types of the first handler registered for it.
 
 ## Payload shape
 

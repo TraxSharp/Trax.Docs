@@ -44,6 +44,8 @@ The transport-specific `ITrainEventBroadcaster` and `ITrainEventReceiver` are re
 
 The `TrainEventReceiverService` automatically retries if the transport connection fails (e.g., RabbitMQ is unavailable at startup). It uses exponential backoff starting at 5 seconds, capping at 2 minutes. The service will not crash the host. It logs a warning and keeps retrying until the transport becomes available or the host shuts down.
 
+The same holds for a connection the broker refuses, such as a wrong user or password (`ACCESS_REFUSED`): the host starts, runs its trains, and logs a warning, and no event crosses between processes. Nothing fails, so check the startup log for `RabbitMQ receiver started on exchange trax.lifecycle` on every host, and give every host the user the broker actually has.
+
 ## De-duplication
 
 When a train runs locally on the hub (via a `run` mutation), the `GraphQLSubscriptionHook` fires directly and notifies subscribers. The same event is also published to the message bus by the broadcast lifecycle hook. `UseBroadcaster()` gives each host an instance id (a GUID, one per service provider), the broadcast hook and change sink stamp it on every message as `InstanceId`, and the `TrainEventReceiverService` **skips only messages carrying its own host's id**. This prevents double-notification without dropping anything another host published.
@@ -80,7 +82,7 @@ public interface ITrainEventHandler
 }
 ```
 
-The `TrainLifecycleEventMessage` is a serializable record containing:
+The `TrainLifecycleEventMessage` (namespace `Trax.Effect.Services.TrainEventBroadcaster`, like the three interfaces) is a serializable record containing:
 
 | Field | Type | Description |
 |-------|------|-------------|

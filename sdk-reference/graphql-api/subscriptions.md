@@ -464,6 +464,8 @@ Cookie auth (`Trax.Api.Auth.Oidc`) needs no interceptor. The browser sends cooki
 
 That holds only when no token scheme is registered. Once `AddTraxApiKeyAuth`, `AddTraxJwtAuth` or `AddTraxJwtDispatcher` is registered, every connection needs a credential in `connection_init`, and an upgrade that is already authenticated by a session cookie is rejected without one. A browser app on a host with both cookie and token auth sends its token in the payload.
 
+This includes a subscriber that only wants `[TraxAllowAnonymous]` trains. On a host with a token scheme, a `connection_init` with no credential is refused before any subscription is made, whatever the trains it would have received allow. A host whose demo keys exist only in Development therefore accepts anonymous sockets outside Development (no scheme is registered there) and refuses them in Development.
+
 ### Multiple JWT issuers
 
 [`AddTraxJwtDispatcher`](/docs/sdk-reference/api-auth/add-trax-jwt-dispatcher) routes subscription tokens by their `iss` claim across every mapped scheme, the same way it routes HTTP requests. When a dispatcher is registered, JWT connections go to `TraxJwtDispatcherSocketInterceptor` instead of the single-scheme JWT strategy. The matched scheme's handler then authenticates the token in full, events and JWKS refresh included, so an unmapped or forged issuer is rejected.
