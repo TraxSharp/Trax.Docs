@@ -201,9 +201,9 @@ of a run, written only by a host that calls
 foreign key cascades, so every delete of metadata (cleanup, manifest pruning) removes a run's steps
 with it. On Postgres it also creates the `trax.junction_run_kind` and `trax.junction_run_state`
 enum types. `057_junction_run_attempt.sql` (SQLite `022`) adds the nullable `attempt` column, and
-`060_junction_run_track.sql` (SQLite `025`) adds `name_withheld`, true for a junction whose name is
-withheld after a `[TraxSensitive]` route, and the nullable `track_position`, the route a junction
-ran after.
+`060_junction_run_track.sql` (SQLite `025`) adds `name_withheld`, true for a step whose name is
+withheld after a `[TraxSensitive]` route, and the nullable `track_position`, the route a step ran
+after.
 
 `058_metadata_manifest_id_id_index.sql` (SQLite `023`) adds `ix_metadata_manifest_id_id` on
 `trax.metadata (manifest_id, id DESC)` for rows with a manifest, so a run reads its attempt from
@@ -230,3 +230,20 @@ back, and a recorded answer is replayed only into a state that hashes the same.
 Nothing is backfilled. An answer recorded before the upgrade has no hash, so it is not replayed:
 the first requeue or retry of a run recorded before the upgrade asks its deciders afresh. Adding a
 nullable column is a catalog change on both providers, not a rewrite of the table.
+
+## Abandoned replays and one queued replay per run (061 and 062, SQLite 026 and 027)
+
+`061_metadata_replay_abandoned.sql` (SQLite `026`) adds `trax.metadata.replay_abandoned`, a boolean
+that defaults to false. It marks a manifest's retry that named a run to replay and asked its deciders
+afresh because the replay could not be honoured, so a later replay of that run stops there; see
+[A requeue of a requeue](/docs/effect/decisions#a-requeue-of-a-requeue).
+
+`062_work_queue_unique_queued_replay.sql` (SQLite `027`) adds the unique partial index
+`ix_work_queue_unique_queued_replay` on `trax.work_queue (replay_decisions_of)` for queued entries
+that name a run to replay, so at most one queued entry replays a given run. Before building it, the
+migration clears `replay_decisions_of` on every queued entry that duplicates an older one's, keeping
+the oldest: those entries still run, and ask their deciders afresh. On Postgres the index is built
+`CONCURRENTLY`, so enqueue and dispatch keep writing while it builds.
+
+Nothing is backfilled in `061`, and a host on the previous version never reads the column, so a
+rolling deploy is safe.

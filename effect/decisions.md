@@ -191,10 +191,38 @@ Each answer is stored with the hash of the state it was given about
 state itself. `AddDecisionRecording(o => o.ReplayAnswersFor(...))` sets how long a recorded answer
 may be replayed; see [Only into the same state, and only while fresh](#only-into-the-same-state-and-only-while-fresh).
 
+### Keying the state hash
+
+The hash covers every value in the state, including members marked `[TraxSensitive]`, and is stored
+beside the answer, so give the host a key and the hash is an HMAC that only a holder of the key can
+compute. `AddDecisionRecording` takes one of three, in order:
+
+| Source | How |
+|---|---|
+| A [`StateHashKey`](/docs/core/decisions#keying-the-state-hash) the host registered in the container itself | Kept as it is |
+| `HashStatesWith(byte[] key)` | `AddDecisionRecording(o => o.HashStatesWith(key))`, at least 32 bytes |
+| Configuration | Base64 of at least 32 bytes under `Trax:Decisions:StateHashKey` (`DecisionRecordingOptions.StateHashKeyConfigurationKey`) |
+
+```csharp
+effects.UsePostgres(connectionString)
+    .AddDecisionRecording(o => o.HashStatesWith(Convert.FromBase64String(secret)))
+```
+
+Every process that may repeat a run must use the same key. Adding or changing it means each answer
+recorded before it is asked afresh once, because a hash taken under another key, or none, never
+matches. A configured value that is not base64 or is shorter than 32 bytes is not ignored: the state
+is not hashed at all, so nothing replays, rather than falling back to an unkeyed hash.
+
+Without a key the hash is a plain SHA-256 (`s1:`), and the journal stores it only where that is
+harmless. For a question whose state type can reach a member marked `[TraxSensitive]`, a question
+about a sensitive type, or a decision reported without its state type, the row is written with no
+`state_hash`, so its answer is never replayed, and a warning naming the state type is logged once.
+
 A question about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type)
 is recorded in full here, because a replay reads its answer from this table. The mark withholds the
 answer from [junction events](/docs/effect/junction-events) and `trax.junction_run`, and the
-journal's log line writes it as withheld, but `trax.decision` keeps it. Which questions are
+journal's log line writes it as withheld, along with why a recorded answer to it was not replayed,
+but `trax.decision` keeps it. Which questions are
 sensitive is decided by the type the question is about (`DecisionMade.QuestionType`), with
 inheritance, so a subclass of a marked type is withheld even when no scan saw it.
 
@@ -212,13 +240,15 @@ inheritance, so a subclass of a marked type is withheld even when no scan saw it
 | `decider` | The decider's type, or null for a replayed answer |
 | `replayed` | Whether the answer came from an earlier run |
 | `shadows` | Each shadow's answer, whether it agreed, and why it gave none (jsonb) |
-| `state_hash` | The SHA-256 of the state the question was asked about, 64 lowercase hex characters, or null when the state could not be hashed or the row predates the column. A row with no hash is never replayed. |
+| `state_hash` | The hash of the state the question was asked about: `k1:` and the hex of an HMAC-SHA256 under the host's key, or `s1:` and the hex of a SHA-256 without one. Null when the state could not be hashed, when no key is configured and the state can hold a `[TraxSensitive]` member, or when the row predates the column. A row with no hash is never replayed. |
 | `routes` | Every track a routing step took on this decision, in order, as a jsonb array of `{"track": ..., "fallback_reason": ...}`; `fallback_reason` says why the decision was not followed, and is null when it was. Null when nothing routed on it. |
 | `decided_at` | When it was answered |
 
 The same migration adds `decisions_recorded` to `trax.metadata`. It is set on a run's first write
 when the host records decisions, before any junction, so a replay can tell a run that reached no
-questions from one whose decisions were never recorded.
+questions from one whose decisions were never recorded. `replay_abandoned` (Postgres `061`, Sqlite
+`026`) marks a manifest's retry that named a run to replay and could not honour it; see
+[A requeue of a requeue](#a-requeue-of-a-requeue).
 
 It needs a data provider, and is a compile error before one. The table ships in the core
 migration set (Postgres `054`, Sqlite `019`; `state_hash` in Postgres `059`, Sqlite `024`) and is
@@ -234,12 +264,18 @@ first, so a decision that could not be recorded is never reported as made, then 
 ones.
 
 Register your own observer before `AddTrax`. One registered after it replaces the composite in the
-container, so decision recording would never be told about a decision. While decision recording is
+container, so decision recording would never be told about a decision, and junction events would
+not hear the routings they withhold tracks by. While decision recording or junction events are
 registered, such a host refuses to start with an `InvalidOperationException` naming the observer,
-and every run that would record its decisions refuses too, for a host built without the generic
-host. No decision is acted on unrecorded. Decorating `IDecisionObserver` (Scrutor's `Decorate`,
-say) replaces the composite the same way and is refused the same way, and an observer the container
-cannot build refuses too, with what building it threw.
+and every run refuses too, for a host built without the generic host. No decision is acted on
+unrecorded. Decorating `IDecisionObserver` (Scrutor's `Decorate`, say) replaces the composite the
+same way and is refused the same way.
+
+Each observer in the composite is built on its own. A host observer that is best effort as
+registered (an instance that is not `Required`, or a type that leaves `Required` to its default)
+and cannot be built is left out with a warning. Any other observer that cannot be built, including
+one registered through a factory, fails every decision step and the host's start, with what
+building it threw.
 
 ```csharp
 services.AddSingleton<IDecisionObserver, DecisionAuditor>();   // before AddTrax: told alongside Trax's own
@@ -271,7 +307,10 @@ run that replays the original's recorded decisions. Both go through
 [`IOperationsService.RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync),
 which sets the new run's `ReplayDecisionsOf` to the original's id when the original has decisions
 to replay: it recorded a decision it acted on, or was itself queued to replay another run. A run of a train
-that never decides is re-queued as an ordinary enqueue. Each question the new run asks is answered
+that never decides is re-queued as an ordinary enqueue. A run's answers are replayed once: when a
+queued entry or another run already replays the run being re-queued, the requeue asks afresh and
+its message says so. **Re-queue, Ask Afresh** and `requeueExecution(askAfresh: true)` ask afresh on
+purpose. Each question the new run asks is answered
 from what was recorded for the same question and asking, without calling a decider or its shadows,
 and recorded with `replayed` set. A re-queue repeats a run, usually because something after a
 decision failed, and asking a model again could take a different track. `Trax.Docs/adr/0041`
@@ -318,11 +357,17 @@ whether it replayed it or was answered afresh. A question that run never reached
 run it replayed, and so on. So a requeue of a requeue that failed before reaching a question still
 takes the track the first run took there. The chain is followed at most 32 runs back.
 
+A manifest's retry that named a run to replay and asked afresh because the replay could not be
+honoured (below) is marked `replay_abandoned`, on its first write. It never acted on the answers of the run it named, so a replay of it stops
+there: it replays that run's own recorded answers, and fails, as for any run that did not record
+its decisions, when it recorded none. A run that names a run to replay without the mark (one that
+never started, say) is passed through to the run it names, as before.
+
 All of this is loaded once, before the run's first junction, so answering a question never waits
-on the database. Metadata cleanup does not delete a run while a `Queued` work queue entry or any
-other run names it in `replay_decisions_of`, so a chain stays whole while anything links to it;
-when the linking run expires too, it is deleted first and the run it links to in a later batch or
-sweep.
+on the database. Metadata cleanup does not delete a run while a `Queued` work queue entry or a run
+it keeps names it in `replay_decisions_of`, and does not delete a run that replays another while it
+keeps the run it replays. When both have expired they are deleted together, in one batch. See
+[Metadata cleanup](/docs/scheduler/admin-trains/metadata-cleanup).
 
 | The replay meets | What happens |
 |---|---|
@@ -345,7 +390,8 @@ repeat the original.
 A manifest's retry, or a requeue of its dead letter, is the exception. The scheduler queued it, not
 someone who asked for the original's decisions, so when its replay cannot be honoured (the run it
 names is gone or belongs to another train, the host does not record decisions, or a recorded answer
-cannot be read) it logs a warning and asks afresh. A manual requeue still fails, `Permanent`. A run in the chain that recorded its decisions but reached no questions is
+cannot be read) it logs a warning, asks afresh and is marked `replay_abandoned`. A manual requeue
+still fails, `Permanent`. A run in the chain that recorded its decisions but reached no questions is
 not a failure: there is nothing of its own to repeat, and the replay goes on to the run before it.
 
 ### A host that does not record

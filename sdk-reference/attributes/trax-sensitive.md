@@ -82,10 +82,23 @@ public enum CreditTier { Prime, NearPrime, Subprime }
   output; mark the property for that.
 - [`trax.decision`](/docs/effect/decisions#recording-decisions) keeps the full answer either way,
   because a requeue or retry replays it from there.
-- The path is withheld with the answer: every junction after the route is published and stored
-  with its name as `(withheld)` and `NameWithheld` set, in every view. How many steps ran and how
-  long each took stays visible.
-- The decision journal's log writes the answer and the track as withheld.
+- The path is withheld with the answer: every step after the route (a junction, a question or
+  another route) is published and stored with its name as `(withheld)` and `NameWithheld` set, in
+  every view, and a later question or route has its key, answer, confidence and decider left out
+  too. The number, kinds, positions and timing of those steps, a failed junction's exception type
+  and failure class, the run's own failure junction and any train started on the track stay
+  visible; see [Withholding an answer](/docs/effect/junction-events#withholding-an-answer).
+- The decision journal's log writes the answer, the track and why a recorded answer was not
+  replayed as withheld.
+
+## On a member of a decision's state
+
+A recorded decision stores the hash of the state the question was asked about, and that hash
+covers every value in the state, marked members included. Without a state hash key, the journal
+stores no hash for a question whose state type can reach a member marked `[TraxSensitive]`, so its
+answer is never replayed, and logs a warning naming the state type once. Configure a key with
+`AddDecisionRecording(o => o.HashStatesWith(key))` or `Trax:Decisions:StateHashKey` to have such
+answers replay; see [Keying the state hash](/docs/effect/decisions#keying-the-state-hash).
 
 ## Example
 
