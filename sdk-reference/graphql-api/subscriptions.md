@@ -128,11 +128,18 @@ surface is exposed), and each subscriber's view is the one [Who receives what](#
 describes, including the refusal of a subscriber who could receive nothing. Outside the operations
 view a step loses host detail, as a train event does: `decider` is null, and `failureException` is
 shown only for a `TrainException`. A broadcast subscriber also gets `answer` and `confidence` as
-null, and the name of every junction with a `trackPosition` (one after a routing step) as
-`(withheld)` with `nameWithheld` true, unless the host calls
-[`AllowJunctionAnswersForBroadcastSubscribers()`](/docs/sdk-reference/graphql-api/add-trax-graphql#builder-methods):
-which junctions ran after a route says which track it took. It still sees that a question was
-asked, its key, and how many steps ran. The operations view always sees answers and names.
+null, unless the host calls
+[`AllowJunctionAnswersForBroadcastSubscribers()`](/docs/sdk-reference/graphql-api/add-trax-graphql#builder-methods).
+Without that call, every step with a `trackPosition` (any step after a routing step, of any kind: a
+junction, a `Choice`, `Score` or `YesNo` question, or a further route) arrives named `(withheld)`
+with `nameWithheld` true, and with `questionKey`, `answer` and `confidence` null, because each of
+them can say which track ran. The operations view always sees answers and names.
+
+A withheld step still arrives with its kind, position, state, timing and failure class, so the
+shape of a run stays visible: where a routing step's tracks run a different number of steps, or
+take different times, that shape can tell them apart. A train whose track shape is as sensitive as
+its answer belongs off broadcast, with its runs followed through the operations view.
+`Trax.Api/docs/adr/0037` records why.
 
 | Field | Description |
 |-------|-------------|
@@ -143,17 +150,25 @@ asked, its key, and how many steps ran. The operations view always sees answers 
 
 A step never carries the train's input or output or a failure's message. An answer to a question
 about a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) type
-is null, with `answerWithheld` true, and the junctions after it are named `(withheld)`, with
-`nameWithheld` true, in every view.
+is null, with `answerWithheld` true, in every view. After a routing step whose answer is withheld
+this way, every later step of the run is withheld in every view too: named `(withheld)`, with
+`nameWithheld` true, and a question or route has its `questionKey`, `answer` and `confidence` null.
+What such a step still shows is the shape described above; the run's `failureJunction` on its
+[failed event](#trainlifecycleevent-payload), and a train started from a junction on the track, are
+reported as for any run.
 
 A `metadataId` of 0 or less is refused with `TRAX_INVALID_ARGUMENT`. Publishing a step to the
 subscription waits at most 250 ms on the run's path; a step that cannot be published in time is
-dropped and shows as a skip in `sequence`.
+dropped and shows as a skip in `sequence`. A send still running when the bound expires or the run is
+cancelled keeps its number, so a later step is never sent under the same one.
 
 The feed carries every run's steps on one topic, filtered by run as each subscriber reads it, so a
-skip in `sequence` reports a loss whichever run it came from. To follow a run already under way,
-subscribe first, then read [`operations.junctionRuns`](/docs/sdk-reference/graphql-api/queries#junctionruns)
-for the steps it took before, and keep for each position whichever is further along.
+skip in `sequence` reports a loss whichever run it came from, this one or another. Only the
+operations view can recover a gap: to follow a run already under way, subscribe first, then read
+[`operations.junctionRuns`](/docs/sdk-reference/graphql-api/queries#junctionruns) for the steps it
+took before or lost, and keep for each position whichever is further along. That query sits behind
+the operations gate, so a broadcast subscriber cannot read it and sees only the steps that reach it
+after it subscribed.
 `Trax.Api/docs/adr/0037` records why the feed follows one run.
 
 ## Examples

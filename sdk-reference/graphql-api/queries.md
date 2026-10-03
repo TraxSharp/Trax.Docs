@@ -770,9 +770,21 @@ query {
 **Returns**: `[JunctionStep!]!`, the same type the [`onJunctionEvent`](/docs/sdk-reference/graphql-api/subscriptions#onjunctionevent)
 subscription carries. A step carries no input, output or failure message, and an answer to a
 question about a [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type)
-type is never present, and a junction after such a question is named `(withheld)`, with
-`nameWithheld` true. `trackPosition` is the position of the routing step whose track a junction is
-on. The recorded decider is not kept, so `decider` is always null here.
+type is never present. Once a routing step's answer is withheld, every later step of the run is
+withheld too, whatever its kind: a junction, a question or a further route is named `(withheld)`,
+with `nameWithheld` true, and a question or route has `questionKey`, `answer` and `confidence` null
+and `answerWithheld` true. `trackPosition` is the position of the latest routing step before a step,
+of any kind, and null before the first. Trax cannot tell where a track rejoins the chain, so every
+step after a route counts as on its track. The recorded decider is not kept, so `decider` is always
+null here.
+
+A withheld step still records its kind, position, state and timing, and for a failed junction its
+exception type and failure class. The run's own `failureJunction`, the train's failed event, and
+a train started from a junction on the track are recorded as for any run. See
+[Junction Events](/docs/effect/junction-events).
+
+A junction whose end event was dropped stays `IN_PROGRESS` in these rows after its run has ended,
+so read a step's `state` together with the execution's.
 
 It answers to the operations gate, as [`execution`](#execution) does, so a caller refused one is
 refused the other. The rows trail the live subscription by moments: a client following a running

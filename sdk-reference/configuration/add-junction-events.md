@@ -49,7 +49,7 @@ services.AddTrax(trax => trax
 |---|---|---|
 | Junction event publisher | Singleton | Publishes each step to the host's `IJunctionEventHandler`s and to the broadcaster's transport, when there is one |
 | Junction run writer | Singleton, and a hosted service | Stores steps in `trax.junction_run` from a background queue of 4,096; stopping the host drains it |
-| An `IDecisionObserver` | Singleton | Turns each decision and routing into a step. Best effort, told after required observers such as decision recording's ([Other decision observers](/docs/effect/decisions#other-decision-observers)). |
+| An `IDecisionObserver` | Singleton | Turns each decision and routing into a step. Told after required observers such as decision recording's ([Other decision observers](/docs/effect/decisions#other-decision-observers)). Withholding a track depends on it hearing every routing, so an `IDecisionObserver` registered after `AddTrax`, which would replace it, refuses the host's start and every run. |
 
 Calling `AddJunctionEvents()` more than once registers these once.
 
@@ -108,18 +108,21 @@ public sealed record JunctionEventPayload(
 | `EndedAt`, `DurationMs` | When the junction returned and how long it took; null for a start |
 | `FailureClass` | How a failed junction's failure is classified; null unless it failed |
 | `FailureException` | The type name of the exception a junction failed or was cancelled with, never its message |
-| `QuestionKey` | The question's key, for a question or a track |
+| `QuestionKey` | The question's key, for a question or a track; null when `NameWithheld` is set |
 | `Answer` | The option, score or probability of yes the run acted on; null for a junction, a refused answer and a withheld one |
 | `Confidence` | The decider's confidence, for a choice or score; null when withheld |
 | `Replayed` | True when the answer came from an earlier run |
-| `Decider` | The full name of the decider's type. Not stored. |
-| `AnswerWithheld` | True when the question is about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type) |
+| `Decider` | The full name of the decider's type; null when `NameWithheld` is set. Not stored. |
+| `AnswerWithheld` | True when the question is about a type marked [`[TraxSensitive]`](/docs/sdk-reference/attributes/trax-sensitive#on-a-question-type), and for a question or route after a withheld route |
 | `Attempt` | Which attempt of its manifest the run is, or null for a run with no manifest |
-| `NameWithheld` | True for a junction that runs after a route whose answer is withheld, because which junctions ran would give the track away |
-| `TrackPosition` | For a junction, the position of the latest route the run took before it, or null before any route. Every junction after a route counts as on its track. A consumer that does not show a reader answers should not show these junctions' names either. |
+| `NameWithheld` | True for every step (a junction, a question or a route) after a route whose answer is withheld, because which steps ran would give the track away. A question's or route's key, answer, confidence and decider are left out with the name. |
+| `TrackPosition` | For any step, the position of the latest route the run took before it, or null before any route. Every step after a route counts as on its track. A consumer that does not show a reader answers should not show these steps' names or question keys either. |
 
 It never carries a junction's input or output, the train's input or output, a failure's message,
-or the state, instructions or criteria of a question.
+or the state, instructions or criteria of a question. On a withheld track the number, kinds,
+positions and timing of steps, a failed junction's exception type and failure class, the run's own
+failure junction and any train started on the track stay visible; see
+[Withholding an answer](/docs/effect/junction-events#withholding-an-answer).
 
 ## IJunctionEventHandler
 
@@ -166,16 +169,20 @@ The API's `operations.junctionRuns` and the dashboard's timeline read through it
 - Nothing it does can fail a run or change a junction's result: a failure to store, broadcast or
   hand out a step is logged and swallowed.
 - A step is stored by a background writer, in order and in batches, through a data context of its
-  own, so the run never waits on the database. A full queue drops a step, counted and logged.
+  own, so the run never waits on the database. A full queue drops a step, counted and logged. A
+  junction whose end was dropped stays `InProgress` after its run has ended, so read a row's state
+  together with its run's.
 - A run's rows are deleted with its metadata row, by the foreign key's cascade.
 - Only `EffectJunction`s are steps. A junction skipped because an earlier one failed is not a step,
   and a run that is not saved (no metadata row) publishes none.
 - A custom `ITrainEventBroadcaster` is handed every junction event too, on the run's path; it should
   queue rather than wait, and may route steps apart from train events.
 - A run of a manifest carries its attempt: 1 plus the manifest's failed runs since its last
-  completed or cancelled one, read once when the run begins and waited on for at most a second. A
-  failure to read it leaves it out.
-- With RabbitMQ, steps go to their own exchange; see
+  completed or cancelled one, counted in full, read once when the run begins and waited on for at
+  most a second. A failure to read it leaves it out.
+- Junction events carry `FailureJunction` as null; the run's own `Failed` event names the junction.
+- With RabbitMQ, steps go to their own exchange, and after a failure there are dropped untried for a
+  backoff of one second doubling to a minute; see
   [UseBroadcaster: RabbitMQ](/docs/sdk-reference/configuration/use-broadcaster#rabbitmq). With
   SignalR, they reach clients only after
   [`WithJunctionEvents()`](/docs/sdk-reference/configuration/use-signalr-hub#junction-events).

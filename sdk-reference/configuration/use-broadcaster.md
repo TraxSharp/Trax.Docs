@@ -89,7 +89,7 @@ The `TrainLifecycleEventMessage` is a serializable record containing:
 | `TrainName` | `string` | Canonical train name, the train interface's full name (empty on a `DataChanged` signal) |
 | `TrainState` | `string` | Current state (serialized as string for transport) |
 | `Timestamp` | `DateTime` | When the event occurred |
-| `FailureJunction` | `string?` | Junction that failed (if applicable) |
+| `FailureJunction` | `string?` | Junction that failed (if applicable). Always null on a junction event. |
 | `FailureReason` | `string?` | Failure message (if applicable) |
 | `EventType` | `string` | See the event types below |
 | `Executor` | `string?` | Assembly name of the process that broadcast the event, for display |
@@ -164,7 +164,10 @@ each step of a run is published to the junction exchange, `trax.lifecycle.juncti
 It is used only where steps are: a publisher declares it when it first has a step to send, and a
 receiver binds it only on a host with an `IJunctionEventHandler` registered, each on a channel of
 its own. A junction exchange the broker refuses (one declared elsewhere with another type, say)
-drops steps, logged, and never closes the channel train events use. A receiver takes train events
+drops steps, logged, and never closes the channel train events use. After a failure on the junction
+exchange the publisher drops steps untried for a backoff that starts at one second and doubles up to
+a minute, then tries the exchange again, so a broken junction exchange costs the sender one attempt
+per backoff rather than one per step. A receiver takes train events
 only from the train exchange and steps only from the junction exchange, and drops anything that
 arrives on the other. A receiver from a Trax version before junction events binds only the train
 exchange, so it never receives one.
