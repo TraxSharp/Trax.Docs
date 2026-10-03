@@ -33,7 +33,7 @@ From the `Trax.Samples` root:
 dotnet run --project samples/SignalRBroadcaster/Trax.Samples.SignalRBroadcaster
 ```
 
-Open <http://localhost:5230>. `dotnet run` starts in Development through
+Open <http://localhost:5270>. `dotnet run` starts in Development through
 `Properties/launchSettings.json`, the only environment that maps the demo sign-in.
 
 ## Try it
@@ -49,8 +49,8 @@ Open <http://localhost:5230>. `dotnet run` starts in Development through
 Without signing in, both of these answer `401`:
 
 ```bash
-curl -i -X POST http://localhost:5230/pings
-curl -i -X POST "http://localhost:5230/hubs/trax-events/negotiate?negotiateVersion=1"
+curl -i -X POST http://localhost:5270/pings
+curl -i -X POST "http://localhost:5270/hubs/trax-events/negotiate?negotiateVersion=1"
 ```
 
 ## How it works
