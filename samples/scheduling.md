@@ -51,7 +51,7 @@ the database `docker compose` starts. Trax creates its `trax` schema on first st
 ## Try it
 
 Within about ten seconds of starting, the dashboard's **Data > Dead Letters** page lists
-`import-supplier-feed`, and **Data > Executions** shows its three failed runs, each with the
+`import-supplier-feed`, and **Data > Metadata** shows its three failed runs, each with the
 junction that threw (`DownloadFeedJunction`), the exception type and the stack trace.
 
 The same over GraphQL:
