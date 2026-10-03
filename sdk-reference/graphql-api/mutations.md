@@ -230,7 +230,9 @@ mutation {
 | `externalId` | `String!` | Yes | The manifest's external ID |
 | `askAfresh` | `Boolean` | No | Default `false`. When `true` and the trigger releases a queued retry that would [replay the failed run's decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions), the run asks its deciders afresh instead |
 
-**Returns**: `OperationResponse`
+**Returns**: `OperationResponse`. With `askAfresh: true`, a retry the dispatcher claimed before the
+trigger reached it can no longer be changed. The mutation still succeeds, and its message says so:
+`"Manifest triggered, but the dispatcher had already claimed its queued retry, so that run replays the decisions of execution 42 rather than asking its deciders afresh"`.
 
 ---
 
@@ -256,7 +258,7 @@ mutation {
 |-----------|------|----------|-------------|
 | `externalId` | `String!` | Yes | The manifest's external ID |
 | `delay` | `TimeSpan!` | Yes | How long to wait before triggering (e.g. `"00:05:00"` for 5 minutes) |
-| `askAfresh` | `Boolean` | No | Default `false`. As on `triggerManifest` |
+| `askAfresh` | `Boolean` | No | Default `false`. As on `triggerManifest`, including the message when the dispatcher claimed the retry first |
 
 **Returns**: `OperationResponse`
 
@@ -450,7 +452,8 @@ mutation {
 Sets whether retries of many manifests replay the decisions of the run they retry. Only manifests
 whose flag differs are written. It calls `IOperationsService.SetManifestsReplayDecisionsOnRetryAsync`,
 the call the dashboard makes. Turning it off also clears the replay link of each manifest's queued
-entry, so a retry waiting out its backoff asks afresh. See
+entry, in the same transaction as the flag, so a retry waiting out its backoff asks afresh, and the
+message counts them (`"2 queued retry(s) no longer replay a failed run's decisions."`). See
 [Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions).
 
 ```graphql
@@ -492,6 +495,12 @@ Each replayed answer is still checked: a question whose state hashes differently
 answer is older than `ReplayAnswersFor`, is asked afresh. See
 [Re-queued and retried runs replay their decisions](/docs/effect/decisions#re-queued-and-retried-runs-replay-their-decisions).
 
+`askAfresh: true` queues the run with no link, so it asks every question again. A run's answers are
+replayed once: when a queued entry (a manifest's retry, an earlier requeue) or another run already
+replays the execution, or queues a replay of it in the same instant, the new run is queued afresh
+either way, and the message ends
+`"It asks its deciders afresh: the decisions of execution 100 are already replayed by another run or queued entry, and are replayed once."`
+
 An execution with no saved input is refused with `success: false` and a message saying inputs are
 saved only when [`SaveTrainParameters()`](/docs/sdk-reference/configuration/save-train-parameters)
 is on. So is one whose input was too large to save in full and was stored as the truncation
@@ -521,6 +530,7 @@ mutation {
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `id` | `Long!` | Yes | The execution's metadata id |
+| `askAfresh` | `Boolean` | No | Default `false`. When `true`, the new run asks its deciders afresh instead of replaying the execution's decisions |
 
 **Returns**: `OperationResponse`.
 

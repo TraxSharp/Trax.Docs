@@ -131,7 +131,8 @@ These methods are available on the `SchedulerConfigurationBuilder` passed to the
 | `DefaultJobTimeout`, `StalePendingTimeout`, `StaleInProgressTimeout`, `StaleStagedEntryTimeout`, `SchedulerLivenessThreshold`, metadata cleanup `RetentionPeriod` and each per-train retention, local worker `VisibilityTimeout` | 1 second to 10 years |
 | `DeadLetterRetentionPeriod`, `DefaultRetryDelay`, `MaxRetryDelay`, `DefaultMisfireThreshold` | 0 to 10 years |
 | `DefaultMaxRetries` | 0 or more |
-| `MaxActiveJobs`, metadata cleanup `DeleteBatchSize`, local worker `BatchSize` | at least 1 when set |
+| `MaxActiveJobs`, local worker `BatchSize` | at least 1 when set |
+| metadata cleanup `DeleteBatchSize` | 1 to 10,000 when set; null sweeps in batches of 10,000 |
 | `RetryBackoffMultiplier` | a finite number, at least 1 |
 | local worker `WorkerCount` | 1 to 256 |
 | local worker `PollingInterval` | greater than zero, up to 30 days |

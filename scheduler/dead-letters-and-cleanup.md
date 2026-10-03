@@ -231,17 +231,33 @@ occurrence asks afresh. It links the retry only when all of these hold:
 | The manifest replays decisions on retry (`ReplayDecisionsOnRetry`, on by default) | Asked afresh |
 | The failed run asked its deciders itself, rather than replaying another run's answers | Asked afresh |
 | Nothing else replays the failed run: no run in any state (queued, running or finished) and no queued entry | Asked afresh |
-| The failed run is inside its train's metadata retention | Asked afresh |
-| For a dependent manifest, its parent has not succeeded again since the failed run started; a new parent success fires a new run, not a retry | Asked afresh |
+| For a dependent manifest, its parent has not succeeded again since the failed run was dispatched; a new parent success fires a new run, not a retry | Asked afresh |
 | The failed run is a run of the manifest's train, recorded its decisions and acted on at least one | Asked afresh |
 | The failed run was queued by this manifest, with no subject key, and with exactly the input and input type the retry is queued with | Asked afresh |
 
 So a retry replays at most once in a row: answers that were replayed into a failure are not
 replayed again, and the next retry asks afresh. A manifest edited between the failure and the retry
 asks afresh, because the answers were given about the old input. Asking afresh is never an error,
-and a lookup that fails is logged and asks afresh rather than holding up the retry. The retention
-check assumes every host that runs metadata cleanup uses the same retention, as one deployment's
-hosts do.
+and a lookup that fails is logged and asks afresh rather than holding up the retry. A dependent's
+failed run is dated by when its work queue entry was dispatched (`work_queue.dispatched_at`), which
+the database stamps as it stamps the parent's last success; a run with no dispatched entry falls
+back to its start time.
+
+A replay that never started still counts as the one replay. A retry queued to replay that never
+ran (its dispatch ran out of attempts, its stored input could not be read, the stale pending reaper
+failed it) keeps its link, so as the manifest's latest failed run it makes the next retry ask
+afresh. Those answers are not offered to a later retry: a replay can be lost, but never applied
+twice. A requeue of such a run follows the kept link to the answers it never replayed.
+
+A run whose replay could not be honoured, and which asked its deciders afresh instead (its metadata
+marked `replay_abandoned`), is different: its answers are its own. It counts as a run that asked
+its deciders itself, so the next retry may replay its answers once, and it does not use up the
+replay of the run it names.
+
+The "nothing else replays the failed run" check reads the run history, so
+[metadata cleanup](#metadata-cleanup) keeps that history whole on every host: it never deletes a
+run that replays another while it keeps the run replayed. Both expired, they are deleted in the
+same transaction; a replay whose source is kept stays with it.
 
 A link can still become impossible to honour after it is written: the failed run can be deleted
 before the retry runs, or the retry can land on a host that does not record decisions. A manifest's
@@ -273,13 +289,32 @@ turns replay back on at each restart over an operator's runtime opt-out, as ever
 does. Where operators manage the flag at runtime, leave it out of code. Left unstated, a new
 manifest replays and an existing one keeps its value. [`IOperationsService.SetManifestsReplayDecisionsOnRetryAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#batch-actions)
 sets it at runtime. Turning it off reaches a retry already queued: the write clears the link on the
-manifest's queued entry, and the dispatcher checks the flag again when it claims an entry. An
+manifest's queued entry in the same transaction as the flag, its message counts the retries it
+cleared (`"2 queued retry(s) no longer replay a failed run's decisions."`), and the dispatcher
+checks the flag again when it claims an entry. An
 opt-out committed in the instant between that check and the run's start still lets that one run
 replay.
 
-For a single occasion, the dead-letter requeues and `TriggerAsync` take `askAfresh`. A requeue
-asked afresh queues no link, and a trigger asked afresh clears the link of the queued retry it
-releases. `Trax.Scheduler/docs/adr/0017` records why retries replay, and why only once.
+For a single occasion, the dead-letter requeues, `TriggerAsync` and
+[`RequeueExecutionAsync`](/docs/sdk-reference/scheduler-api/i-operations-service#requeueexecutionasync)
+take `askAfresh`. A requeue asked afresh queues no link, and a trigger asked afresh clears the link
+of the queued retry it releases. The trigger clears it only while the entry is still queued: when
+the dispatcher claimed the entry first, the run replays anyway, and the trigger says so. Its
+[`ManifestTriggerResult`](/docs/sdk-reference/scheduler-api/manifest-management#manifesttriggerresult)
+has `AlreadyDispatched` set and `ReplayDecisionsOf` naming the run whose decisions it replays, and
+a warning is logged.
+
+A requeue of an execution keeps the replay-once rule too. When a queued entry or a run, in any
+state, already replays the run being re-queued, `RequeueExecutionAsync` still queues it but asks
+afresh, and its message ends `"It asks its deciders afresh: the decisions of execution 42 are
+already replayed by another run or queued entry, and are replayed once."` A manifest's retry does
+not link a run a requeue replays, and a requeue does not link a run a retry replays. The database
+holds one queued entry per replayed run (the unique index `ix_work_queue_unique_queued_replay`), so
+when two hosts, two operators, or a requeue and a retry queue a replay of the same run in the same
+instant, the one that loses is queued again without the link and asks afresh. That holds for a
+retry, a dead-letter requeue, a requeue-all and `RequeueExecutionAsync`; nothing fails, and a
+requeue's message says it asked afresh.
+`Trax.Scheduler/docs/adr/0017` records why retries replay, and why only once.
 
 ## Monitoring
 
@@ -342,6 +377,14 @@ A metadata row is deleted when **all** of these conditions are true:
 3. Its `TrainState` is `Completed`, `Failed`, or `Cancelled`
 
 Any work queue entries and log entries associated with deleted metadata are also removed.
+
+Decision replay adds three conditions. A run is kept while a queued work queue entry, or a run that
+is itself kept, names it in `replay_decisions_of`, because something still replays it. A run that
+replays another is never deleted while the run it replays is kept: both expired, they are deleted
+together in one transaction, so a batch can hold more rows than `DeleteBatchSize`. A replay whose
+source stays is kept with it. Each batch is deleted all or nothing; when a run in it is linked for
+replay during the delete, the batch rolls back, is rechecked and tried again without that run, and
+after three such attempts it is logged as a warning and left for a later sweep.
 
 Cancelled trains are treated as terminal, they are eligible for cleanup but are **not retried** and **do not create dead letters**. Cancellation is an explicit operator action, not a transient failure. A run that stopped because something inside it gave up, such as an `HttpClient` timeout, was not cancelled: it is recorded `Failed` and classified `Transient`, so it counts toward `MaxRetries` like any other failure.
 

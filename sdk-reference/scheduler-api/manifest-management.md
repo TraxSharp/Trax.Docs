@@ -56,8 +56,8 @@ Task TriggerAsync(string externalId, TimeSpan delay, CancellationToken ct = defa
 ```
 
 ```csharp
-Task TriggerAsync(string externalId, bool askAfresh, CancellationToken ct = default)
-Task TriggerAsync(string externalId, TimeSpan delay, bool askAfresh, CancellationToken ct = default)
+Task<ManifestTriggerResult> TriggerAsync(string externalId, bool askAfresh, CancellationToken ct = default)
+Task<ManifestTriggerResult> TriggerAsync(string externalId, TimeSpan delay, bool askAfresh, CancellationToken ct = default)
 ```
 
 | Parameter | Type | Required | Description |
@@ -68,6 +68,33 @@ Task TriggerAsync(string externalId, TimeSpan delay, bool askAfresh, Cancellatio
 | `ct` | `CancellationToken` | No | Cancellation token |
 
 **Throws**: `InvalidOperationException` when no manifest with the specified `ExternalId` exists. The `askAfresh` overloads throw `NotSupportedException` from an `ITraxScheduler` implementation written before them.
+
+### ManifestTriggerResult
+
+The `askAfresh` overloads return what the trigger did:
+
+```csharp
+public record ManifestTriggerResult(
+    long WorkQueueId,
+    bool Created,
+    DateTime? ScheduledAt,
+    bool AlreadyDispatched,
+    long? ReplayDecisionsOf);
+```
+
+| Field | Description |
+|---|---|
+| `WorkQueueId` | The work queue entry that runs the triggered run |
+| `Created` | `true` when the trigger queued a new entry; `false` when it released the manifest's queued entry instead |
+| `ScheduledAt` | When the entry is due; null means immediately |
+| `AlreadyDispatched` | `true` when the dispatcher claimed the manifest's queued entry between the trigger finding it and changing it, so the trigger changed nothing about it: it was not brought forward, and a run asked afresh still replays the decisions it was queued to replay |
+| `ReplayDecisionsOf` | The run whose decisions the triggered run replays, as the trigger left the entry; null when it asks its deciders afresh. A new entry never replays. |
+
+The trigger clears a queued retry's link only while the entry is still queued. With
+`AlreadyDispatched` and a `ReplayDecisionsOf`, the run was asked afresh too late and replays that
+run's decisions; the trigger also logs a warning. The
+[`triggerManifest`](/docs/sdk-reference/graphql-api/mutations#triggermanifest) mutation reports the
+same case in its message.
 
 ## ScheduleOnceAsync
 

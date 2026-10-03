@@ -41,8 +41,8 @@ public interface ITraxScheduler
     Task EnableAsync(string externalId, CancellationToken ct = default);
     Task TriggerAsync(string externalId, CancellationToken ct = default);
     Task TriggerAsync(string externalId, TimeSpan delay, CancellationToken ct = default);
-    Task TriggerAsync(string externalId, bool askAfresh, CancellationToken ct = default);
-    Task TriggerAsync(string externalId, TimeSpan delay, bool askAfresh, CancellationToken ct = default);
+    Task<ManifestTriggerResult> TriggerAsync(string externalId, bool askAfresh, CancellationToken ct = default);
+    Task<ManifestTriggerResult> TriggerAsync(string externalId, TimeSpan delay, bool askAfresh, CancellationToken ct = default);
     Task<int> TriggerGroupAsync(long groupId, CancellationToken ct = default);
     Task<int> CancelAsync(string externalId, CancellationToken ct = default);
     Task<int> CancelGroupAsync(long groupId, CancellationToken ct = default);

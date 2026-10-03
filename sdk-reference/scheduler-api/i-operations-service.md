@@ -21,6 +21,7 @@ public interface IOperationsService
     Task<OperationResult> QueueTrainAsync(QueueTrainInput input, CancellationToken ct);
     Task<OperationResult> RunTrainAsync(RunTrainInput input, CancellationToken ct);
     Task<OperationResult> RequeueExecutionAsync(long metadataId, CancellationToken ct);
+    Task<OperationResult> RequeueExecutionAsync(long metadataId, bool askAfresh, CancellationToken ct);
     Task<OperationResult> CancelExecutionsAsync(IReadOnlyCollection<long> ids, CancellationToken ct);
     Task<OperationResult> CancelWorkQueueEntriesAsync(IReadOnlyCollection<long> ids, CancellationToken ct);
     Task<OperationResult> SetManifestsEnabledAsync(IReadOnlyCollection<long> ids, bool enabled, CancellationToken ct);
@@ -59,7 +60,13 @@ A run is otherwise a deliberate bypass of the work queue. It skips dispatch prio
 
 ```csharp
 Task<OperationResult> RequeueExecutionAsync(long metadataId, CancellationToken ct);
+Task<OperationResult> RequeueExecutionAsync(long metadataId, bool askAfresh, CancellationToken ct);
 ```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `metadataId` | `long` | The run (metadata row) to re-queue |
+| `askAfresh` | `bool` | When `true`, the new entry carries no replay link and the new run asks every question again; nothing else differs. The overload without it is `askAfresh: false`. |
 
 Re-queues a run: queues a fresh run of the same train with the input the run recorded. The GraphQL
 [`requeueExecution`](/docs/sdk-reference/graphql-api/mutations#requeueexecution) mutation and the
@@ -101,7 +108,18 @@ It is the only caller-facing method that sets the link, always to the run being 
 scheduler sets it on a manifest's retry and dead-letter requeue from its own checks (see
 [Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions)).
 Each replayed answer is still checked against the state it is asked about now and its age, so a
-question whose state changed, or whose answer is older than `ReplayAnswersFor`, is asked afresh. When the run has decisions to replay and the registered `ITrainExecutionService` does
+question whose state changed, or whose answer is older than `ReplayAnswersFor`, is asked afresh.
+
+A run's answers are replayed once. When a queued entry (a manifest's retry, an earlier requeue) or
+a run in any state already replays the run being re-queued, the requeue still queues it but asks
+afresh, and the success message ends
+`It asks its deciders afresh: the decisions of execution {id} are already replayed by another run or queued entry, and are replayed once.`
+The same holds when another enqueue queues a replay of the run in the same instant: the database
+allows one queued entry per replayed run, so the requeue that loses is queued without the link,
+asks afresh, and says so in the same message. With `askAfresh: true` no link is set and the message
+adds nothing.
+
+When the run has decisions to replay and the registered `ITrainExecutionService` does
 not implement the
 [`QueueAsync` overload that takes `QueueTrainOptions`](/docs/sdk-reference/mediator-api/train-execution),
 the mediator's `DecisionReplayNotSupportedException` is logged and thrown as a host
@@ -136,7 +154,7 @@ The actions a list page applies to its selected rows. Each takes up to `Operatio
 | `CancelExecutionsAsync(ids, ct)` | Each run still `Pending` or `InProgress` gets `CancellationRequested`, and one running on this host is also cancelled at once through `ICancellationRegistry`. Terminal and unknown runs are skipped. A `Pending` run is recorded `Cancelled` and never run when the job runner picks it up, whatever junction providers the host registers. An `InProgress` run observes the flag at its next junction boundary, when the host uses the junction progress provider. | `Execution`, when at least one run was flagged |
 | `CancelWorkQueueEntriesAsync(ids, ct)` | Entries still `Queued` become `Cancelled`, in one statement, so an entry the dispatcher claims meanwhile keeps its status | `WorkQueue` |
 | `SetManifestsEnabledAsync(ids, enabled, ct)` | Manifests whose `IsEnabled` differs | `Manifest` |
-| `SetManifestsReplayDecisionsOnRetryAsync(ids, replay, ct)` | Manifests whose `ReplayDecisionsOnRetry` differs. Turning it off also clears the replay link of each manifest's queued entry, so a retry waiting out its backoff asks afresh. See [Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions). | `Manifest`, when any changed |
+| `SetManifestsReplayDecisionsOnRetryAsync(ids, replay, ct)` | Manifests whose `ReplayDecisionsOnRetry` differs. Turning it off also clears the replay link of each manifest's queued entry, in the same transaction as the flag, so a retry waiting out its backoff asks afresh; the message then adds `{n} queued retry(s) no longer replay a failed run's decisions.` See [Retries replay decisions](/docs/scheduler/dead-letters-and-cleanup#retries-replay-decisions). | `Manifest`, when any changed; `WorkQueue`, when a link was cleared |
 | `SetManifestGroupsEnabledAsync(ids, enabled, ct)` | Groups whose `IsEnabled` differs, with `UpdatedAt` bumped | `ManifestGroup` |
 | `SetAllManifestGroupsEnabledAsync(enabled, ct)` | Every group whose `IsEnabled` differs; a separate method so that "all" is never what an empty list means | `ManifestGroup` |
 
