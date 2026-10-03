@@ -770,7 +770,7 @@ mutation {
   operations {
     workQueue {
       queueTrain(input: {
-        trainName: "Trax.Samples.GameServer.Trains.Combat.IResolveCombatTrain"
+        trainName: "MyApp.Trains.Billing.IChargeCustomerTrain"
         inputJson: "{\"attackerId\":\"player-1\",\"defenderId\":\"player-2\"}"
         priority: 10
       }) {
@@ -807,7 +807,7 @@ mutation {
   operations {
     workQueue {
       runTrain(input: {
-        trainName: "Trax.Samples.GameServer.Trains.Combat.IResolveCombatTrain"
+        trainName: "MyApp.Trains.Billing.IChargeCustomerTrain"
         inputJson: "{\"attackerId\":\"player-1\",\"defenderId\":\"player-2\"}"
       }) {
         success

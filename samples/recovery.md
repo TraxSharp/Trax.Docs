@@ -3,7 +3,7 @@ layout: default
 title: Recovery
 description: "The Recovery sample: a train asks a model, a later step crashes, and the manifest's retry replays the decisions while a page shows every junction live."
 parent: Samples & Deployment
-nav_order: 7
+nav_order: 3
 ---
 
 # Recovery

@@ -3,7 +3,7 @@ layout: default
 title: Chat Service
 description: "The ChatService sample: a custom GraphQL subscription fed by a lifecycle hook, socket authentication, per-subscriber checks and caller identity."
 parent: Samples & Deployment
-nav_order: 2
+nav_order: 4
 ---
 
 # Chat Service

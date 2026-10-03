@@ -153,9 +153,10 @@ The GraphQL API registers on a **named HotChocolate schema** (`"trax"`) rather t
 
 ## Sample Projects
 
-The API is demonstrated in three samples, each using a different deployment topology:
+Every sample serves the API; these show it in different deployment topologies (see [Samples & Deployment](/docs/samples) for all of them):
 
-- **LocalWorkers (GameServer)** - API and scheduler as separate processes. The GraphQL API handles lightweight trains directly and queues heavy work for the scheduler. See `samples/LocalWorkers/Trax.Samples.GameServer.Api`.
+- **Scheduling** - API, scheduler, local workers and dashboard in one process, with the operations surface gated to an operator role. See [Scheduling](/docs/samples/scheduling).
+- **Auth** - the API secured end to end: API keys and JWT, `[TraxAuthorize]`, `GateOperations`, the audit trail. See [Auth](/docs/samples/auth).
 - **DistributedWorkers (EnergyHub)** - API, scheduler, and dashboard in a single hub process. The hub schedules and serves GraphQL but runs no queued job: `OverrideSubmitter` leaves them in `background_job` for separate worker processes. See [Energy Hub](/docs/samples/energy-hub).
 - **EphemeralWorkers (ContentShield)** - API with `UseRemoteWorkers()` and `UseRemoteRun()` sends queued mutations, run mutations and queries to an ephemeral Runner via signed HTTP requests. No scheduled jobs, no `background_job` table, purely on-demand, serverless-style execution. See [Content Shield](/docs/samples/content-shield).
 

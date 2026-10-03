@@ -3,7 +3,7 @@ layout: default
 title: Content Shield
 description: "The ContentShield sample: an API that executes nothing, an AWS Lambda style runner signed with a shared key, and how to test the runner without AWS."
 parent: Samples & Deployment
-nav_order: 9
+nav_order: 10
 ---
 
 # Content Shield

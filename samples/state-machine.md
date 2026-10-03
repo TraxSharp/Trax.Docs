@@ -3,7 +3,7 @@ layout: default
 title: State Machine
 description: "The StateMachine sample: two fluent machines behind the generic stateMachine mutations, a forward migration, an exactly-once charge and a server-owned total."
 parent: Samples & Deployment
-nav_order: 10
+nav_order: 8
 ---
 
 # State Machine

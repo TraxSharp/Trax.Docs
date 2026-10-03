@@ -3,7 +3,7 @@ layout: default
 title: SignalR Broadcaster
 description: "The SignalRBroadcaster sample: live train events in a browser through the SignalR sink, a hub only signed-in operators may join, and a projected failure reason."
 parent: Samples & Deployment
-nav_order: 12
+nav_order: 11
 ---
 
 # SignalR Broadcaster

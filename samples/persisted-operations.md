@@ -3,7 +3,7 @@ layout: default
 title: Persisted Operations
 description: "The PersistedOperations sample: a GraphQL API that runs only stored documents, gated management mutations, a hot-fix by id and the shape-diff guardrail."
 parent: Samples & Deployment
-nav_order: 4
+nav_order: 6
 ---
 
 # Persisted Operations

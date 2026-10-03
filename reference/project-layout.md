@@ -110,7 +110,7 @@ Resolvers and `[ExtendObjectType]` classes belong in a project, not in `Program.
 project depends on what they extend: subscription extensions live in the train library
 (`Trax.Samples.ChatService/Subscriptions/`), cross-schema edges in the project that owns the
 join (`Trax.Samples.Bookworm.CrossSchema/Edges/`), and an extension over a type the host
-defines lives in the host (`Trax.Samples.GameServer.Api/TypeExtensions/`).
+defines lives in the host (`Trax.Samples.Auth/Data/ArticleExtensions.cs`).
 
 ### Tests
 

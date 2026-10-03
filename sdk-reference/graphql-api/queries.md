@@ -243,7 +243,7 @@ Execution roll-up for a single train, keyed by its interface FullName (the value
 ```graphql
 query {
   operations {
-    trainStats(trainName: "Trax.Samples.GameServer.Trains.IRecalculateLeaderboardTrain") {
+    trainStats(trainName: "MyApp.Trains.Reports.IBuildDailyReportTrain") {
       total
       completed
       failed
@@ -1193,7 +1193,7 @@ query {
 | `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `metadataId` | `Long` | `null` | Filter to logs for a single execution |
 | `minimumLevel` | `LogLevel` | `null` | Includes the supplied level and anything more severe. `LogLevel` follows `Microsoft.Extensions.Logging`: `TRACE`, `DEBUG`, `INFORMATION`, `WARNING`, `ERROR`, `CRITICAL`, `NONE` |
-| `category` | `String` | `null` | Exact-match filter on the logger category (e.g. `Trax.Samples.GameServer.Trains.Combat.ResolveCombatTrain`) |
+| `category` | `String` | `null` | Exact-match filter on the logger category (e.g. `MyApp.Trains.Billing.ChargeCustomerTrain`) |
 | `afterId` | `Long` | `null` | Keyset cursor. Returns records with `id < afterId` |
 
 **Returns**: `PagedResult<LogEntry>`.
@@ -1441,7 +1441,7 @@ query {
 | `skip` | `Int` | `0` | Number of records to skip (offset pagination). A negative value reads as `0`. Ignored when `afterId` is provided. |
 | `take` | `Int` | `25` | Number of records to return, from 1 to 500. See [Page size](#page-size) |
 | `status` | `WorkQueueStatus` | `null` | Filter by lifecycle state (`QUEUED`, `DISPATCHED`, `CANCELLED`) |
-| `trainName` | `String` | `null` | Exact-match filter on the interface FullName (e.g. `Trax.Samples.GameServer.Trains.Combat.IResolveCombatTrain`) |
+| `trainName` | `String` | `null` | Exact-match filter on the interface FullName (e.g. `MyApp.Trains.Billing.IChargeCustomerTrain`) |
 | `afterId` | `Long` | `null` | Keyset cursor. Returns records with `id < afterId`. See [Pagination](#pagination) |
 
 **Returns**: `PagedResult<WorkQueueSummary>`

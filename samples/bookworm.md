@@ -3,7 +3,7 @@ layout: default
 title: Bookworm
 description: "The Bookworm sample: two domain contexts, a batched cross-schema GraphQL edge, owner-scoped rows, and the architecture guards adopted by a consumer."
 parent: Samples & Deployment
-nav_order: 3
+nav_order: 7
 ---
 
 # Bookworm

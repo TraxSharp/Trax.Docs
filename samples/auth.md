@@ -3,7 +3,7 @@ layout: default
 title: Auth
 description: "The Auth sample: API keys and JWT side by side, TraxAuthorize with roles and policies, GateOperations, scheme-qualified principal ids and the audit trail."
 parent: Samples & Deployment
-nav_order: 1
+nav_order: 2
 ---
 
 # Auth
